@@ -142,6 +142,10 @@ func (ctrl *AddressSpecController) Run(ctx context.Context, r controller.Runtime
 		}
 
 		if err = addresses.ForEachErr(func(res *network.AddressStatus) error {
+			if _, ok := visited[res.Metadata().ID()]; ok {
+				return nil
+			}
+
 			return r.Destroy(ctx, res.Metadata())
 		}); err != nil {
 			return err
