@@ -11,7 +11,9 @@ import (
 
 	"github.com/cosi-project/runtime/pkg/resource"
 	"github.com/cosi-project/runtime/pkg/safe"
+	"github.com/cosi-project/runtime/pkg/state"
 	"github.com/jsimonetti/rtnetlink"
+	"github.com/siderolabs/talos/pkg/machinery/resources/cluster"
 	"github.com/siderolabs/talos/pkg/machinery/resources/config"
 	"github.com/siderolabs/talos/pkg/machinery/resources/hardware"
 	"github.com/siderolabs/talos/pkg/machinery/resources/network"
@@ -25,21 +27,18 @@ import (
 
 // Machine is a single Talos machine.
 type Machine struct {
-	runtime *truntime.Runtime
-	logger  *zap.Logger
-	uuid    string
+	globalState state.State
+	runtime     *truntime.Runtime
+	logger      *zap.Logger
+	uuid        string
 }
 
 // NewMachine creates a Machine.
-func NewMachine(uuid string) (*Machine, error) {
-	logger, err := zap.NewDevelopment()
-	if err != nil {
-		return nil, err
-	}
-
+func NewMachine(uuid string, logger *zap.Logger, globalState state.State) (*Machine, error) {
 	return &Machine{
-		uuid:   uuid,
-		logger: logger,
+		uuid:        uuid,
+		logger:      logger,
+		globalState: globalState,
 	}, nil
 }
 
@@ -55,14 +54,14 @@ type SideroLinkParams struct {
 
 // Run starts the machine.
 func (m *Machine) Run(ctx context.Context, siderolinkParams *SideroLinkParams, machineIndex int) error {
-	rt, err := truntime.NewRuntime(ctx, m.logger, machineIndex)
+	rt, err := truntime.NewRuntime(ctx, m.logger, machineIndex, m.globalState)
 	if err != nil {
 		return err
 	}
 
 	m.runtime = rt
 
-	resources := make([]resource.Resource, 0, 5)
+	resources := make([]resource.Resource, 0, 7)
 
 	// populate the inputs for the siderolink controller
 	hardwareInformation := hardware.NewSystemInformation(hardware.SystemInformationID)
@@ -90,10 +89,20 @@ func (m *Machine) Run(ctx context.Context, siderolinkParams *SideroLinkParams, m
 	processorInfo.TypedSpec().ProductName = "Fake CPU"
 	processorInfo.TypedSpec().ThreadCount = 2
 
-	resources = append(resources, hardwareInformation, siderolinkConfig, uniqueMachineToken, platformMetadata, processorInfo)
+	securityState := runtime.NewSecurityStateSpec(runtime.NamespaceName)
+	securityState.TypedSpec().SecureBoot = false
+
+	identity := cluster.NewIdentity(cluster.NamespaceName, cluster.LocalIdentity)
+	identity.TypedSpec().NodeID = m.uuid
+
+	resources = append(resources, hardwareInformation, siderolinkConfig, uniqueMachineToken, platformMetadata, processorInfo, securityState, identity)
 
 	for _, r := range resources {
 		if err = rt.State().Create(ctx, r); err != nil {
+			if state.IsConflictError(err) {
+				continue
+			}
+
 			return err
 		}
 	}

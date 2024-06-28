@@ -1,8 +1,9 @@
 # THIS FILE WAS AUTOMATICALLY GENERATED, PLEASE DO NOT EDIT.
 #
-# Generated on 2024-04-25T10:48:01Z by kres ebc009d.
+# Generated on 2024-06-27T18:26:32Z by kres 4c9f215.
 
 *
+!api
 !cmd
 !internal
 !go.mod
