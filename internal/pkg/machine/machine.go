@@ -8,38 +8,42 @@ package machine
 import (
 	"context"
 	"fmt"
+	"net/netip"
 
 	"github.com/cosi-project/runtime/pkg/resource"
 	"github.com/cosi-project/runtime/pkg/safe"
+	"github.com/cosi-project/runtime/pkg/state"
 	"github.com/jsimonetti/rtnetlink"
+	"github.com/siderolabs/talos/pkg/machinery/resources/cluster"
 	"github.com/siderolabs/talos/pkg/machinery/resources/config"
 	"github.com/siderolabs/talos/pkg/machinery/resources/hardware"
+	"github.com/siderolabs/talos/pkg/machinery/resources/k8s"
 	"github.com/siderolabs/talos/pkg/machinery/resources/network"
 	"github.com/siderolabs/talos/pkg/machinery/resources/runtime"
 	"github.com/siderolabs/talos/pkg/machinery/resources/siderolink"
 	"go.uber.org/zap"
+	"golang.org/x/sync/errgroup"
 
+	"github.com/siderolabs/talemu/internal/pkg/constants"
 	"github.com/siderolabs/talemu/internal/pkg/machine/controllers"
+	"github.com/siderolabs/talemu/internal/pkg/machine/events"
 	truntime "github.com/siderolabs/talemu/internal/pkg/machine/runtime"
 )
 
 // Machine is a single Talos machine.
 type Machine struct {
-	runtime *truntime.Runtime
-	logger  *zap.Logger
-	uuid    string
+	globalState state.State
+	runtime     *truntime.Runtime
+	logger      *zap.Logger
+	uuid        string
 }
 
 // NewMachine creates a Machine.
-func NewMachine(uuid string) (*Machine, error) {
-	logger, err := zap.NewDevelopment()
-	if err != nil {
-		return nil, err
-	}
-
+func NewMachine(uuid string, logger *zap.Logger, globalState state.State) (*Machine, error) {
 	return &Machine{
-		uuid:   uuid,
-		logger: logger,
+		uuid:        uuid,
+		logger:      logger,
+		globalState: globalState,
 	}, nil
 }
 
@@ -51,18 +55,19 @@ type SideroLinkParams struct {
 	EventsEndpoint string
 	Host           string
 	Insecure       bool
+	TunnelMode     bool
 }
 
 // Run starts the machine.
 func (m *Machine) Run(ctx context.Context, siderolinkParams *SideroLinkParams, machineIndex int) error {
-	rt, err := truntime.NewRuntime(ctx, m.logger, machineIndex)
+	rt, err := truntime.NewRuntime(ctx, m.logger, machineIndex, m.globalState)
 	if err != nil {
 		return err
 	}
 
 	m.runtime = rt
 
-	resources := make([]resource.Resource, 0, 5)
+	resources := make([]resource.Resource, 0, 9)
 
 	// populate the inputs for the siderolink controller
 	hardwareInformation := hardware.NewSystemInformation(hardware.SystemInformationID)
@@ -75,6 +80,7 @@ func (m *Machine) Run(ctx context.Context, siderolinkParams *SideroLinkParams, m
 	siderolinkConfig.TypedSpec().JoinToken = siderolinkParams.JoinToken
 	siderolinkConfig.TypedSpec().Host = siderolinkParams.Host
 	siderolinkConfig.TypedSpec().Insecure = siderolinkParams.Insecure
+	siderolinkConfig.TypedSpec().Tunnel = siderolinkParams.TunnelMode
 
 	uniqueMachineToken := runtime.NewUniqueMachineToken()
 	uniqueMachineToken.TypedSpec().Token = m.uuid
@@ -90,15 +96,59 @@ func (m *Machine) Run(ctx context.Context, siderolinkParams *SideroLinkParams, m
 	processorInfo.TypedSpec().ProductName = "Fake CPU"
 	processorInfo.TypedSpec().ThreadCount = 2
 
-	resources = append(resources, hardwareInformation, siderolinkConfig, uniqueMachineToken, platformMetadata, processorInfo)
+	securityState := runtime.NewSecurityStateSpec(runtime.NamespaceName)
+	securityState.TypedSpec().SecureBoot = false
+
+	identity := cluster.NewIdentity(cluster.NamespaceName, cluster.LocalIdentity)
+	identity.TypedSpec().NodeID = m.uuid
+
+	trustdEndpoint := k8s.NewEndpoint(k8s.ControlPlaneNamespaceName, "omniTrustd")
+
+	trustdEndpoint.TypedSpec().Addresses = []netip.Addr{
+		netip.MustParseAddr(constants.OmniEndpoint),
+	}
+
+	eventSinkConfig := runtime.NewEventSinkConfig()
+	eventSinkConfig.TypedSpec().Endpoint = siderolinkParams.EventsEndpoint
+
+	resources = append(resources,
+		hardwareInformation,
+		siderolinkConfig,
+		uniqueMachineToken,
+		platformMetadata,
+		processorInfo,
+		securityState,
+		identity,
+		trustdEndpoint,
+		eventSinkConfig,
+	)
 
 	for _, r := range resources {
 		if err = rt.State().Create(ctx, r); err != nil {
+			if state.IsConflictError(err) {
+				continue
+			}
+
 			return err
 		}
 	}
 
-	return rt.Run(ctx)
+	sink, err := events.NewHandler(ctx, rt.State(), m.uuid)
+	if err != nil {
+		return err
+	}
+
+	var eg errgroup.Group
+
+	eg.Go(func() error {
+		return rt.Run(ctx)
+	})
+
+	eg.Go(func() error {
+		return sink.Run(ctx, m.logger)
+	})
+
+	return eg.Wait()
 }
 
 // Cleanup removes created network interfaces.

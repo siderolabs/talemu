@@ -1,0 +1,22 @@
+syntax = "proto3";
+package specs;
+
+option go_package = "github.com/siderolabs/talemu/api/specs";
+
+// ClusterStatusSpec defines cluster status of the emulator.
+message ClusterStatusSpec {
+  bool bootstrapped = 1;
+  uint32 control_planes = 2;
+  uint32 workers = 3;
+}
+
+// MachineStatusSpec is an emulated machine status.
+message MachineStatusSpec {
+  repeated string addresses = 1;
+}
+
+// EventSinkStateSpec is defined per machine and resides in it's internal state
+// describes which last version of a resource was reported to the events sink.
+message EventSinkStateSpec {
+  map<string, uint64> versions = 1;
+}

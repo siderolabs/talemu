@@ -2,15 +2,14 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-package runtime
+// Package talos contains Talos specific resources.
+package talos
 
 import (
 	"context"
 
 	"github.com/cosi-project/runtime/pkg/resource/meta"
 	"github.com/cosi-project/runtime/pkg/state"
-	"github.com/cosi-project/runtime/pkg/state/impl/inmem"
-	"github.com/cosi-project/runtime/pkg/state/impl/namespaced"
 	"github.com/cosi-project/runtime/pkg/state/registry"
 	"github.com/siderolabs/talos/pkg/machinery/resources/cluster"
 	"github.com/siderolabs/talos/pkg/machinery/resources/config"
@@ -30,26 +29,17 @@ import (
 	"github.com/siderolabs/talos/pkg/machinery/resources/v1alpha1"
 )
 
-// newState creates State.
-func newState(ctx context.Context) (state.State, error) {
-	state := state.WrapCore(namespaced.NewState(
-		func(ns string) state.CoreState {
-			return inmem.NewStateWithOptions(
-				inmem.WithHistoryInitialCapacity(8),
-				inmem.WithHistoryMaxCapacity(1024),
-				inmem.WithHistoryGap(4),
-			)(ns)
-		},
-	))
+// Register Talos resource group in the state.
+func Register(ctx context.Context, state state.State) error {
 	namespaceRegistry := registry.NewNamespaceRegistry(state)
 	resourceRegistry := registry.NewResourceRegistry(state)
 
 	if err := namespaceRegistry.RegisterDefault(ctx); err != nil {
-		return nil, err
+		return err
 	}
 
 	if err := resourceRegistry.RegisterDefault(ctx); err != nil {
-		return nil, err
+		return err
 	}
 
 	// register Talos namespaces
@@ -72,9 +62,11 @@ func newState(ctx context.Context) (state.State, error) {
 		{cri.NamespaceName, "CRI Seccomp resources."},
 		{secrets.NamespaceName, "Resources with secret material."},
 		{perf.NamespaceName, "Stats resources."},
+
+		{NamespaceName, "Emulator resource."},
 	} {
 		if err := namespaceRegistry.Register(ctx, ns.name, ns.description); err != nil {
-			return nil, err
+			return err
 		}
 	}
 
@@ -186,11 +178,13 @@ func newState(ctx context.Context) (state.State, error) {
 		&v1alpha1.AcquireConfigSpec{},
 		&v1alpha1.AcquireConfigStatus{},
 		&v1alpha1.Service{},
+
+		&EventSinkState{},
 	} {
 		if err := resourceRegistry.Register(ctx, r); err != nil {
-			return nil, err
+			return err
 		}
 	}
 
-	return state, nil
+	return nil
 }

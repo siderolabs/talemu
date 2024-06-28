@@ -1,0 +1,93 @@
+---
+kind: common.Build
+spec:
+  ignoredPaths:
+    - "hack/compose/docker-compose.override.yml"
+---
+kind: service.CodeCov
+spec:
+  # the tool should be tested by Omni integration tests
+  targetThreshold: 10
+---
+kind: golang.Generate
+spec:
+  baseSpecPath: /api
+  vtProtobufEnabled: true
+  specs:
+    - source: api/specs/specs.proto
+      subdirectory: specs
+---
+kind: auto.CustomSteps
+spec:
+  steps:
+    - name: docker-compose-up
+      toplevel: true
+    - name: docker-compose-down
+      toplevel: true
+---
+kind: custom.Step
+name: docker-compose-up
+spec:
+  makefile:
+    enabled: true
+    phony: true
+    script:
+      - >-
+        ARTIFACTS="$(ARTIFACTS)"
+        SHA="$(SHA)"
+        TAG="$(TAG)"
+        USERNAME="$(USERNAME)"
+        REGISTRY="$(REGISTRY)"
+        PROTOBUF_TS_VERSION="$(PROTOBUF_TS_VERSION)"
+        NODE_BUILD_ARGS="$(NODE_BUILD_ARGS)"
+        TOOLCHAIN="$(TOOLCHAIN)"
+        CGO_ENABLED="$(CGO_ENABLED)"
+        GO_BUILDFLAGS="$(GO_BUILDFLAGS)"
+        GOLANGCILINT_VERSION="$(GOLANGCILINT_VERSION)"
+        GOFUMPT_VERSION="$(GOFUMPT_VERSION)"
+        GOIMPORTS_VERSION="$(GOIMPORTS_VERSION)"
+        PROTOBUF_GO_VERSION="$(PROTOBUF_GO_VERSION)"
+        GRPC_GO_VERSION="$(GRPC_GO_VERSION)"
+        GRPC_GATEWAY_VERSION="$(GRPC_GATEWAY_VERSION)"
+        VTPROTOBUF_VERSION="$(VTPROTOBUF_VERSION)"
+        DEEPCOPY_VERSION="$(DEEPCOPY_VERSION)"
+        TESTPKGS="$(TESTPKGS)"
+        COMPOSE_DOCKER_CLI_BUILD=1
+        DOCKER_BUILDKIT=1
+        GO_LDFLAGS="$(GO_LDFLAGS)"
+        docker compose -p talemu --file ./hack/compose/docker-compose.yml --file ./hack/compose/docker-compose.override.yml up --build
+---
+kind: custom.Step
+name: docker-compose-down
+spec:
+  makefile:
+    enabled: true
+    phony: true
+    variables:
+      - name: REMOVE_VOLUMES
+        defaultValue: false
+    script:
+      - >-
+        ARTIFACTS="$(ARTIFACTS)"
+        SHA="$(SHA)"
+        TAG="$(TAG)"
+        USERNAME="$(USERNAME)"
+        REGISTRY="$(REGISTRY)"
+        PROTOBUF_TS_VERSION="$(PROTOBUF_TS_VERSION)"
+        NODE_BUILD_ARGS="$(NODE_BUILD_ARGS)"
+        TOOLCHAIN="$(TOOLCHAIN)"
+        CGO_ENABLED="$(CGO_ENABLED)"
+        GO_BUILDFLAGS="$(GO_BUILDFLAGS)"
+        GOLANGCILINT_VERSION="$(GOLANGCILINT_VERSION)"
+        GOFUMPT_VERSION="$(GOFUMPT_VERSION)"
+        GOIMPORTS_VERSION="$(GOIMPORTS_VERSION)"
+        PROTOBUF_GO_VERSION="$(PROTOBUF_GO_VERSION)"
+        GRPC_GO_VERSION="$(GRPC_GO_VERSION)"
+        GRPC_GATEWAY_VERSION="$(GRPC_GATEWAY_VERSION)"
+        VTPROTOBUF_VERSION="$(VTPROTOBUF_VERSION)"
+        DEEPCOPY_VERSION="$(DEEPCOPY_VERSION)"
+        TESTPKGS="$(TESTPKGS)"
+        COMPOSE_DOCKER_CLI_BUILD=1
+        DOCKER_BUILDKIT=1
+        GO_LDFLAGS="$(GO_LDFLAGS)"
+        docker compose -p talemu --file ./hack/compose/docker-compose.yml --file ./hack/compose/docker-compose.override.yml down --rmi local --remove-orphans --volumes=$(REMOVE_VOLUMES)

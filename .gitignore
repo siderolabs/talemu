@@ -3,3 +3,4 @@
 # Generated on 2024-04-23T19:38:57Z by kres 0610b40-dirty.
 
 _out
+hack/compose/docker-compose.override.yml

@@ -1,6 +1,6 @@
 # THIS FILE WAS AUTOMATICALLY GENERATED, PLEASE DO NOT EDIT.
 #
-# Generated on 2024-04-25T10:48:01Z by kres ebc009d.
+# Generated on 2024-07-08T16:02:22Z by kres 8c8b007.
 
 # common variables
 
@@ -10,20 +10,22 @@ ABBREV_TAG := $(shell git describe --tags >/dev/null 2>/dev/null && git describe
 BRANCH := $(shell git rev-parse --abbrev-ref HEAD)
 ARTIFACTS := _out
 IMAGE_TAG ?= $(TAG)
+OPERATING_SYSTEM := $(shell uname -s | tr '[:upper:]' '[:lower:]')
+GOARCH := $(shell uname -m | sed 's/x86_64/amd64/' | sed 's/aarch64/arm64/')
 WITH_DEBUG ?= false
 WITH_RACE ?= false
 REGISTRY ?= ghcr.io
 USERNAME ?= siderolabs
 REGISTRY_AND_USERNAME ?= $(REGISTRY)/$(USERNAME)
-PROTOBUF_GO_VERSION ?= 1.33.0
-GRPC_GO_VERSION ?= 1.3.0
-GRPC_GATEWAY_VERSION ?= 2.19.1
+PROTOBUF_GO_VERSION ?= 1.34.2
+GRPC_GO_VERSION ?= 1.4.0
+GRPC_GATEWAY_VERSION ?= 2.20.0
 VTPROTOBUF_VERSION ?= 0.6.0
+GOIMPORTS_VERSION ?= 0.22.0
 DEEPCOPY_VERSION ?= v0.5.6
-GOLANGCILINT_VERSION ?= v1.57.2
+GOLANGCILINT_VERSION ?= v1.59.1
 GOFUMPT_VERSION ?= v0.6.0
-GO_VERSION ?= 1.22.2
-GOIMPORTS_VERSION ?= v0.20.0
+GO_VERSION ?= 1.22.4
 GO_BUILDFLAGS ?=
 GO_LDFLAGS ?=
 CGO_ENABLED ?= 0
@@ -60,12 +62,16 @@ COMMON_ARGS += --build-arg=PROTOBUF_GO_VERSION="$(PROTOBUF_GO_VERSION)"
 COMMON_ARGS += --build-arg=GRPC_GO_VERSION="$(GRPC_GO_VERSION)"
 COMMON_ARGS += --build-arg=GRPC_GATEWAY_VERSION="$(GRPC_GATEWAY_VERSION)"
 COMMON_ARGS += --build-arg=VTPROTOBUF_VERSION="$(VTPROTOBUF_VERSION)"
+COMMON_ARGS += --build-arg=GOIMPORTS_VERSION="$(GOIMPORTS_VERSION)"
 COMMON_ARGS += --build-arg=DEEPCOPY_VERSION="$(DEEPCOPY_VERSION)"
 COMMON_ARGS += --build-arg=GOLANGCILINT_VERSION="$(GOLANGCILINT_VERSION)"
-COMMON_ARGS += --build-arg=GOIMPORTS_VERSION="$(GOIMPORTS_VERSION)"
 COMMON_ARGS += --build-arg=GOFUMPT_VERSION="$(GOFUMPT_VERSION)"
 COMMON_ARGS += --build-arg=TESTPKGS="$(TESTPKGS)"
 TOOLCHAIN ?= docker.io/golang:1.22-alpine
+
+# extra variables
+
+REMOVE_VOLUMES ?= false
 
 # help menu
 
@@ -129,7 +135,10 @@ else
 GO_LDFLAGS += -s
 endif
 
-all: unit-tests talemu image-talemu lint
+all: unit-tests talemu image-talemu docker-compose-up docker-compose-down lint
+
+$(ARTIFACTS):  ## Creates artifacts directory.
+	@mkdir -p $(ARTIFACTS)
 
 .PHONY: clean
 clean:  ## Cleans up all artifacts.
@@ -140,6 +149,9 @@ target-%:  ## Builds the specified target defined in the Dockerfile. The build r
 
 local-%:  ## Builds the specified target defined in the Dockerfile using the local output type. The build result will be output to the specified local destination.
 	@$(MAKE) target-$* TARGET_ARGS="--output=type=local,dest=$(DEST) $(TARGET_ARGS)"
+
+generate:  ## Generate .proto definitions.
+	@$(MAKE) local-$@ DEST=./
 
 lint-golangci-lint:  ## Runs golangci-lint linter.
 	@$(MAKE) target-$@
@@ -158,9 +170,6 @@ fmt:  ## Formats the source code
 lint-govulncheck:  ## Runs govulncheck linter.
 	@$(MAKE) target-$@
 
-lint-goimports:  ## Runs goimports linter.
-	@$(MAKE) target-$@
-
 .PHONY: base
 base:  ## Prepare base toolchain
 	@$(MAKE) target-$@
@@ -172,10 +181,6 @@ unit-tests:  ## Performs unit tests
 .PHONY: unit-tests-race
 unit-tests-race:  ## Performs unit tests with race detection enabled.
 	@$(MAKE) target-$@
-
-.PHONY: coverage
-coverage:  ## Upload coverage data to codecov.io.
-	bash -c "bash <(curl -s https://codecov.io/bash) -f $(ARTIFACTS)/coverage-unit-tests.txt -X fix"
 
 .PHONY: $(ARTIFACTS)/talemu-linux-amd64
 $(ARTIFACTS)/talemu-linux-amd64:
@@ -192,11 +197,19 @@ lint-markdown:  ## Runs markdownlint.
 	@$(MAKE) target-$@
 
 .PHONY: lint
-lint: lint-golangci-lint lint-gofumpt lint-govulncheck lint-goimports lint-markdown  ## Run all linters for the project.
+lint: lint-golangci-lint lint-gofumpt lint-govulncheck lint-markdown  ## Run all linters for the project.
 
 .PHONY: image-talemu
 image-talemu:  ## Builds image for talemu.
 	@$(MAKE) target-$@ TARGET_ARGS="--tag=$(REGISTRY)/$(USERNAME)/talemu:$(IMAGE_TAG)"
+
+.PHONY: docker-compose-up
+docker-compose-up:
+	ARTIFACTS="$(ARTIFACTS)" SHA="$(SHA)" TAG="$(TAG)" USERNAME="$(USERNAME)" REGISTRY="$(REGISTRY)" PROTOBUF_TS_VERSION="$(PROTOBUF_TS_VERSION)" NODE_BUILD_ARGS="$(NODE_BUILD_ARGS)" TOOLCHAIN="$(TOOLCHAIN)" CGO_ENABLED="$(CGO_ENABLED)" GO_BUILDFLAGS="$(GO_BUILDFLAGS)" GOLANGCILINT_VERSION="$(GOLANGCILINT_VERSION)" GOFUMPT_VERSION="$(GOFUMPT_VERSION)" GOIMPORTS_VERSION="$(GOIMPORTS_VERSION)" PROTOBUF_GO_VERSION="$(PROTOBUF_GO_VERSION)" GRPC_GO_VERSION="$(GRPC_GO_VERSION)" GRPC_GATEWAY_VERSION="$(GRPC_GATEWAY_VERSION)" VTPROTOBUF_VERSION="$(VTPROTOBUF_VERSION)" DEEPCOPY_VERSION="$(DEEPCOPY_VERSION)" TESTPKGS="$(TESTPKGS)" COMPOSE_DOCKER_CLI_BUILD=1 DOCKER_BUILDKIT=1 GO_LDFLAGS="$(GO_LDFLAGS)" docker compose -p talemu --file ./hack/compose/docker-compose.yml --file ./hack/compose/docker-compose.override.yml up --build
+
+.PHONY: docker-compose-down
+docker-compose-down:
+	ARTIFACTS="$(ARTIFACTS)" SHA="$(SHA)" TAG="$(TAG)" USERNAME="$(USERNAME)" REGISTRY="$(REGISTRY)" PROTOBUF_TS_VERSION="$(PROTOBUF_TS_VERSION)" NODE_BUILD_ARGS="$(NODE_BUILD_ARGS)" TOOLCHAIN="$(TOOLCHAIN)" CGO_ENABLED="$(CGO_ENABLED)" GO_BUILDFLAGS="$(GO_BUILDFLAGS)" GOLANGCILINT_VERSION="$(GOLANGCILINT_VERSION)" GOFUMPT_VERSION="$(GOFUMPT_VERSION)" GOIMPORTS_VERSION="$(GOIMPORTS_VERSION)" PROTOBUF_GO_VERSION="$(PROTOBUF_GO_VERSION)" GRPC_GO_VERSION="$(GRPC_GO_VERSION)" GRPC_GATEWAY_VERSION="$(GRPC_GATEWAY_VERSION)" VTPROTOBUF_VERSION="$(VTPROTOBUF_VERSION)" DEEPCOPY_VERSION="$(DEEPCOPY_VERSION)" TESTPKGS="$(TESTPKGS)" COMPOSE_DOCKER_CLI_BUILD=1 DOCKER_BUILDKIT=1 GO_LDFLAGS="$(GO_LDFLAGS)" docker compose -p talemu --file ./hack/compose/docker-compose.yml --file ./hack/compose/docker-compose.override.yml down --rmi local --remove-orphans --volumes=$(REMOVE_VOLUMES)
 
 .PHONY: rekres
 rekres:
@@ -209,8 +222,7 @@ help:  ## This help menu.
 	@grep -E '^[a-zA-Z%_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'
 
 .PHONY: release-notes
-release-notes:
-	mkdir -p $(ARTIFACTS)
+release-notes: $(ARTIFACTS)
 	@ARTIFACTS=$(ARTIFACTS) ./hack/release.sh $@ $(ARTIFACTS)/RELEASE_NOTES.md $(TAG)
 
 .PHONY: conformance

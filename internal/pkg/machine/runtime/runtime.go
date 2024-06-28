@@ -7,6 +7,12 @@ package runtime
 
 import (
 	"context"
+	"errors"
+	"fmt"
+	"io"
+	"os"
+	"path/filepath"
+	"strconv"
 
 	"github.com/cosi-project/runtime/pkg/controller"
 	"github.com/cosi-project/runtime/pkg/controller/runtime"
@@ -14,19 +20,42 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/siderolabs/talemu/internal/pkg/machine/controllers"
+	"github.com/siderolabs/talemu/internal/pkg/machine/runtime/resources/emu"
+	"github.com/siderolabs/talemu/internal/pkg/machine/runtime/resources/talos"
 	"github.com/siderolabs/talemu/internal/pkg/machine/services"
 )
 
 // Runtime handles COSI state setup and lifecycle.
 type Runtime struct {
-	state   state.State
-	runtime *runtime.Runtime
+	state        state.State
+	globalState  state.State
+	runtime      *runtime.Runtime
+	backingStore io.Closer
+	id           string
 }
 
 // NewRuntime creates new runtime.
-func NewRuntime(ctx context.Context, logger *zap.Logger, machineIndex int) (*Runtime, error) {
-	state, err := newState(ctx)
+func NewRuntime(ctx context.Context, logger *zap.Logger, machineIndex int, globalState state.State) (*Runtime, error) {
+	stateDir := filepath.Join("state/machines", strconv.FormatInt(int64(machineIndex), 10))
+
+	id := fmt.Sprintf("machine-%d", machineIndex)
+
+	err := os.MkdirAll(stateDir, 0o664)
+	if err != nil && !errors.Is(err, os.ErrExist) {
+		return nil, err
+	}
+
+	st, backingStore, err := NewState(filepath.Join(stateDir, "state.db"), logger)
 	if err != nil {
+		return nil, err
+	}
+
+	if err = talos.Register(ctx, st); err != nil {
+		return nil, err
+	}
+
+	machineStatus := emu.NewMachineStatus(emu.NamespaceName, id)
+	if err = globalState.Create(ctx, machineStatus); err != nil && !state.IsConflictError(err) {
 		return nil, err
 	}
 
@@ -36,12 +65,23 @@ func NewRuntime(ctx context.Context, logger *zap.Logger, machineIndex int) (*Run
 		},
 		&controllers.LinkSpecController{},
 		&controllers.APIDController{
-			APID: services.NewAPID(state),
+			APID: services.NewAPID(id, st, globalState),
 		},
 		&controllers.AddressSpecController{},
+		&controllers.GRPCTLSController{},
+		&controllers.MachineTypeController{},
+		&controllers.HostnameConfigController{},
+		&controllers.HostnameMergeController{},
+		&controllers.HostnameSpecController{},
+		&controllers.NodeAddressController{
+			GlobalState: globalState,
+			MachineID:   id,
+		},
+		&controllers.APICertSANsController{},
+		controllers.NewRootOSController(),
 	}
 
-	runtime, err := runtime.NewRuntime(state, logger)
+	runtime, err := runtime.NewRuntime(st, logger)
 	if err != nil {
 		return nil, err
 	}
@@ -53,14 +93,29 @@ func NewRuntime(ctx context.Context, logger *zap.Logger, machineIndex int) (*Run
 	}
 
 	return &Runtime{
-		state:   state,
-		runtime: runtime,
+		state:        st,
+		globalState:  globalState,
+		runtime:      runtime,
+		backingStore: backingStore,
+		id:           id,
 	}, nil
 }
 
 // Run starts COSI runtime.
 func (r *Runtime) Run(ctx context.Context) error {
-	return r.runtime.Run(ctx)
+	defer r.backingStore.Close() //nolint:errcheck
+
+	if err := r.runtime.Run(ctx); err != nil {
+		return err
+	}
+
+	md := emu.NewMachineStatus(emu.NamespaceName, r.id).Metadata()
+
+	if err := r.globalState.Destroy(ctx, md); err != nil && !state.IsNotFoundError(err) {
+		return err
+	}
+
+	return nil
 }
 
 // State returns COSI state.
