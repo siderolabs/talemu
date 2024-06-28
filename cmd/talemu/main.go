@@ -7,6 +7,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/url"
 	"os"
@@ -18,9 +19,12 @@ import (
 	"github.com/siderolabs/talos/pkg/machinery/constants"
 	"github.com/spf13/cobra"
 	"go.uber.org/multierr"
+	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/siderolabs/talemu/internal/pkg/machine"
+	"github.com/siderolabs/talemu/internal/pkg/machine/runtime"
+	"github.com/siderolabs/talemu/internal/pkg/machine/runtime/resources/emu"
 )
 
 // rootCmd represents the base command when called without any subcommands.
@@ -57,8 +61,30 @@ var rootCmd = &cobra.Command{
 
 		machines := make([]*machine.Machine, 0, cfg.machinesCount)
 
+		logger, err := zap.NewDevelopment()
+		if err != nil {
+			return err
+		}
+
+		if err = os.MkdirAll("state", 0o664); err != nil {
+			if !errors.Is(err, os.ErrExist) {
+				return err
+			}
+		}
+
+		emulatorState, backingStore, err := runtime.NewState("state/emulator.db", logger)
+		if err != nil {
+			return err
+		}
+
+		if err = emu.Register(ctx, emulatorState); err != nil {
+			return err
+		}
+
+		defer backingStore.Close() //nolint:errcheck
+
 		for i := range cfg.machinesCount {
-			machine, err := machine.NewMachine(fmt.Sprintf("machine-%04d", i+1000))
+			machine, err := machine.NewMachine(fmt.Sprintf("machine-%04d", i+1000), logger, emulatorState)
 			if err != nil {
 				return err
 			}
