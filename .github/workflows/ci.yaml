@@ -1,6 +1,6 @@
 # THIS FILE WAS AUTOMATICALLY GENERATED, PLEASE DO NOT EDIT.
 #
-# Generated on 2024-06-27T18:26:32Z by kres 4c9f215.
+# Generated on 2024-07-09T15:22:07Z by kres 8c8b007.
 
 name: default
 concurrency:
@@ -76,12 +76,6 @@ jobs:
       - name: unit-tests-race
         run: |
           make unit-tests-race
-      - name: coverage
-        uses: codecov/codecov-action@v4
-        with:
-          files: _out/coverage-unit-tests.txt
-          token: ${{ secrets.CODECOV_TOKEN }}
-        timeout-minutes: 3
       - name: talemu
         run: |
           make talemu

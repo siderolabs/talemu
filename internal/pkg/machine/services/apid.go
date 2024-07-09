@@ -133,7 +133,7 @@ func (apid *APID) Run(ctx context.Context, endpoint netip.Prefix, logger *zap.Lo
 		case <-apid.shutdown:
 		}
 
-		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
+		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 2*time.Second)
 		defer shutdownCancel()
 
 		ServerGracefulStop(s, shutdownCtx) //nolint:contextcheck

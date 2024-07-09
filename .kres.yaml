@@ -7,7 +7,7 @@ spec:
 kind: service.CodeCov
 spec:
   # the tool should be tested by Omni integration tests
-  targetThreshold: 10
+  enabled: false
 ---
 kind: golang.Generate
 spec:

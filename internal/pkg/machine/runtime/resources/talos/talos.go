@@ -180,6 +180,9 @@ func Register(ctx context.Context, state state.State) error {
 		&v1alpha1.Service{},
 
 		&EventSinkState{},
+		&Disk{},
+		&Image{},
+		&Version{},
 	} {
 		if err := resourceRegistry.Register(ctx, r); err != nil {
 			return err

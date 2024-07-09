@@ -411,7 +411,6 @@ func (ctrl *ManagerController) cleanup(
 	return ctrl.cleanupAddressSpecs(ctx, r, keepAddressSpecIDSet, logger)
 }
 
-//nolint:dupl
 func (ctrl *ManagerController) cleanupLinkSpecs(ctx context.Context, r controller.Runtime, keepSet map[resource.ID]struct{}, logger *zap.Logger) error {
 	list, err := safe.ReaderList[*network.LinkSpec](ctx, r, network.NewLinkSpec(network.NamespaceName, "").Metadata())
 	if err != nil {
@@ -439,7 +438,6 @@ func (ctrl *ManagerController) cleanupLinkSpecs(ctx context.Context, r controlle
 	return nil
 }
 
-//nolint:dupl
 func (ctrl *ManagerController) cleanupAddressSpecs(ctx context.Context, r controller.Runtime, keepSet map[resource.ID]struct{}, logger *zap.Logger) error {
 	list, err := safe.ReaderList[*network.AddressSpec](ctx, r, network.NewAddressSpec(network.NamespaceName, "").Metadata())
 	if err != nil {
@@ -457,11 +455,20 @@ func (ctrl *ManagerController) cleanupAddressSpecs(ctx context.Context, r contro
 			continue
 		}
 
-		if destroyErr := r.Destroy(ctx, address.Metadata()); destroyErr != nil && !state.IsNotFoundError(destroyErr) {
-			return destroyErr
+		var ready bool
+
+		ready, err = r.Teardown(ctx, address.Metadata())
+		if err != nil && !state.IsNotFoundError(err) {
+			return err
 		}
 
-		logger.Info("destroyed address spec", zap.String("address_id", address.Metadata().ID()))
+		if ready {
+			if destroyErr := r.Destroy(ctx, address.Metadata()); destroyErr != nil && !state.IsNotFoundError(destroyErr) {
+				return destroyErr
+			}
+
+			logger.Info("destroyed address spec", zap.String("address_id", address.Metadata().ID()))
+		}
 	}
 
 	return nil

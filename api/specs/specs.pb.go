@@ -182,6 +182,110 @@ func (x *EventSinkStateSpec) GetVersions() map[string]uint64 {
 	return nil
 }
 
+// VersionSpec keeps current talos version of the emulated Talos node.
+type VersionSpec struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	Value string `protobuf:"bytes,1,opt,name=value,proto3" json:"value,omitempty"`
+}
+
+func (x *VersionSpec) Reset() {
+	*x = VersionSpec{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_specs_specs_proto_msgTypes[3]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *VersionSpec) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*VersionSpec) ProtoMessage() {}
+
+func (x *VersionSpec) ProtoReflect() protoreflect.Message {
+	mi := &file_specs_specs_proto_msgTypes[3]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use VersionSpec.ProtoReflect.Descriptor instead.
+func (*VersionSpec) Descriptor() ([]byte, []int) {
+	return file_specs_specs_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *VersionSpec) GetValue() string {
+	if x != nil {
+		return x.Value
+	}
+	return ""
+}
+
+// ImageSpec is the last image used in the upgrade request.
+type ImageSpec struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	Version   string `protobuf:"bytes,1,opt,name=version,proto3" json:"version,omitempty"`
+	Schematic string `protobuf:"bytes,2,opt,name=schematic,proto3" json:"schematic,omitempty"`
+}
+
+func (x *ImageSpec) Reset() {
+	*x = ImageSpec{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_specs_specs_proto_msgTypes[4]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *ImageSpec) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ImageSpec) ProtoMessage() {}
+
+func (x *ImageSpec) ProtoReflect() protoreflect.Message {
+	mi := &file_specs_specs_proto_msgTypes[4]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ImageSpec.ProtoReflect.Descriptor instead.
+func (*ImageSpec) Descriptor() ([]byte, []int) {
+	return file_specs_specs_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *ImageSpec) GetVersion() string {
+	if x != nil {
+		return x.Version
+	}
+	return ""
+}
+
+func (x *ImageSpec) GetSchematic() string {
+	if x != nil {
+		return x.Schematic
+	}
+	return ""
+}
+
 var File_specs_specs_proto protoreflect.FileDescriptor
 
 var file_specs_specs_proto_rawDesc = []byte{
@@ -207,10 +311,16 @@ var file_specs_specs_proto_rawDesc = []byte{
 	0x6e, 0x74, 0x72, 0x79, 0x12, 0x10, 0x0a, 0x03, 0x6b, 0x65, 0x79, 0x18, 0x01, 0x20, 0x01, 0x28,
 	0x09, 0x52, 0x03, 0x6b, 0x65, 0x79, 0x12, 0x14, 0x0a, 0x05, 0x76, 0x61, 0x6c, 0x75, 0x65, 0x18,
 	0x02, 0x20, 0x01, 0x28, 0x04, 0x52, 0x05, 0x76, 0x61, 0x6c, 0x75, 0x65, 0x3a, 0x02, 0x38, 0x01,
-	0x42, 0x28, 0x5a, 0x26, 0x67, 0x69, 0x74, 0x68, 0x75, 0x62, 0x2e, 0x63, 0x6f, 0x6d, 0x2f, 0x73,
-	0x69, 0x64, 0x65, 0x72, 0x6f, 0x6c, 0x61, 0x62, 0x73, 0x2f, 0x74, 0x61, 0x6c, 0x65, 0x6d, 0x75,
-	0x2f, 0x61, 0x70, 0x69, 0x2f, 0x73, 0x70, 0x65, 0x63, 0x73, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74,
-	0x6f, 0x33,
+	0x22, 0x23, 0x0a, 0x0b, 0x56, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e, 0x53, 0x70, 0x65, 0x63, 0x12,
+	0x14, 0x0a, 0x05, 0x76, 0x61, 0x6c, 0x75, 0x65, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x05,
+	0x76, 0x61, 0x6c, 0x75, 0x65, 0x22, 0x43, 0x0a, 0x09, 0x49, 0x6d, 0x61, 0x67, 0x65, 0x53, 0x70,
+	0x65, 0x63, 0x12, 0x18, 0x0a, 0x07, 0x76, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e, 0x18, 0x01, 0x20,
+	0x01, 0x28, 0x09, 0x52, 0x07, 0x76, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e, 0x12, 0x1c, 0x0a, 0x09,
+	0x73, 0x63, 0x68, 0x65, 0x6d, 0x61, 0x74, 0x69, 0x63, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09, 0x52,
+	0x09, 0x73, 0x63, 0x68, 0x65, 0x6d, 0x61, 0x74, 0x69, 0x63, 0x42, 0x28, 0x5a, 0x26, 0x67, 0x69,
+	0x74, 0x68, 0x75, 0x62, 0x2e, 0x63, 0x6f, 0x6d, 0x2f, 0x73, 0x69, 0x64, 0x65, 0x72, 0x6f, 0x6c,
+	0x61, 0x62, 0x73, 0x2f, 0x74, 0x61, 0x6c, 0x65, 0x6d, 0x75, 0x2f, 0x61, 0x70, 0x69, 0x2f, 0x73,
+	0x70, 0x65, 0x63, 0x73, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
 }
 
 var (
@@ -225,15 +335,17 @@ func file_specs_specs_proto_rawDescGZIP() []byte {
 	return file_specs_specs_proto_rawDescData
 }
 
-var file_specs_specs_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
+var file_specs_specs_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
 var file_specs_specs_proto_goTypes = []any{
 	(*ClusterStatusSpec)(nil),  // 0: specs.ClusterStatusSpec
 	(*MachineStatusSpec)(nil),  // 1: specs.MachineStatusSpec
 	(*EventSinkStateSpec)(nil), // 2: specs.EventSinkStateSpec
-	nil,                        // 3: specs.EventSinkStateSpec.VersionsEntry
+	(*VersionSpec)(nil),        // 3: specs.VersionSpec
+	(*ImageSpec)(nil),          // 4: specs.ImageSpec
+	nil,                        // 5: specs.EventSinkStateSpec.VersionsEntry
 }
 var file_specs_specs_proto_depIdxs = []int32{
-	3, // 0: specs.EventSinkStateSpec.versions:type_name -> specs.EventSinkStateSpec.VersionsEntry
+	5, // 0: specs.EventSinkStateSpec.versions:type_name -> specs.EventSinkStateSpec.VersionsEntry
 	1, // [1:1] is the sub-list for method output_type
 	1, // [1:1] is the sub-list for method input_type
 	1, // [1:1] is the sub-list for extension type_name
@@ -283,6 +395,30 @@ func file_specs_specs_proto_init() {
 				return nil
 			}
 		}
+		file_specs_specs_proto_msgTypes[3].Exporter = func(v any, i int) any {
+			switch v := v.(*VersionSpec); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_specs_specs_proto_msgTypes[4].Exporter = func(v any, i int) any {
+			switch v := v.(*ImageSpec); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
@@ -290,7 +426,7 @@ func file_specs_specs_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: file_specs_specs_proto_rawDesc,
 			NumEnums:      0,
-			NumMessages:   4,
+			NumMessages:   6,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

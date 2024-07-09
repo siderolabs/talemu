@@ -14,6 +14,7 @@ import (
 	"github.com/cosi-project/runtime/pkg/safe"
 	"github.com/cosi-project/runtime/pkg/state"
 	"github.com/jsimonetti/rtnetlink"
+	"github.com/siderolabs/talos/pkg/machinery/api/storage"
 	"github.com/siderolabs/talos/pkg/machinery/resources/cluster"
 	"github.com/siderolabs/talos/pkg/machinery/resources/config"
 	"github.com/siderolabs/talos/pkg/machinery/resources/hardware"
@@ -28,6 +29,7 @@ import (
 	"github.com/siderolabs/talemu/internal/pkg/machine/controllers"
 	"github.com/siderolabs/talemu/internal/pkg/machine/events"
 	truntime "github.com/siderolabs/talemu/internal/pkg/machine/runtime"
+	"github.com/siderolabs/talemu/internal/pkg/machine/runtime/resources/talos"
 )
 
 // Machine is a single Talos machine.
@@ -67,7 +69,7 @@ func (m *Machine) Run(ctx context.Context, siderolinkParams *SideroLinkParams, m
 
 	m.runtime = rt
 
-	resources := make([]resource.Resource, 0, 9)
+	resources := make([]resource.Resource, 0, 10)
 
 	// populate the inputs for the siderolink controller
 	hardwareInformation := hardware.NewSystemInformation(hardware.SystemInformationID)
@@ -111,6 +113,15 @@ func (m *Machine) Run(ctx context.Context, siderolinkParams *SideroLinkParams, m
 	eventSinkConfig := runtime.NewEventSinkConfig()
 	eventSinkConfig.TypedSpec().Endpoint = siderolinkParams.EventsEndpoint
 
+	disk := talos.NewDisk(talos.NamespaceName, "/dev/vda")
+	disk.TypedSpec().Value = &storage.Disk{
+		Size:       50 * 1024 * 1024 * 1024,
+		DeviceName: "/dev/sda",
+		Model:      "CM5514",
+		Type:       storage.Disk_HDD,
+		BusPath:    "/pci0000:00/0000:00:05.0/0000:01:01.0/virtio2/host2/target2:0:0/2:0:0:0/",
+	}
+
 	resources = append(resources,
 		hardwareInformation,
 		siderolinkConfig,
@@ -121,6 +132,7 @@ func (m *Machine) Run(ctx context.Context, siderolinkParams *SideroLinkParams, m
 		identity,
 		trustdEndpoint,
 		eventSinkConfig,
+		disk,
 	)
 
 	for _, r := range resources {
@@ -153,6 +165,10 @@ func (m *Machine) Run(ctx context.Context, siderolinkParams *SideroLinkParams, m
 
 // Cleanup removes created network interfaces.
 func (m *Machine) Cleanup(ctx context.Context) error {
+	if m.runtime == nil {
+		return nil
+	}
+
 	// remove all created interfaces
 	links, err := safe.ReaderListAll[*network.LinkSpec](ctx, m.runtime.State())
 	if err != nil {

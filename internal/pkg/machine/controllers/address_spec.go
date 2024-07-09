@@ -90,6 +90,10 @@ func (ctrl *AddressSpecController) Run(ctx context.Context, r controller.Runtime
 		// add finalizers for all live resources
 		for _, res := range list.Items {
 			if res.Metadata().Phase() != resource.PhaseRunning {
+				if err = r.RemoveFinalizer(ctx, res.Metadata(), ctrl.Name()); err != nil {
+					return err
+				}
+
 				continue
 			}
 

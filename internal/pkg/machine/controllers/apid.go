@@ -16,7 +16,6 @@ import (
 	"github.com/siderolabs/talos/pkg/machinery/constants"
 	"github.com/siderolabs/talos/pkg/machinery/resources/config"
 	"github.com/siderolabs/talos/pkg/machinery/resources/network"
-	"github.com/siderolabs/talos/pkg/machinery/resources/runtime"
 	"github.com/siderolabs/talos/pkg/machinery/resources/secrets"
 	"go.uber.org/zap"
 
@@ -60,12 +59,7 @@ func (ctrl *APIDController) Inputs() []controller.Input {
 
 // Outputs implements controller.Controller interface.
 func (ctrl *APIDController) Outputs() []controller.Output {
-	return []controller.Output{
-		{
-			Type: runtime.MachineStatusType,
-			Kind: controller.OutputExclusive,
-		},
-	}
+	return nil
 }
 
 // Run implements controller.Controller interface.
@@ -117,21 +111,6 @@ func (ctrl *APIDController) Run(ctx context.Context, r controller.Runtime, logge
 			}
 
 			if err = ctrl.APID.Run(ctx, address, logger, apiCerts, siderolink.TypedSpec().LinkName); err != nil {
-				return err
-			}
-
-			if err = safe.WriterModify(ctx, r, runtime.NewMachineStatus(), func(res *runtime.MachineStatus) error {
-				stage := runtime.MachineStageRunning
-
-				if insecure {
-					stage = runtime.MachineStageMaintenance
-				}
-
-				res.TypedSpec().Stage = stage
-				res.TypedSpec().Status.Ready = true
-
-				return nil
-			}); err != nil {
 				return err
 			}
 

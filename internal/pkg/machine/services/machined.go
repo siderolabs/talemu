@@ -6,11 +6,14 @@ package services
 
 import (
 	"context"
+	"fmt"
 	"slices"
+	"strings"
 
 	"github.com/cosi-project/runtime/pkg/resource"
 	"github.com/cosi-project/runtime/pkg/safe"
 	"github.com/cosi-project/runtime/pkg/state"
+	"github.com/siderolabs/omni/client/pkg/constants"
 	"github.com/siderolabs/talos/pkg/machinery/api/common"
 	"github.com/siderolabs/talos/pkg/machinery/api/machine"
 	"github.com/siderolabs/talos/pkg/machinery/api/storage"
@@ -21,6 +24,7 @@ import (
 	"google.golang.org/protobuf/types/known/emptypb"
 
 	"github.com/siderolabs/talemu/internal/pkg/machine/runtime/resources/emu"
+	"github.com/siderolabs/talemu/internal/pkg/machine/runtime/resources/talos"
 )
 
 type machineService struct {
@@ -234,34 +238,87 @@ func (c *machineService) Reset(ctx context.Context, request *machine.ResetReques
 }
 
 // Version implements machine.MachineServiceServer.
-func (c *machineService) Version(context.Context, *emptypb.Empty) (*machine.VersionResponse, error) {
+func (c *machineService) Version(ctx context.Context, _ *emptypb.Empty) (*machine.VersionResponse, error) {
+	version := fmt.Sprintf("v%s", constants.DefaultTalosVersion)
+
+	res, err := safe.ReaderGetByID[*talos.Version](ctx, c.state, talos.VersionID)
+	if err != nil && !state.IsNotFoundError(err) {
+		return nil, err
+	}
+
+	if res != nil {
+		version = res.TypedSpec().Value.Value
+	}
+
 	return &machine.VersionResponse{
 		Messages: []*machine.Version{
 			{
 				Version: &machine.VersionInfo{
-					Tag:  "v1.7.2",
-					Arch: "arm64",
+					Tag:  version,
+					Arch: "amd64",
 				},
 			},
 		},
 	}, nil
 }
 
+// Upgrade implements machine.MachineServiceServer.
+func (c *machineService) Upgrade(ctx context.Context, req *machine.UpgradeRequest) (*machine.UpgradeResponse, error) {
+	parts := strings.Split(req.Image, "/")
+
+	var schematic string
+
+	s, version, found := strings.Cut(parts[len(parts)-1], ":")
+	if !found {
+		return nil, status.Errorf(codes.InvalidArgument, "failed to parse the image")
+	}
+
+	if parts[0] == "factory.talos.dev" {
+		schematic = s
+	}
+
+	image := talos.NewImage(talos.NamespaceName, talos.ImageID)
+	image.TypedSpec().Value.Schematic = schematic
+	image.TypedSpec().Value.Version = version
+
+	if err := c.state.Create(ctx, image); err != nil {
+		if state.IsConflictError(err) {
+			if _, err = safe.StateUpdateWithConflicts(ctx, c.state, image.Metadata(), func(res *talos.Image) error {
+				res.TypedSpec().Value = image.TypedSpec().Value
+
+				return nil
+			}); err != nil {
+				return nil, err
+			}
+		}
+
+		return nil, err
+	}
+
+	return &machine.UpgradeResponse{
+		Messages: []*machine.Upgrade{
+			{
+				Ack:     "Upgrade request received",
+				ActorId: "0",
+			},
+		},
+	}, nil
+}
+
 // Disks implements storage.StorageServiceServer.
-func (c *machineService) Disks(context.Context, *emptypb.Empty) (*storage.DisksResponse, error) {
+func (c *machineService) Disks(ctx context.Context, _ *emptypb.Empty) (*storage.DisksResponse, error) {
+	disks, err := safe.ReaderListAll[*talos.Disk](ctx, c.state)
+	if err != nil {
+		return nil, err
+	}
+
 	return &storage.DisksResponse{
 		Messages: []*storage.Disks{
 			{
 				Metadata: &common.Metadata{},
-				Disks: []*storage.Disk{
-					{
-						Size:       50 * 1024 * 1024 * 1024,
-						DeviceName: "/dev/sda",
-						Model:      "CM5514",
-						Type:       storage.Disk_HDD,
-						BusPath:    "/pci0000:00/0000:00:05.0/0000:01:01.0/virtio2/host2/target2:0:0/2:0:0:0/",
-					},
-				},
+				Disks: safe.ToSlice(disks, func(res *talos.Disk) *storage.Disk {
+					return res.TypedSpec().Value
+				}),
 			},
 		},
 	}, nil

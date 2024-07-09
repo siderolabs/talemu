@@ -23,7 +23,7 @@ func NewEventSinkState(ns, id string) *EventSinkState {
 
 // EventSinkStateType is the type of EventSinkState resource.
 const (
-	EventSinkStateType = resource.Type("EventSinkStates.omni.sidero.dev")
+	EventSinkStateType = resource.Type("EventSinkStates.talemu.sidero.dev")
 	EventSinkStateID   = "current"
 )
 

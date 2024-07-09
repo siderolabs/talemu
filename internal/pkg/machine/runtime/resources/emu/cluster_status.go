@@ -24,7 +24,7 @@ func NewClusterStatus(ns, id string) *ClusterStatus {
 // ClusterStatusType is the type of ClusterStatus resource.
 //
 // tsgen:ClusterStatusType
-const ClusterStatusType = resource.Type("ClusterStatuses.omni.sidero.dev")
+const ClusterStatusType = resource.Type("ClusterStatuses.talemu.sidero.dev")
 
 // ClusterStatus resource contains current information about the Machine bootstrap status.
 type ClusterStatus = typed.Resource[ClusterStatusSpec, ClusterStatusExtension]

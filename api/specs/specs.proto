@@ -20,3 +20,14 @@ message MachineStatusSpec {
 message EventSinkStateSpec {
   map<string, uint64> versions = 1;
 }
+
+// VersionSpec keeps current talos version of the emulated Talos node.
+message VersionSpec {
+  string value = 1;
+}
+
+// ImageSpec is the last image used in the upgrade request.
+message ImageSpec {
+  string version = 1;
+  string schematic = 2;
+}

@@ -24,7 +24,7 @@ func NewMachineStatus(ns, id string) *MachineStatus {
 // MachineStatusType is the type of MachineStatus resource.
 //
 // tsgen:MachineStatusType
-const MachineStatusType = resource.Type("MachineStatuses.omni.sidero.dev")
+const MachineStatusType = resource.Type("MachineStatuses.talemu.sidero.dev")
 
 // MachineStatus describes virtual machine status.
 type MachineStatus = typed.Resource[MachineStatusSpec, MachineStatusExtension]

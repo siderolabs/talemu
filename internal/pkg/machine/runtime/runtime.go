@@ -79,6 +79,9 @@ func NewRuntime(ctx context.Context, logger *zap.Logger, machineIndex int, globa
 		},
 		&controllers.APICertSANsController{},
 		controllers.NewRootOSController(),
+		&controllers.ExtensionStatusController{},
+		&controllers.MachineStatusController{State: st},
+		&controllers.VersionController{},
 	}
 
 	runtime, err := runtime.NewRuntime(st, logger)
