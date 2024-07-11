@@ -15,7 +15,6 @@ import (
 	"github.com/cosi-project/runtime/pkg/state"
 	"github.com/jsimonetti/rtnetlink"
 	"github.com/siderolabs/talos/pkg/machinery/api/storage"
-	"github.com/siderolabs/talos/pkg/machinery/resources/cluster"
 	"github.com/siderolabs/talos/pkg/machinery/resources/config"
 	"github.com/siderolabs/talos/pkg/machinery/resources/hardware"
 	"github.com/siderolabs/talos/pkg/machinery/resources/k8s"
@@ -44,7 +43,7 @@ type Machine struct {
 func NewMachine(uuid string, logger *zap.Logger, globalState state.State) (*Machine, error) {
 	return &Machine{
 		uuid:        uuid,
-		logger:      logger,
+		logger:      logger.With(zap.String("machine", uuid)),
 		globalState: globalState,
 	}, nil
 }
@@ -101,9 +100,6 @@ func (m *Machine) Run(ctx context.Context, siderolinkParams *SideroLinkParams, m
 	securityState := runtime.NewSecurityStateSpec(runtime.NamespaceName)
 	securityState.TypedSpec().SecureBoot = false
 
-	identity := cluster.NewIdentity(cluster.NamespaceName, cluster.LocalIdentity)
-	identity.TypedSpec().NodeID = m.uuid
-
 	trustdEndpoint := k8s.NewEndpoint(k8s.ControlPlaneNamespaceName, "omniTrustd")
 
 	trustdEndpoint.TypedSpec().Addresses = []netip.Addr{
@@ -112,6 +108,10 @@ func (m *Machine) Run(ctx context.Context, siderolinkParams *SideroLinkParams, m
 
 	eventSinkConfig := runtime.NewEventSinkConfig()
 	eventSinkConfig.TypedSpec().Endpoint = siderolinkParams.EventsEndpoint
+
+	helloWorldExtension := runtime.NewExtensionStatus(runtime.NamespaceName, "hello-world-service")
+	helloWorldExtension.TypedSpec().Metadata.Name = "hello-world-service"
+	helloWorldExtension.TypedSpec().Metadata.Version = "v1.0.0"
 
 	disk := talos.NewDisk(talos.NamespaceName, "/dev/vda")
 	disk.TypedSpec().Value = &storage.Disk{
@@ -129,10 +129,10 @@ func (m *Machine) Run(ctx context.Context, siderolinkParams *SideroLinkParams, m
 		platformMetadata,
 		processorInfo,
 		securityState,
-		identity,
 		trustdEndpoint,
 		eventSinkConfig,
 		disk,
+		helloWorldExtension,
 	)
 
 	for _, r := range resources {

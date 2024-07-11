@@ -17,10 +17,12 @@ import (
 	"github.com/siderolabs/talos/pkg/machinery/config/types/v1alpha1"
 	"github.com/siderolabs/talos/pkg/machinery/resources/config"
 	"github.com/siderolabs/talos/pkg/machinery/resources/runtime"
+	v1alpha1resource "github.com/siderolabs/talos/pkg/machinery/resources/v1alpha1"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
+	emuconst "github.com/siderolabs/talemu/internal/pkg/constants"
 	"github.com/siderolabs/talemu/internal/pkg/machine/runtime/resources/talos"
 )
 
@@ -51,6 +53,11 @@ func (ctrl *MachineStatusController) Inputs() []controller.Input {
 		{
 			Namespace: talos.NamespaceName,
 			Type:      talos.VersionType,
+			Kind:      controller.InputWeak,
+		},
+		{
+			Namespace: v1alpha1resource.NamespaceName,
+			Type:      v1alpha1resource.ServiceType,
 			Kind:      controller.InputWeak,
 		},
 	}
@@ -97,7 +104,6 @@ func (ctrl *MachineStatusController) Run(ctx context.Context, r controller.Runti
 			return err
 		}
 
-		ready := true
 		stage := runtime.MachineStageRunning
 		unmetConditions := []runtime.UnmetCondition{}
 
@@ -110,7 +116,6 @@ func (ctrl *MachineStatusController) Run(ctx context.Context, r controller.Runti
 			_, err = r.Get(ctx, expect.Metadata())
 			if err != nil {
 				if state.IsNotFoundError(err) {
-					ready = false
 					stage = runtime.MachineStageBooting
 
 					unmetConditions = append(
@@ -128,9 +133,22 @@ func (ctrl *MachineStatusController) Run(ctx context.Context, r controller.Runti
 			}
 		}
 
-		if err := safe.WriterModify(ctx, r, runtime.NewMachineStatus(), func(res *runtime.MachineStatus) error {
+		services := []string{emuconst.APIDService}
+
+		if config.Provider().Machine().Type().IsControlPlane() {
+			services = append(services, emuconst.ETCDService)
+		}
+
+		serviceConditions, err := ctrl.checkServicesReady(ctx, r, services...)
+		if err != nil {
+			return err
+		}
+
+		unmetConditions = append(unmetConditions, serviceConditions...)
+
+		if err = safe.WriterModify(ctx, r, runtime.NewMachineStatus(), func(res *runtime.MachineStatus) error {
 			res.TypedSpec().Stage = stage
-			res.TypedSpec().Status.Ready = ready
+			res.TypedSpec().Status.Ready = len(unmetConditions) == 0
 			res.TypedSpec().Status.UnmetConditions = unmetConditions
 
 			return nil
@@ -210,4 +228,48 @@ func (ctrl *MachineStatusController) reconcile(ctx context.Context, r controller
 	})
 
 	return err
+}
+
+func (ctrl *MachineStatusController) checkServicesReady(ctx context.Context, r controller.Runtime, services ...string) ([]runtime.UnmetCondition, error) {
+	var conditions []runtime.UnmetCondition
+
+	name := "serviceNotReady"
+
+	for _, s := range services {
+		service, err := safe.ReaderGetByID[*v1alpha1resource.Service](ctx, r, s)
+		if err != nil {
+			if state.IsNotFoundError(err) {
+				conditions = append(conditions, runtime.UnmetCondition{
+					Name:   name,
+					Reason: fmt.Sprintf("service %q is not started", s),
+				})
+
+				continue
+			}
+
+			return nil, err
+		}
+
+		if service.TypedSpec().Healthy && service.TypedSpec().Running {
+			continue
+		}
+
+		if !service.TypedSpec().Healthy {
+			conditions = append(conditions, runtime.UnmetCondition{
+				Name:   name,
+				Reason: fmt.Sprintf("service %q is not healthy", service.Metadata().ID()),
+			})
+
+			continue
+		}
+
+		if !service.TypedSpec().Running {
+			conditions = append(conditions, runtime.UnmetCondition{
+				Name:   name,
+				Reason: fmt.Sprintf("service %q is not running", service.Metadata().ID()),
+			})
+		}
+	}
+
+	return conditions, nil
 }

@@ -8,6 +8,8 @@ import (
 	"context"
 	stdlibx509 "crypto/x509"
 	"fmt"
+	"net"
+	"strings"
 	"time"
 
 	"github.com/cosi-project/runtime/pkg/controller"
@@ -17,13 +19,16 @@ import (
 	"github.com/siderolabs/crypto/x509"
 	"github.com/siderolabs/gen/optional"
 	"github.com/siderolabs/talos/pkg/machinery/config/machine"
+	"github.com/siderolabs/talos/pkg/machinery/constants"
 	"github.com/siderolabs/talos/pkg/machinery/resources/config"
 	"github.com/siderolabs/talos/pkg/machinery/resources/k8s"
+	"github.com/siderolabs/talos/pkg/machinery/resources/network"
 	"github.com/siderolabs/talos/pkg/machinery/resources/secrets"
 	"github.com/siderolabs/talos/pkg/machinery/role"
 	"go.uber.org/zap"
 
 	"github.com/siderolabs/talemu/internal/pkg/grpc/gen"
+	emunet "github.com/siderolabs/talemu/internal/pkg/machine/network"
 )
 
 // GRPCTLSController manages secrets.API based on configuration to provide apid certificate.
@@ -106,7 +111,7 @@ func (ctrl *GRPCTLSController) Run(ctx context.Context, r controller.Runtime, lo
 	}
 }
 
-//nolint:gocognit
+//nolint:gocognit,gocyclo,cyclop
 func (ctrl *GRPCTLSController) reconcile(ctx context.Context, r controller.Runtime, logger *zap.Logger, isControlplane bool) error {
 	inputs := []controller.Input{
 		{
@@ -135,6 +140,10 @@ func (ctrl *GRPCTLSController) reconcile(ctx context.Context, r controller.Runti
 			Namespace: k8s.ControlPlaneNamespaceName,
 			Type:      k8s.EndpointType,
 			Kind:      controller.InputWeak,
+		}, controller.Input{
+			Namespace: network.NamespaceName,
+			Type:      network.AddressStatusType,
+			Kind:      controller.InputWeak,
 		})
 	}
 
@@ -153,6 +162,36 @@ func (ctrl *GRPCTLSController) reconcile(ctx context.Context, r controller.Runti
 			return nil
 		case <-r.EventCh():
 		case <-refreshTicker.C:
+		}
+
+		machineTypeRes, err := safe.ReaderGetByID[*config.MachineType](ctx, r, config.MachineTypeID)
+		if err != nil {
+			if state.IsNotFoundError(err) {
+				continue
+			}
+
+			return fmt.Errorf("error getting machine type: %w", err)
+		}
+
+		machineType := machineTypeRes.MachineType()
+
+		switch machineType {
+		case machine.TypeInit, machine.TypeControlPlane:
+			if !isControlplane {
+				logger.Info("machine type changed to controlplane")
+
+				return nil
+			}
+		case machine.TypeWorker:
+			if isControlplane {
+				logger.Info("machine type changed to worker")
+
+				return nil
+			}
+		case machine.TypeUnknown:
+			logger.Info("machine type was reset")
+
+			return nil
 		}
 
 		rootResource, err := safe.ReaderGetByID[*secrets.OSRoot](ctx, r, secrets.OSRootID)
@@ -218,6 +257,10 @@ func (ctrl *GRPCTLSController) reconcile(ctx context.Context, r controller.Runti
 }
 
 func (ctrl *GRPCTLSController) generateControlPlane(ctx context.Context, r controller.Runtime, logger *zap.Logger, rootSpec *secrets.OSRootSpec, certSANs *secrets.CertSANSpec) error {
+	if rootSpec.IssuingCA == nil {
+		return nil
+	}
+
 	ca, err := x509.NewCertificateAuthorityFromCertificateAndKey(rootSpec.IssuingCA)
 	if err != nil {
 		return fmt.Errorf("failed to parse CA certificate: %w", err)
@@ -277,7 +320,25 @@ func (ctrl *GRPCTLSController) generateControlPlane(ctx context.Context, r contr
 func (ctrl *GRPCTLSController) generateWorker(ctx context.Context, r controller.Runtime, logger *zap.Logger,
 	rootSpec *secrets.OSRootSpec, endpointsStr []string, certSANs *secrets.CertSANSpec,
 ) error {
-	remoteGen, err := gen.NewRemoteGenerator(rootSpec.Token, endpointsStr, rootSpec.AcceptedCAs)
+	links, err := safe.ReaderListAll[*network.AddressStatus](ctx, r)
+	if err != nil {
+		return err
+	}
+
+	address, found := links.Find(func(r *network.AddressStatus) bool {
+		return strings.HasPrefix(r.TypedSpec().LinkName, constants.SideroLinkName)
+	})
+	if !found {
+		return fmt.Errorf("failed to find sideroaddress address")
+	}
+
+	remoteGen, err := gen.NewRemoteGenerator(func(ctx context.Context, addr string) (net.Conn, error) {
+		var dialer net.Dialer
+
+		dialer.Control = emunet.BindToInterface(address.TypedSpec().LinkName)
+
+		return dialer.DialContext(ctx, "tcp", addr)
+	}, rootSpec.Token, endpointsStr, rootSpec.AcceptedCAs)
 	if err != nil {
 		return fmt.Errorf("failed creating trustd client: %w", err)
 	}

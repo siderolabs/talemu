@@ -2,7 +2,7 @@ version: '3.8'
 services:
   talemu:
     volumes:
-      - state:/state
+      - state:/_out/state
     container_name: talemu
     restart: on-failure
     cap_add:

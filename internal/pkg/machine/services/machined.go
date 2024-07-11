@@ -19,9 +19,12 @@ import (
 	"github.com/siderolabs/talos/pkg/machinery/api/storage"
 	"github.com/siderolabs/talos/pkg/machinery/config/configloader"
 	"github.com/siderolabs/talos/pkg/machinery/resources/config"
+	"github.com/siderolabs/talos/pkg/machinery/resources/etcd"
+	"github.com/siderolabs/talos/pkg/machinery/resources/v1alpha1"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/emptypb"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/siderolabs/talemu/internal/pkg/machine/runtime/resources/emu"
 	"github.com/siderolabs/talemu/internal/pkg/machine/runtime/resources/talos"
@@ -303,6 +306,233 @@ func (c *machineService) Upgrade(ctx context.Context, req *machine.UpgradeReques
 			},
 		},
 	}, nil
+}
+
+// EtcdMemberList implements machine.MachineServiceServer.
+func (c *machineService) EtcdMemberList(ctx context.Context, _ *machine.EtcdMemberListRequest) (*machine.EtcdMemberListResponse, error) {
+	config, err := safe.ReaderGetByID[*config.MachineConfig](ctx, c.state, config.V1Alpha1ID)
+	if err != nil {
+		if state.IsNotFoundError(err) {
+			return nil, status.Errorf(codes.InvalidArgument, "the machine is not configured")
+		}
+
+		return nil, err
+	}
+
+	if !config.Provider().Machine().Type().IsControlPlane() {
+		return nil, status.Errorf(codes.InvalidArgument, "the machine is not a control plane")
+	}
+
+	clusterStatus, err := safe.ReaderGetByID[*emu.ClusterStatus](ctx, c.globalState, config.Provider().Cluster().ID())
+	if err != nil {
+		return nil, fmt.Errorf("failed to get cluster status: %w", err)
+	}
+
+	machines, err := safe.ReaderListAll[*emu.MachineStatus](ctx, c.globalState,
+		state.WithLabelQuery(
+			resource.LabelEqual(emu.LabelCluster, config.Provider().Cluster().ID()),
+			resource.LabelExists(emu.LabelControlPlaneRole),
+		),
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	members := make([]*machine.EtcdMember, 0, machines.Len())
+
+	err = machines.ForEachErr(func(m *emu.MachineStatus) error {
+		id := m.TypedSpec().Value.EtcdMemberId
+		if id == "" {
+			return nil
+		}
+
+		var memberID uint64
+
+		memberID, err = etcd.ParseMemberID(m.TypedSpec().Value.EtcdMemberId)
+		if err != nil {
+			return err
+		}
+
+		if slices.Contains(clusterStatus.TypedSpec().Value.DenyEtcdMembers, m.TypedSpec().Value.EtcdMemberId) {
+			return nil
+		}
+
+		members = append(members, &machine.EtcdMember{
+			Id:       memberID,
+			Hostname: m.TypedSpec().Value.Hostname,
+		})
+
+		return nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to compute etcd members %w", err)
+	}
+
+	res := &machine.EtcdMemberListResponse{
+		Messages: []*machine.EtcdMembers{
+			{
+				Members: members,
+			},
+		},
+	}
+
+	return res, nil
+}
+
+// EtcdRemoveMemberByID implements machine.MachineServiceServer.
+func (c *machineService) EtcdRemoveMemberByID(ctx context.Context, req *machine.EtcdRemoveMemberByIDRequest) (*machine.EtcdRemoveMemberByIDResponse, error) {
+	config, err := safe.ReaderGetByID[*config.MachineConfig](ctx, c.state, config.V1Alpha1ID)
+	if err != nil {
+		if state.IsNotFoundError(err) {
+			return nil, status.Errorf(codes.InvalidArgument, "the machine is not configured")
+		}
+
+		return nil, err
+	}
+
+	if !config.Provider().Machine().Type().IsControlPlane() {
+		return nil, status.Errorf(codes.InvalidArgument, "the machine is not a control plane")
+	}
+
+	memberID := etcd.FormatMemberID(req.MemberId)
+
+	clusterStatus := emu.NewClusterStatus(emu.NamespaceName, config.Provider().Cluster().ID()).Metadata()
+
+	_, err = safe.StateUpdateWithConflicts(ctx, c.globalState, clusterStatus, func(res *emu.ClusterStatus) error {
+		if slices.Contains(res.TypedSpec().Value.DenyEtcdMembers, memberID) {
+			return nil
+		}
+
+		res.TypedSpec().Value.DenyEtcdMembers = append(res.TypedSpec().Value.DenyEtcdMembers, memberID)
+
+		return nil
+	})
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to update cluster status %s", err)
+	}
+
+	return &machine.EtcdRemoveMemberByIDResponse{
+		Messages: []*machine.EtcdRemoveMemberByID{
+			{},
+		},
+	}, nil
+}
+
+// EtcdLeaveCluster implements machine.MachineServiceServer.
+func (c *machineService) EtcdLeaveCluster(ctx context.Context, _ *machine.EtcdLeaveClusterRequest) (*machine.EtcdLeaveClusterResponse, error) {
+	config, err := safe.ReaderGetByID[*config.MachineConfig](ctx, c.state, config.V1Alpha1ID)
+	if err != nil {
+		if state.IsNotFoundError(err) {
+			return nil, status.Errorf(codes.InvalidArgument, "the machine is not configured")
+		}
+
+		return nil, fmt.Errorf("failed to get machine config %w", err)
+	}
+
+	if !config.Provider().Machine().Type().IsControlPlane() {
+		return nil, status.Errorf(codes.InvalidArgument, "the machine is not a control plane")
+	}
+
+	member, err := safe.ReaderGetByID[*etcd.Member](ctx, c.state, etcd.LocalMemberID)
+	if err != nil {
+		if state.IsNotFoundError(err) {
+			return nil, status.Errorf(codes.InvalidArgument, "the machine doesn't have etcd member")
+		}
+
+		return nil, fmt.Errorf("failed to get etcd member %w", err)
+	}
+
+	if member.TypedSpec().MemberID == "" {
+		return nil, status.Errorf(codes.FailedPrecondition, "the machine doesn't have etcd member ID")
+	}
+
+	clusterStatus := emu.NewClusterStatus(emu.NamespaceName, config.Provider().Cluster().ID()).Metadata()
+
+	_, err = safe.StateUpdateWithConflicts(ctx, c.globalState, clusterStatus, func(res *emu.ClusterStatus) error {
+		if slices.Contains(res.TypedSpec().Value.DenyEtcdMembers, member.TypedSpec().MemberID) {
+			return nil
+		}
+
+		res.TypedSpec().Value.DenyEtcdMembers = append(res.TypedSpec().Value.DenyEtcdMembers, member.TypedSpec().MemberID)
+
+		return nil
+	})
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to update cluster status %s", err)
+	}
+
+	return &machine.EtcdLeaveClusterResponse{
+		Messages: []*machine.EtcdLeaveCluster{
+			{},
+		},
+	}, nil
+}
+
+// EtcdForfeidLeadership implements machine.MachineServiceServer.
+func (c *machineService) EtcdForfeitLeadership(context.Context, *machine.EtcdForfeitLeadershipRequest) (*machine.EtcdForfeitLeadershipResponse, error) {
+	return &machine.EtcdForfeitLeadershipResponse{
+		Messages: []*machine.EtcdForfeitLeadership{
+			{},
+		},
+	}, nil
+}
+
+// List implements machine.MachineServiceServer.
+func (c *machineService) List(req *machine.ListRequest, serv machine.MachineService_ListServer) error {
+	if req.Root == "/var/lib/etcd/member" {
+		member, err := safe.ReaderGetByID[*etcd.Member](serv.Context(), c.state, etcd.LocalMemberID)
+		if err != nil && !state.IsNotFoundError(err) {
+			return err
+		}
+
+		if member == nil {
+			return fmt.Errorf("no such file or directory")
+		}
+
+		return serv.Send(&machine.FileInfo{
+			Name: "db",
+			Size: 1024,
+		})
+	}
+
+	return nil
+}
+
+// ServiceList implements machine.MachineServiceServer.
+func (c *machineService) ServiceList(ctx context.Context, _ *emptypb.Empty) (*machine.ServiceListResponse, error) {
+	res := &machine.ServiceListResponse{}
+
+	services, err := safe.ReaderListAll[*v1alpha1.Service](ctx, c.state)
+	if err != nil {
+		return nil, err
+	}
+
+	res.Messages = []*machine.ServiceList{
+		{
+			Services: safe.ToSlice(services, func(s *v1alpha1.Service) *machine.ServiceInfo {
+				state := "Stopped"
+				switch {
+				case s.TypedSpec().Running && s.TypedSpec().Healthy:
+					state = "Running"
+				case s.TypedSpec().Running && !s.TypedSpec().Healthy:
+					state = "Starting"
+				}
+
+				return &machine.ServiceInfo{
+					Id:     s.Metadata().ID(),
+					State:  state,
+					Events: &machine.ServiceEvents{},
+					Health: &machine.ServiceHealth{
+						Unknown:    s.TypedSpec().Unknown,
+						Healthy:    s.TypedSpec().Healthy,
+						LastChange: timestamppb.New(s.Metadata().Updated()),
+					},
+				}
+			}),
+		},
+	}
+
+	return res, nil
 }
 
 // Disks implements storage.StorageServiceServer.

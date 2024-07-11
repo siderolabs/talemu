@@ -7,8 +7,10 @@ package basic
 
 import (
 	"bytes"
+	"context"
 	"crypto/tls"
 	stdx509 "crypto/x509"
+	"net"
 
 	"github.com/siderolabs/crypto/x509"
 	"github.com/siderolabs/gen/xslices"
@@ -25,7 +27,9 @@ type Credentials interface {
 
 // NewConnection initializes a grpc.ClientConn configured for basic
 // authentication.
-func NewConnection(address string, creds credentials.PerRPCCredentials, acceptedCAs []*x509.PEMEncodedCertificate) (conn *grpc.ClientConn, err error) {
+func NewConnection(dialer func(ctx context.Context, addr string) (net.Conn, error),
+	address string, creds credentials.PerRPCCredentials, acceptedCAs []*x509.PEMEncodedCertificate) (conn *grpc.ClientConn, err error,
+) {
 	tlsConfig := &tls.Config{}
 
 	tlsConfig.RootCAs = stdx509.NewCertPool()
@@ -43,6 +47,7 @@ func NewConnection(address string, creds credentials.PerRPCCredentials, accepted
 		grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)),
 		grpc.WithPerRPCCredentials(creds),
 		grpc.WithSharedWriteBuffer(true),
+		grpc.WithContextDialer(dialer),
 	}
 
 	conn, err = grpc.NewClient(address, grpcOpts...)

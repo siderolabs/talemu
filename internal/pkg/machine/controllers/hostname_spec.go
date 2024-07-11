@@ -10,13 +10,19 @@ import (
 
 	"github.com/cosi-project/runtime/pkg/controller"
 	"github.com/cosi-project/runtime/pkg/resource"
+	"github.com/cosi-project/runtime/pkg/safe"
 	"github.com/cosi-project/runtime/pkg/state"
 	"github.com/siderolabs/talos/pkg/machinery/resources/network"
 	"go.uber.org/zap"
+
+	"github.com/siderolabs/talemu/internal/pkg/machine/runtime/resources/emu"
 )
 
 // HostnameSpecController applies network.HostnameSpec to the actual interfaces.
-type HostnameSpecController struct{}
+type HostnameSpecController struct {
+	GlobalState state.State
+	MachineID   string
+}
 
 // Name implements controller.Controller interface.
 func (ctrl *HostnameSpecController) Name() string {
@@ -94,7 +100,15 @@ func (ctrl *HostnameSpecController) Run(ctx context.Context, r controller.Runtim
 					status.TypedSpec().Hostname = spec.TypedSpec().Hostname
 					status.TypedSpec().Domainname = spec.TypedSpec().Domainname
 
-					return nil
+					_, err = safe.StateUpdateWithConflicts(ctx, ctrl.GlobalState, emu.NewMachineStatus(emu.NamespaceName, ctrl.MachineID).Metadata(),
+						func(res *emu.MachineStatus) error {
+							res.TypedSpec().Value.Hostname = spec.TypedSpec().Hostname
+
+							return nil
+						},
+					)
+
+					return err
 				}); err != nil {
 					return fmt.Errorf("error modifying status: %w", err)
 				}

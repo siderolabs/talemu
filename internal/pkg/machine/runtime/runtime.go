@@ -36,7 +36,7 @@ type Runtime struct {
 
 // NewRuntime creates new runtime.
 func NewRuntime(ctx context.Context, logger *zap.Logger, machineIndex int, globalState state.State) (*Runtime, error) {
-	stateDir := filepath.Join("state/machines", strconv.FormatInt(int64(machineIndex), 10))
+	stateDir := filepath.Join("_out/state/machines", strconv.FormatInt(int64(machineIndex), 10))
 
 	id := fmt.Sprintf("machine-%d", machineIndex)
 
@@ -72,7 +72,10 @@ func NewRuntime(ctx context.Context, logger *zap.Logger, machineIndex int, globa
 		&controllers.MachineTypeController{},
 		&controllers.HostnameConfigController{},
 		&controllers.HostnameMergeController{},
-		&controllers.HostnameSpecController{},
+		&controllers.HostnameSpecController{
+			GlobalState: globalState,
+			MachineID:   id,
+		},
 		&controllers.NodeAddressController{
 			GlobalState: globalState,
 			MachineID:   id,
@@ -82,6 +85,13 @@ func NewRuntime(ctx context.Context, logger *zap.Logger, machineIndex int, globa
 		&controllers.ExtensionStatusController{},
 		&controllers.MachineStatusController{State: st},
 		&controllers.VersionController{},
+		&controllers.NodeIdentityController{},
+		&controllers.NodenameController{},
+		&controllers.EtcdController{
+			GlobalState: globalState,
+			MachineID:   id,
+		},
+		&controllers.MountStatusController{},
 	}
 
 	runtime, err := runtime.NewRuntime(st, logger)
@@ -109,12 +119,6 @@ func (r *Runtime) Run(ctx context.Context) error {
 	defer r.backingStore.Close() //nolint:errcheck
 
 	if err := r.runtime.Run(ctx); err != nil {
-		return err
-	}
-
-	md := emu.NewMachineStatus(emu.NamespaceName, r.id).Metadata()
-
-	if err := r.globalState.Destroy(ctx, md); err != nil && !state.IsNotFoundError(err) {
 		return err
 	}
 

@@ -20,6 +20,7 @@ import (
 	"github.com/spf13/cobra"
 	"go.uber.org/multierr"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/siderolabs/talemu/internal/pkg/machine"
@@ -62,27 +63,32 @@ var rootCmd = &cobra.Command{
 
 		machines := make([]*machine.Machine, 0, cfg.machinesCount)
 
-		logger, err := zap.NewDevelopment()
+		loggerConfig := zap.NewDevelopmentConfig()
+		loggerConfig.EncoderConfig.EncodeLevel = zapcore.CapitalColorLevelEncoder
+
+		logger, err := loggerConfig.Build(
+			zap.AddStacktrace(zapcore.ErrorLevel),
+		)
 		if err != nil {
 			return err
 		}
 
-		if err = os.MkdirAll("state", 0o664); err != nil {
+		if err = os.MkdirAll("_out/state", 0o664); err != nil {
 			if !errors.Is(err, os.ErrExist) {
 				return err
 			}
 		}
 
-		emulatorState, backingStore, err := runtime.NewState("state/emulator.db", logger)
+		emulatorState, backingStore, err := runtime.NewState("_out/state/emulator.db", logger)
 		if err != nil {
 			return err
 		}
 
+		defer backingStore.Close() //nolint:errcheck
+
 		if err = emu.Register(ctx, emulatorState); err != nil {
 			return err
 		}
-
-		defer backingStore.Close() //nolint:errcheck
 
 		for i := range cfg.machinesCount {
 			machine, err := machine.NewMachine(fmt.Sprintf("machine-%04d", i+1000), logger, emulatorState)

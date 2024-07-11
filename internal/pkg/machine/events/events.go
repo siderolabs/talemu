@@ -21,12 +21,15 @@ import (
 	"github.com/siderolabs/talos/pkg/machinery/api/machine"
 	"github.com/siderolabs/talos/pkg/machinery/constants"
 	"github.com/siderolabs/talos/pkg/machinery/resources/runtime"
+	"github.com/siderolabs/talos/pkg/machinery/resources/v1alpha1"
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/protobuf/types/known/anypb"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
+	emuconst "github.com/siderolabs/talemu/internal/pkg/constants"
 	"github.com/siderolabs/talemu/internal/pkg/machine/network"
 	"github.com/siderolabs/talemu/internal/pkg/machine/runtime/resources/talos"
 )
@@ -72,10 +75,42 @@ func NewHandler(ctx context.Context, st state.State, uuid string) (*Handler, err
 func (h *Handler) Run(ctx context.Context, logger *zap.Logger) error {
 	var eg errgroup.Group
 
+	for _, id := range []string{emuconst.APIDService, emuconst.ETCDService} {
+		eg.Go(func() error {
+			return h.runWithRetries(ctx, logger, func() error {
+				return generateEvents(ctx, h, v1alpha1.NewService(id), func(res *v1alpha1.Service) (*events.EventRequest, error) {
+					id := xid.NewWithTime(res.Metadata().Updated())
+
+					state := "Stopped"
+
+					switch {
+					case res.TypedSpec().Running && res.TypedSpec().Healthy:
+						state = "Running"
+					case res.TypedSpec().Running && !res.TypedSpec().Healthy:
+						state = "Starting"
+					}
+
+					payload := &machine.ServiceEvent{
+						State: state,
+						Ts:    timestamppb.Now(),
+					}
+
+					data, err := anypb.New(payload)
+					if err != nil {
+						return nil, err
+					}
+
+					return &events.EventRequest{
+						Id:   id.String(),
+						Data: data,
+					}, nil
+				}, logger)
+			})
+		})
+	}
+
 	eg.Go(func() error {
 		return h.runWithRetries(ctx, logger, func() error {
-			logger = logger.With(zap.String("resource", "MachineStatus"))
-
 			return generateEvents(ctx, h, runtime.NewMachineStatus(), func(res *runtime.MachineStatus) (*events.EventRequest, error) {
 				id := xid.NewWithTime(res.Metadata().Updated())
 
@@ -101,7 +136,7 @@ func (h *Handler) Run(ctx context.Context, logger *zap.Logger) error {
 					Id:   id.String(),
 					Data: data,
 				}, nil
-			})
+			}, logger)
 		})
 	})
 
@@ -112,7 +147,7 @@ func (h *Handler) runWithRetries(ctx context.Context, logger *zap.Logger, cb fun
 	for {
 		err := cb()
 		if err != nil {
-			logger.Error("event sink connector crashed", zap.Error(err))
+			logger.WithOptions(zap.AddStacktrace(zap.PanicLevel)).Warn("event sink connector crashed", zap.Error(err))
 
 			time.Sleep(time.Second)
 
@@ -130,7 +165,7 @@ func (h *Handler) runWithRetries(ctx context.Context, logger *zap.Logger, cb fun
 }
 
 //nolint:gocognit,gocyclo,cyclop
-func generateEvents[T resource.Resource](ctx context.Context, h *Handler, res T, callback func(res T) (*events.EventRequest, error)) error {
+func generateEvents[T resource.Resource](ctx context.Context, h *Handler, res T, callback func(res T) (*events.EventRequest, error), logger *zap.Logger) error {
 	latest, err := h.state.Get(ctx, res.Metadata())
 	if err != nil && !state.IsNotFoundError(err) {
 		return err
@@ -178,7 +213,7 @@ func generateEvents[T resource.Resource](ctx context.Context, h *Handler, res T,
 		case event := <-eventCh:
 			switch event.Type() {
 			case state.Errored:
-				return fmt.Errorf(event.Error().Error())
+				return event.Error()
 			case state.Bootstrapped, state.Destroyed:
 			case state.Created, state.Updated:
 				if _, err = safe.StateUpdateWithConflicts(ctx, h.state, talos.NewEventSinkState(talos.NamespaceName, talos.EventSinkStateID).Metadata(),
@@ -188,6 +223,12 @@ func generateEvents[T resource.Resource](ctx context.Context, h *Handler, res T,
 						res, err = event.Resource()
 						if err != nil {
 							return err
+						}
+
+						version := res.Metadata().Version().Value()
+
+						if v, ok := st.TypedSpec().Value.Versions[res.Metadata().Type()]; ok && version <= v {
+							return nil
 						}
 
 						var event *events.EventRequest
@@ -201,7 +242,9 @@ func generateEvents[T resource.Resource](ctx context.Context, h *Handler, res T,
 							return err
 						}
 
-						st.TypedSpec().Value.Versions[res.Metadata().Type()] = res.Metadata().Version().Value()
+						st.TypedSpec().Value.Versions[res.Metadata().Type()] = version
+
+						logger.Debug("sent event", zap.Reflect("event", event), zap.String("resource", res.Metadata().String()))
 
 						return nil
 					},

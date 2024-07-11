@@ -7,3 +7,9 @@ package constants
 
 // OmniEndpoint is the Omni endpoint inside the siderolink network.
 const OmniEndpoint = "fdae:41e4:649b:9303::1"
+
+// APIDService name.
+const APIDService = "apid"
+
+// ETCDService name.
+const ETCDService = "etcd"

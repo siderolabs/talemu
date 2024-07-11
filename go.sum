@@ -1,3 +1,5 @@
+github.com/akutz/memconn v0.1.0 h1:NawI0TORU4hcOMsMr11g7vwlCdkYeLKXBcxWu2W/P8A=
+github.com/akutz/memconn v0.1.0/go.mod h1:Jo8rI7m0NieZyLI5e2CDlRdRqRRB4S7Xp77ukDjH+Fw=
 github.com/blang/semver/v4 v4.0.0 h1:1PFHFE6yCCTv8C1TeyNNarDzntLi7wMI5i/pzqYIsAM=
 github.com/blang/semver/v4 v4.0.0/go.mod h1:IbckMUScFkM3pff0VJDNKRiT6TG/YpiHIM2yvyW5YoQ=
 github.com/brianvoe/gofakeit/v6 v6.24.0 h1:74yq7RRz/noddscZHRS2T84oHZisW9muwbb8sRnU52A=
@@ -28,6 +30,8 @@ github.com/go-logr/logr v1.4.2 h1:6pFjapn8bFcIbiKo3XT4j/BhANplGihG6tvd+8rYgrY=
 github.com/go-logr/logr v1.4.2/go.mod h1:9T104GzyrTigFIr8wt5mBrctHMim0Nb2HLGrmQ40KvY=
 github.com/go-task/slim-sprig/v3 v3.0.0 h1:sUs3vkvUymDpBKi3qH1YSqBQk9+9D/8M2mN1vB6EwHI=
 github.com/go-task/slim-sprig/v3 v3.0.0/go.mod h1:W848ghGpv3Qj3dhTPRyJypKRiqCdHZiAzKg9hl15HA8=
+github.com/golang/protobuf v1.5.4 h1:i7eJL8qZTpSEXOPTxNKhASYpMn+8e5Q6AdndVa1dWek=
+github.com/golang/protobuf v1.5.4/go.mod h1:lnTiLA8Wa4RWRcIUkrtSVa5nRhsEGBg48fD6rSs7xps=
 github.com/google/btree v1.1.2 h1:xf4v41cLI2Z6FxbKm+8Bu+m8ifhj15JuZ9sa0jZCMUU=
 github.com/google/btree v1.1.2/go.mod h1:qOPhT0dTNdNzV6Z/lhRX0YXUafgPLFUh+gZMl761Gm4=
 github.com/google/go-cmp v0.5.6/go.mod h1:v8dTdLbMG2kIc/vJvl+f65V22dbkXbowE6jgT/gNBxE=
@@ -54,6 +58,8 @@ github.com/jsimonetti/rtnetlink v1.4.1 h1:JfD4jthWBqZMEffc5RjgmlzpYttAVw1sdnmiNa
 github.com/jsimonetti/rtnetlink v1.4.1/go.mod h1:xJjT7t59UIZ62GLZbv6PLLo8VFrostJMPBAheR6OM8w=
 github.com/jsimonetti/rtnetlink/v2 v2.0.2 h1:ZKlbCujrIpp4/u3V2Ka0oxlf4BCkt6ojkvpy3nZoCBY=
 github.com/jsimonetti/rtnetlink/v2 v2.0.2/go.mod h1:7MoNYNbb3UaDHtF8udiJo/RH6VsTKP1pqKLUTVCvToE=
+github.com/jxskiss/base62 v1.1.0 h1:A5zbF8v8WXx2xixnAKD2w+abC+sIzYJX+nxmhA6HWFw=
+github.com/jxskiss/base62 v1.1.0/go.mod h1:HhWAlUXvxKThfOlZbcuFzsqwtF5TcqS9ru3y5GfjWAc=
 github.com/kr/pretty v0.3.1 h1:flRD4NNwYAUpkphVc1HcthR4KEIFJ65n8Mw5qdRn3LE=
 github.com/kr/pretty v0.3.1/go.mod h1:hoEshYVHaxMs3cyo3Yncou5ZscifuDolrwPKZanG3xk=
 github.com/kr/text v0.2.0 h1:5Nx0Ya0ZqY2ygV366QzturHI13Jq95ApcVaJBhpS+AY=
@@ -112,6 +118,8 @@ github.com/siderolabs/go-procfs v0.1.2 h1:bDs9hHyYGE2HO1frpmUsD60yg80VIEDrx31fkb
 github.com/siderolabs/go-procfs v0.1.2/go.mod h1:dBzQXobsM7+TWRRI3DS9X7vAuj8Nkfgu3Z/U9iY3ZTY=
 github.com/siderolabs/go-retry v0.3.3 h1:zKV+S1vumtO72E6sYsLlmIdV/G/GcYSBLiEx/c9oCEg=
 github.com/siderolabs/go-retry v0.3.3/go.mod h1:Ff/VGc7v7un4uQg3DybgrmOWHEmJ8BzZds/XNn/BqMI=
+github.com/siderolabs/grpc-proxy v0.4.1 h1:UTYviMqb65oKjnH7dy5D+U4zMJ6iCTjAN6x6K/Ss120=
+github.com/siderolabs/grpc-proxy v0.4.1/go.mod h1:QwQuLUpJrlN08kpP0m63oO/SEeoz0dEhU9ndlBafc0Y=
 github.com/siderolabs/image-factory v0.4.2 h1:iYUk4vX4oEDbumm4fJopHtpQlHRehj5OvIqz3Z0aVUs=
 github.com/siderolabs/image-factory v0.4.2/go.mod h1:isJHtMOSUAj/qUxfG0BBk3acudqFd54HIdrTYGvWVkQ=
 github.com/siderolabs/net v0.4.0 h1:1bOgVay/ijPkJz4qct98nHsiB/ysLQU0KLoBC4qLm7I=
@@ -122,8 +130,8 @@ github.com/siderolabs/protoenc v0.2.1 h1:BqxEmeWQeMpNP3R6WrPqDatX8sM/r4t97OP8mFm
 github.com/siderolabs/protoenc v0.2.1/go.mod h1:StTHxjet1g11GpNAWiATgc8K0HMKiFSEVVFOa/H0otc=
 github.com/siderolabs/siderolink v0.3.5 h1:sU4WNGCRGQYZ/sQZaVQbGfUNOqS561oL4kafKlo4FDY=
 github.com/siderolabs/siderolink v0.3.5/go.mod h1:/7Dg0Nkh4q/8yqsY/VirDOTOFOqRvPikagCoyf3+Mf4=
-github.com/siderolabs/talos/pkg/machinery v1.8.0-alpha.0.0.20240705104247-3d35e54683b4 h1:Nmp2gFnhSN1dE/HcpZMc5HDc89YZ7NFuF3tkTwUXuY0=
-github.com/siderolabs/talos/pkg/machinery v1.8.0-alpha.0.0.20240705104247-3d35e54683b4/go.mod h1:Ve18EAk5Zp3q/WVerQBuzJAIfMHA3J6RihbIXG0aHbk=
+github.com/siderolabs/talos/pkg/machinery v1.8.0-alpha.1.0.20240709134906-3bab15214de9 h1:CWS4Ylaa5UedqhvQrcKRvlBqanN2otgITgGCtWVye2c=
+github.com/siderolabs/talos/pkg/machinery v1.8.0-alpha.1.0.20240709134906-3bab15214de9/go.mod h1:nnBDV/Cx7WEpTiSbowjq2xzpaCMEDDbeJ8A3eTGH5TA=
 github.com/spf13/cobra v1.8.1 h1:e5/vxKd/rZsfSJMUX1agtjeTDf+qv1/JdBF8gg5k9ZM=
 github.com/spf13/cobra v1.8.1/go.mod h1:wHxEcudfqmLYa8iTfL+OuZPbBZkmvliBWKIezN3kD9Y=
 github.com/spf13/pflag v1.0.5 h1:iy+VFUOCP1a+8yFto/drg2CJ5u0yRoB7fZw3DKv/JXA=

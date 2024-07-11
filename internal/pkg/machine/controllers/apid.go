@@ -14,11 +14,12 @@ import (
 	"github.com/cosi-project/runtime/pkg/state"
 	"github.com/siderolabs/gen/optional"
 	"github.com/siderolabs/talos/pkg/machinery/constants"
-	"github.com/siderolabs/talos/pkg/machinery/resources/config"
 	"github.com/siderolabs/talos/pkg/machinery/resources/network"
 	"github.com/siderolabs/talos/pkg/machinery/resources/secrets"
+	"github.com/siderolabs/talos/pkg/machinery/resources/v1alpha1"
 	"go.uber.org/zap"
 
+	emuconst "github.com/siderolabs/talemu/internal/pkg/constants"
 	"github.com/siderolabs/talemu/internal/pkg/machine/services"
 )
 
@@ -48,23 +49,20 @@ func (ctrl *APIDController) Inputs() []controller.Input {
 			Type:      secrets.APIType,
 			Kind:      controller.InputWeak,
 		},
-		{
-			Namespace: config.NamespaceName,
-			ID:        optional.Some(config.V1Alpha1ID),
-			Type:      config.MachineConfigType,
-			Kind:      controller.InputWeak,
-		},
 	}
 }
 
 // Outputs implements controller.Controller interface.
 func (ctrl *APIDController) Outputs() []controller.Output {
-	return nil
+	return []controller.Output{
+		{
+			Type: v1alpha1.ServiceType,
+			Kind: controller.OutputShared,
+		},
+	}
 }
 
 // Run implements controller.Controller interface.
-//
-//nolint:gocognit
 func (ctrl *APIDController) Run(ctx context.Context, r controller.Runtime, logger *zap.Logger) error {
 	for {
 		select {
@@ -80,6 +78,8 @@ func (ctrl *APIDController) Run(ctx context.Context, r controller.Runtime, logge
 				return strings.HasPrefix(address.TypedSpec().LinkName, constants.SideroLinkName)
 			})
 			if !found {
+				logger.Info("apid is waiting for siderolink interface to be up")
+
 				continue
 			}
 
@@ -92,25 +92,33 @@ func (ctrl *APIDController) Run(ctx context.Context, r controller.Runtime, logge
 
 			insecure := (apiCerts == nil)
 
-			config, err := safe.ReaderGetByID[*config.MachineConfig](ctx, r, config.V1Alpha1ID)
-			if err != nil && !state.IsNotFoundError(err) {
-				return err
-			}
-
-			// make APID crash if the machine has config but there's no certs
-			if insecure && config != nil {
-				if err = ctrl.APID.Stop(); err != nil {
-					return err
-				}
-
-				continue
-			}
-
 			if ctrl.address == address && ctrl.insecure == insecure {
 				continue
 			}
 
+			service := v1alpha1.NewService(emuconst.APIDService)
+
+			err = safe.WriterModify(ctx, r, service, func(res *v1alpha1.Service) error {
+				res.TypedSpec().Healthy = false
+				res.TypedSpec().Running = false
+
+				return nil
+			})
+			if err != nil {
+				return err
+			}
+
 			if err = ctrl.APID.Run(ctx, address, logger, apiCerts, siderolink.TypedSpec().LinkName); err != nil {
+				return err
+			}
+
+			err = safe.WriterModify(ctx, r, service, func(res *v1alpha1.Service) error {
+				res.TypedSpec().Healthy = true
+				res.TypedSpec().Running = true
+
+				return nil
+			})
+			if err != nil {
 				return err
 			}
 

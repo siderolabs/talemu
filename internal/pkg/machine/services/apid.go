@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"net"
 	"net/netip"
+	"regexp"
 	"strconv"
 	"sync"
 	"time"
@@ -23,6 +24,7 @@ import (
 	"github.com/siderolabs/crypto/tls"
 	"github.com/siderolabs/crypto/x509"
 	"github.com/siderolabs/gen/xslices"
+	"github.com/siderolabs/grpc-proxy/proxy"
 	"github.com/siderolabs/talos/pkg/machinery/api/machine"
 	"github.com/siderolabs/talos/pkg/machinery/api/storage"
 	"github.com/siderolabs/talos/pkg/machinery/constants"
@@ -31,8 +33,11 @@ import (
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/credentials/insecure"
 
 	"github.com/siderolabs/talemu/internal/pkg/machine/network"
+	"github.com/siderolabs/talemu/internal/pkg/machine/services/apid/pkg/backend"
+	"github.com/siderolabs/talemu/internal/pkg/machine/services/apid/pkg/director"
 )
 
 // APID is the emulated APId Talos service.
@@ -54,7 +59,6 @@ func NewAPID(machineID string, state state.State, globalState state.State) *APID
 }
 
 // Run creates COSI runtime, generates certs, registers gRPC services.
-// Only maintenance mode is supported right now.
 func (apid *APID) Run(ctx context.Context, endpoint netip.Prefix, logger *zap.Logger, apiCerts *secrets.API, iface string) error {
 	if err := apid.Stop(); err != nil {
 		return err
@@ -64,7 +68,7 @@ func (apid *APID) Run(ctx context.Context, endpoint netip.Prefix, logger *zap.Lo
 
 	resourceState := server.NewState(apid.state)
 
-	logger.Info("starting APID", zap.String("endpoint", endpoint.Addr().String()), zap.String("interface", iface))
+	logger.Info("starting APID", zap.String("endpoint", endpoint.Addr().String()), zap.String("interface", iface), zap.Bool("insecure", apiCerts == nil))
 
 	var lc net.ListenConfig
 
@@ -97,8 +101,52 @@ func (apid *APID) Run(ctx context.Context, endpoint netip.Prefix, logger *zap.Lo
 
 	tlsCredentials := credentials.NewTLS(cfg)
 
+	eg, ctx := errgroup.WithContext(ctx)
+
+	backendFactory := backend.NewAPIDFactory(provider)
+	remoteFactory := backendFactory.Get
+
+	localAddressProvider, err := director.NewLocalAddressProvider(ctx, apid.state)
+	if err != nil {
+		return fmt.Errorf("failed to create local address provider: %w", err)
+	}
+
+	memconn := backend.NewTransport(apid.machineID)
+
+	localBackend := backend.NewLocal("machined", memconn)
+
+	router := director.NewRouter(remoteFactory, localBackend, localAddressProvider)
+
+	// all existing streaming methods
+	for _, methodName := range []string{
+		"/machine.MachineService/Copy",
+		"/machine.MachineService/DiskUsage",
+		"/machine.MachineService/Dmesg",
+		"/machine.MachineService/EtcdSnapshot",
+		"/machine.MachineService/Events",
+		"/machine.MachineService/ImageList",
+		"/machine.MachineService/Kubeconfig",
+		"/machine.MachineService/List",
+		"/machine.MachineService/Logs",
+		"/machine.MachineService/PacketCapture",
+		"/machine.MachineService/Read",
+		"/os.OSService/Dmesg",
+		"/cluster.ClusterService/HealthCheck",
+	} {
+		router.RegisterStreamedRegex("^" + regexp.QuoteMeta(methodName) + "$")
+	}
+
+	// register future pattern: method should have suffix "Stream"
+	router.RegisterStreamedRegex("Stream$")
+
 	serverOptions := []grpc.ServerOption{
 		grpc.Creds(tlsCredentials),
+		grpc.ForceServerCodec(proxy.Codec()),
+		grpc.UnknownServiceHandler(
+			proxy.TransparentHandler(
+				router.Director,
+			),
+		),
 		grpc.SharedWriteBuffer(true),
 	}
 
@@ -112,11 +160,29 @@ func (apid *APID) Run(ctx context.Context, endpoint netip.Prefix, logger *zap.Lo
 		machineID:   apid.machineID,
 	}
 
-	machine.RegisterMachineServiceServer(s, machineSrv)
-	storage.RegisterStorageServiceServer(s, machineSrv)
-	cosiv1alpha1.RegisterStateServer(s, resourceState)
+	localServer := grpc.NewServer(
+		grpc.Creds(insecure.NewCredentials()),
+		grpc.ForceServerCodec(proxy.Codec()),
+		grpc.SharedWriteBuffer(true),
+	)
 
-	eg, ctx := errgroup.WithContext(ctx)
+	machine.RegisterMachineServiceServer(localServer, machineSrv)
+	storage.RegisterStorageServiceServer(localServer, machineSrv)
+	cosiv1alpha1.RegisterStateServer(localServer, resourceState)
+
+	eg.Go(func() error {
+		listener, err := memconn.Listener()
+		if err != nil {
+			return err
+		}
+
+		err = localServer.Serve(listener)
+		if errors.Is(err, context.Canceled) {
+			return nil
+		}
+
+		return err
+	})
 
 	eg.Go(func() error {
 		err := s.Serve(lis)
@@ -136,7 +202,8 @@ func (apid *APID) Run(ctx context.Context, endpoint netip.Prefix, logger *zap.Lo
 		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 2*time.Second)
 		defer shutdownCancel()
 
-		ServerGracefulStop(s, shutdownCtx) //nolint:contextcheck
+		ServerGracefulStop(s, shutdownCtx)           //nolint:contextcheck
+		ServerGracefulStop(localServer, shutdownCtx) //nolint:contextcheck
 
 		return nil
 	})
@@ -293,6 +360,31 @@ func (provider *TLSProvider) GetCertificate(*stdlibtls.ClientHelloInfo) (*stdlib
 	defer provider.mu.Unlock()
 
 	return provider.serverCert, nil
+}
+
+// ClientConfig implements client config provider interface.
+func (provider *TLSProvider) ClientConfig() (*stdlibtls.Config, error) {
+	ca, err := provider.GetCA()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get root CA: %w", err)
+	}
+
+	clientCert, err := provider.GetClientCertificate(nil)
+	if err != nil {
+		return nil, err
+	}
+
+	if ca == nil || clientCert == nil {
+		return &stdlibtls.Config{
+			InsecureSkipVerify: true,
+		}, nil
+	}
+
+	return tls.New(
+		tls.WithClientAuthType(tls.Mutual),
+		tls.WithCACertPEM(ca),
+		tls.WithClientCertificateProvider(provider),
+	)
 }
 
 // GetClientCertificate implements tls.CertificateProvider interface.

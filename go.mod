@@ -7,10 +7,12 @@ go 1.22.5
 replace gopkg.in/yaml.v3 => github.com/unix4ever/yaml v0.0.0-20220527175918-f17b0f05cf2c
 
 require (
+	github.com/akutz/memconn v0.1.0
 	github.com/cosi-project/runtime v0.5.2
 	github.com/grpc-ecosystem/go-grpc-middleware/v2 v2.1.0
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/jsimonetti/rtnetlink v1.4.1
+	github.com/jxskiss/base62 v1.1.0
 	github.com/martinlindhe/base36 v1.1.1
 	github.com/mdlayher/arp v0.0.0-20220512170110-6706a2966875
 	github.com/mdlayher/genetlink v1.3.2
@@ -23,10 +25,12 @@ require (
 	github.com/siderolabs/go-pointer v1.0.0
 	github.com/siderolabs/go-procfs v0.1.2
 	github.com/siderolabs/go-retry v0.3.3
+	github.com/siderolabs/grpc-proxy v0.4.1
 	github.com/siderolabs/image-factory v0.4.2
+	github.com/siderolabs/net v0.4.0
 	github.com/siderolabs/omni/client v0.39.0
 	github.com/siderolabs/siderolink v0.3.5
-	github.com/siderolabs/talos/pkg/machinery v1.8.0-alpha.0.0.20240705104247-3d35e54683b4
+	github.com/siderolabs/talos/pkg/machinery v1.8.0-alpha.1.0.20240709134906-3bab15214de9
 	github.com/spf13/cobra v1.8.1
 	github.com/stretchr/testify v1.9.0
 	go.etcd.io/bbolt v1.3.10
@@ -63,7 +67,6 @@ require (
 	github.com/opencontainers/runtime-spec v1.2.0 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/ryanuber/go-glob v1.0.0 // indirect
-	github.com/siderolabs/net v0.4.0 // indirect
 	github.com/siderolabs/protoenc v0.2.1 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
 	golang.org/x/crypto v0.24.0 // indirect
