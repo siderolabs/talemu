@@ -57,7 +57,7 @@ func (ctrl *VersionController) Outputs() []controller.Output {
 }
 
 // Run implements controller.Controller interface.
-func (ctrl *VersionController) Run(ctx context.Context, r controller.Runtime, _ *zap.Logger) error {
+func (ctrl *VersionController) Run(ctx context.Context, r controller.Runtime, logger *zap.Logger) error {
 	for {
 		select {
 		case <-ctx.Done():
@@ -75,12 +75,19 @@ func (ctrl *VersionController) Run(ctx context.Context, r controller.Runtime, _ 
 			return err
 		}
 
-		var version string
+		var (
+			version string
+			source  string
+		)
 
 		switch {
 		case image != nil:
+			source = "upgrade"
+
 			version = image.TypedSpec().Value.Version
 		case config != nil:
+			source = "install"
+
 			var found bool
 
 			installImage := config.Container().RawV1Alpha1().Machine().Install().Image()
@@ -96,6 +103,10 @@ func (ctrl *VersionController) Run(ctx context.Context, r controller.Runtime, _ 
 		}
 
 		if err := safe.WriterModify(ctx, r, talos.NewVersion(talos.NamespaceName, talos.VersionID), func(res *talos.Version) error {
+			if version != res.TypedSpec().Value.Value {
+				logger.Info("version updated", zap.String("source", source))
+			}
+
 			res.TypedSpec().Value.Value = version
 
 			return nil

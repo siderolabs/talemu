@@ -48,10 +48,14 @@ func (c *machineService) ApplyConfiguration(ctx context.Context, request *machin
 
 	cfg := config.NewMachineConfig(cfgProvider)
 
+	mode := machine.ApplyConfigurationRequest_REBOOT
+
 	if err = c.state.Create(ctx, cfg); err != nil {
 		if !state.IsConflictError(err) {
 			return nil, err
 		}
+
+		mode = machine.ApplyConfigurationRequest_NO_REBOOT
 
 		var r resource.Resource
 
@@ -118,7 +122,7 @@ func (c *machineService) ApplyConfiguration(ctx context.Context, request *machin
 	return &machine.ApplyConfigurationResponse{
 		Messages: []*machine.ApplyConfiguration{
 			{
-				Mode: machine.ApplyConfigurationRequest_REBOOT,
+				Mode: mode,
 			},
 		},
 	}, nil
