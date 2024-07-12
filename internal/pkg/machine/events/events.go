@@ -242,6 +242,10 @@ func generateEvents[T resource.Resource](ctx context.Context, h *Handler, res T,
 							return err
 						}
 
+						if st.TypedSpec().Value.Versions == nil {
+							st.TypedSpec().Value.Versions = map[string]uint64{}
+						}
+
 						st.TypedSpec().Value.Versions[res.Metadata().Type()] = version
 
 						logger.Debug("sent event", zap.Reflect("event", event), zap.String("resource", res.Metadata().String()))

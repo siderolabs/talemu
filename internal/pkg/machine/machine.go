@@ -14,7 +14,10 @@ import (
 	"github.com/cosi-project/runtime/pkg/safe"
 	"github.com/cosi-project/runtime/pkg/state"
 	"github.com/jsimonetti/rtnetlink"
+	factoryconsts "github.com/siderolabs/image-factory/pkg/constants"
+	"github.com/siderolabs/image-factory/pkg/schematic"
 	"github.com/siderolabs/talos/pkg/machinery/api/storage"
+	"github.com/siderolabs/talos/pkg/machinery/nethelpers"
 	"github.com/siderolabs/talos/pkg/machinery/resources/config"
 	"github.com/siderolabs/talos/pkg/machinery/resources/hardware"
 	"github.com/siderolabs/talos/pkg/machinery/resources/k8s"
@@ -68,9 +71,9 @@ func (m *Machine) Run(ctx context.Context, siderolinkParams *SideroLinkParams, m
 
 	m.runtime = rt
 
-	resources := make([]resource.Resource, 0, 10)
+	resources := make([]resource.Resource, 0, 13)
 
-	// populate the inputs for the siderolink controller
+	// populate the initial machine state
 	hardwareInformation := hardware.NewSystemInformation(hardware.SystemInformationID)
 	hardwareInformation.TypedSpec().UUID = m.uuid
 	hardwareInformation.TypedSpec().ProductName = "Talos Emulator"
@@ -113,10 +116,42 @@ func (m *Machine) Run(ctx context.Context, siderolinkParams *SideroLinkParams, m
 	helloWorldExtension.TypedSpec().Metadata.Name = "hello-world-service"
 	helloWorldExtension.TypedSpec().Metadata.Version = "v1.0.0"
 
+	schematic := schematic.Schematic{
+		Customization: schematic.Customization{
+			SystemExtensions: schematic.SystemExtensions{
+				OfficialExtensions: []string{
+					"hello-world-service",
+				},
+			},
+		},
+	}
+
+	schematicInfo := runtime.NewExtensionStatus(runtime.NamespaceName, factoryconsts.SchematicIDExtensionName)
+	schematicInfo.TypedSpec().Metadata.Name = factoryconsts.SchematicIDExtensionName
+
+	schematicInfo.TypedSpec().Metadata.Version, err = schematic.ID()
+	if err != nil {
+		return err
+	}
+
+	defaultRoute := network.NewRouteStatus(network.NamespaceName, "inet4/192.168.0.1//1024")
+	defaultRoute.TypedSpec().Family = nethelpers.FamilyInet4
+	defaultRoute.TypedSpec().Source = netip.MustParseAddr("192.168.0.1")
+	defaultRoute.TypedSpec().Gateway = netip.MustParseAddr("192.168.0.1")
+	defaultRoute.TypedSpec().Table = nethelpers.TableMain
+	defaultRoute.TypedSpec().Priority = 1024
+	defaultRoute.TypedSpec().Scope = nethelpers.ScopeGlobal
+	defaultRoute.TypedSpec().Type = nethelpers.TypeAnycast
+	defaultRoute.TypedSpec().Protocol = nethelpers.ProtocolBoot
+
+	memory := hardware.NewMemoryModuleInfo("1")
+	memory.TypedSpec().Size = 64 * 1024
+	memory.TypedSpec().Manufacturer = "SideroLabs UltraMem"
+
 	disk := talos.NewDisk(talos.NamespaceName, "/dev/vda")
 	disk.TypedSpec().Value = &storage.Disk{
 		Size:       50 * 1024 * 1024 * 1024,
-		DeviceName: "/dev/sda",
+		DeviceName: "/dev/vda",
 		Model:      "CM5514",
 		Type:       storage.Disk_HDD,
 		BusPath:    "/pci0000:00/0000:00:05.0/0000:01:01.0/virtio2/host2/target2:0:0/2:0:0:0/",
@@ -132,7 +167,10 @@ func (m *Machine) Run(ctx context.Context, siderolinkParams *SideroLinkParams, m
 		trustdEndpoint,
 		eventSinkConfig,
 		disk,
+		schematicInfo,
 		helloWorldExtension,
+		defaultRoute,
+		memory,
 	)
 
 	for _, r := range resources {

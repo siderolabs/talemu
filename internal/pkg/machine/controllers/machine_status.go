@@ -13,7 +13,6 @@ import (
 	"github.com/cosi-project/runtime/pkg/safe"
 	"github.com/cosi-project/runtime/pkg/state"
 	"github.com/siderolabs/go-blockdevice/blockdevice/util/disk"
-	"github.com/siderolabs/image-factory/pkg/constants"
 	"github.com/siderolabs/talos/pkg/machinery/config/types/v1alpha1"
 	"github.com/siderolabs/talos/pkg/machinery/resources/config"
 	"github.com/siderolabs/talos/pkg/machinery/resources/runtime"
@@ -109,7 +108,6 @@ func (ctrl *MachineStatusController) Run(ctx context.Context, r controller.Runti
 
 		expectResources := []resource.Resource{
 			talos.NewVersion(talos.NamespaceName, talos.VersionID),
-			runtime.NewExtensionStatus(runtime.NamespaceName, constants.SchematicIDExtensionName),
 		}
 
 		for _, expect := range expectResources {

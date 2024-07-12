@@ -64,6 +64,7 @@ func NewRuntime(ctx context.Context, logger *zap.Logger, machineIndex int, globa
 			MachineIndex: machineIndex,
 		},
 		&controllers.LinkSpecController{},
+		&controllers.LinkStatusController{},
 		&controllers.APIDController{
 			APID: services.NewAPID(id, st, globalState),
 		},
