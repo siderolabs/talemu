@@ -51,6 +51,10 @@ func (ctrl *NodeAddressController) Outputs() []controller.Output {
 			Type: network.NodeAddressType,
 			Kind: controller.OutputShared,
 		},
+		{
+			Type: k8s.NodeIPType,
+			Kind: controller.OutputShared,
+		},
 	}
 }
 
@@ -107,6 +111,20 @@ func (ctrl *NodeAddressController) Run(ctx context.Context, r controller.Runtime
 					return nil
 				},
 			)
+
+			return err
+		}); err != nil {
+			return err
+		}
+
+		if err = safe.WriterModify(ctx, r, k8s.NewNodeIP(k8s.NamespaceName, k8s.KubeletID), func(r *k8s.NodeIP) error {
+			addrs := make([]netip.Addr, 0, addresses.Len())
+
+			addresses.ForEach(func(r *network.AddressSpec) {
+				addrs = append(addrs, r.TypedSpec().Address.Addr())
+			})
+
+			r.TypedSpec().Addresses = addrs
 
 			return err
 		}); err != nil {

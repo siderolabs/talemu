@@ -93,6 +93,11 @@ func NewRuntime(ctx context.Context, logger *zap.Logger, machineIndex int, globa
 			MachineID:   id,
 		},
 		&controllers.MountStatusController{},
+		&controllers.LocalAffiliateController{},
+		&controllers.MemberController{},
+		controllers.NewClusterConfigController(),
+		&controllers.AffiliateMergeController{},
+		&controllers.DiscoveryServiceController{},
 	}
 
 	runtime, err := runtime.NewRuntime(st, logger)

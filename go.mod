@@ -23,6 +23,8 @@ require (
 	github.com/rs/xid v1.5.0
 	github.com/safchain/ethtool v0.4.1
 	github.com/siderolabs/crypto v0.4.4
+	github.com/siderolabs/discovery-api v0.1.4
+	github.com/siderolabs/discovery-client v0.1.9
 	github.com/siderolabs/gen v0.5.0
 	github.com/siderolabs/go-blockdevice v0.4.7
 	github.com/siderolabs/go-pointer v1.0.0

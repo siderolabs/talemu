@@ -127,6 +127,8 @@ func (h *Handler) Run(ctx context.Context, logger *zap.Logger) error {
 					},
 				}
 
+				logger.Debug("machine status event", zap.Reflect("payload", payload))
+
 				data, err := anypb.New(payload)
 				if err != nil {
 					return nil, err
