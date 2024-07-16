@@ -89,18 +89,20 @@ func (c *machineService) ApplyConfiguration(ctx context.Context, request *machin
 		}
 	}
 
-	if _, err = safe.StateUpdateWithConflicts(ctx, c.globalState, clusterStatus.Metadata(), func(r *emu.ClusterStatus) error {
-		if cfgProvider.Machine().Type().IsControlPlane() {
-			r.TypedSpec().Value.ControlPlanes++
+	if mode == machine.ApplyConfigurationRequest_REBOOT {
+		if _, err = safe.StateUpdateWithConflicts(ctx, c.globalState, clusterStatus.Metadata(), func(r *emu.ClusterStatus) error {
+			if cfgProvider.Machine().Type().IsControlPlane() {
+				r.TypedSpec().Value.ControlPlanes++
+
+				return nil
+			}
+
+			r.TypedSpec().Value.Workers++
 
 			return nil
+		}); err != nil {
+			return nil, err
 		}
-
-		r.TypedSpec().Value.Workers++
-
-		return nil
-	}); err != nil {
-		return nil, err
 	}
 
 	machineStatus := emu.NewMachineStatus(emu.NamespaceName, c.machineID)
@@ -217,7 +219,7 @@ func (c *machineService) Reset(ctx context.Context, request *machine.ResetReques
 	}
 
 	if clusterStatus.TypedSpec().Value.ControlPlanes == 0 && clusterStatus.TypedSpec().Value.Workers == 0 {
-		if err = c.globalState.Destroy(ctx, clusterStatus.Metadata()); err != nil {
+		if _, err = c.globalState.Teardown(ctx, clusterStatus.Metadata()); err != nil {
 			return nil, err
 		}
 	}

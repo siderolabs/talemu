@@ -135,6 +135,7 @@ func (ctrl *MachineStatusController) Run(ctx context.Context, r controller.Runti
 
 		if config.Provider().Machine().Type().IsControlPlane() {
 			services = append(services, emuconst.ETCDService)
+			services = append(services, emuconst.KubeletService)
 		}
 
 		serviceConditions, err := ctrl.checkServicesReady(ctx, r, services...)

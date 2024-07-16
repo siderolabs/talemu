@@ -23,6 +23,8 @@ import (
 	"go.uber.org/zap/zapcore"
 	"golang.org/x/sync/errgroup"
 
+	emuruntime "github.com/siderolabs/talemu/internal/pkg/emu"
+	"github.com/siderolabs/talemu/internal/pkg/kubefactory"
 	"github.com/siderolabs/talemu/internal/pkg/machine"
 	"github.com/siderolabs/talemu/internal/pkg/machine/runtime"
 	"github.com/siderolabs/talemu/internal/pkg/machine/runtime/resources/emu"
@@ -90,6 +92,20 @@ var rootCmd = &cobra.Command{
 			return err
 		}
 
+		kubernetes, err := kubefactory.New(ctx, "_out", logger)
+		if err != nil {
+			return err
+		}
+
+		runtime, err := emuruntime.NewRuntime(emulatorState, kubernetes, logger)
+		if err != nil {
+			return err
+		}
+
+		eg.Go(func() error {
+			return runtime.Run(ctx)
+		})
+
 		for i := range cfg.machinesCount {
 			machine, err := machine.NewMachine(fmt.Sprintf("machine-%04d", i+1000), logger, emulatorState)
 			if err != nil {
@@ -97,7 +113,7 @@ var rootCmd = &cobra.Command{
 			}
 
 			eg.Go(func() error {
-				return machine.Run(ctx, params, i+1000)
+				return machine.Run(ctx, params, i+1000, kubernetes)
 			})
 
 			machines = append(machines, machine)

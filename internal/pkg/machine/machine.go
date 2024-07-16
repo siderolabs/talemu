@@ -28,6 +28,7 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/siderolabs/talemu/internal/pkg/constants"
+	"github.com/siderolabs/talemu/internal/pkg/kubefactory"
 	"github.com/siderolabs/talemu/internal/pkg/machine/controllers"
 	"github.com/siderolabs/talemu/internal/pkg/machine/events"
 	truntime "github.com/siderolabs/talemu/internal/pkg/machine/runtime"
@@ -63,8 +64,8 @@ type SideroLinkParams struct {
 }
 
 // Run starts the machine.
-func (m *Machine) Run(ctx context.Context, siderolinkParams *SideroLinkParams, machineIndex int) error {
-	rt, err := truntime.NewRuntime(ctx, m.logger, machineIndex, m.globalState)
+func (m *Machine) Run(ctx context.Context, siderolinkParams *SideroLinkParams, machineIndex int, kubernetes *kubefactory.Kubernetes) error {
+	rt, err := truntime.NewRuntime(ctx, m.logger, machineIndex, m.globalState, kubernetes)
 	if err != nil {
 		return err
 	}

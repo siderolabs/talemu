@@ -19,6 +19,7 @@ import (
 	"github.com/cosi-project/runtime/pkg/state"
 	"go.uber.org/zap"
 
+	"github.com/siderolabs/talemu/internal/pkg/kubefactory"
 	"github.com/siderolabs/talemu/internal/pkg/machine/controllers"
 	"github.com/siderolabs/talemu/internal/pkg/machine/runtime/resources/emu"
 	"github.com/siderolabs/talemu/internal/pkg/machine/runtime/resources/talos"
@@ -35,7 +36,7 @@ type Runtime struct {
 }
 
 // NewRuntime creates new runtime.
-func NewRuntime(ctx context.Context, logger *zap.Logger, machineIndex int, globalState state.State) (*Runtime, error) {
+func NewRuntime(ctx context.Context, logger *zap.Logger, machineIndex int, globalState state.State, kubernetes *kubefactory.Kubernetes) (*Runtime, error) {
 	stateDir := filepath.Join("_out/state/machines", strconv.FormatInt(int64(machineIndex), 10))
 
 	id := fmt.Sprintf("machine-%d", machineIndex)
@@ -98,6 +99,17 @@ func NewRuntime(ctx context.Context, logger *zap.Logger, machineIndex int, globa
 		controllers.NewClusterConfigController(),
 		&controllers.AffiliateMergeController{},
 		&controllers.DiscoveryServiceController{},
+		&controllers.KubernetesSecretsController{},
+		&controllers.KubernetesDynamicCertsController{},
+		&controllers.KubernetesController{
+			Kubernetes: kubernetes,
+			MachineID:  id,
+		},
+		controllers.NewRootKubernetesController(),
+		&controllers.KubernetesCertSANsController{},
+		&controllers.RenderSecretsStaticPodController{
+			MachineID: id,
+		},
 	}
 
 	runtime, err := runtime.NewRuntime(st, logger)

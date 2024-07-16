@@ -13,3 +13,6 @@ const APIDService = "apid"
 
 // ETCDService name.
 const ETCDService = "etcd"
+
+// KubeletService name.
+const KubeletService = "kubelet"
