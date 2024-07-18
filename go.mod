@@ -38,6 +38,7 @@ require (
 	github.com/siderolabs/discovery-client v0.1.9
 	github.com/siderolabs/gen v0.5.0
 	github.com/siderolabs/go-blockdevice v0.4.7
+	github.com/siderolabs/go-circular v0.1.0
 	github.com/siderolabs/go-pointer v1.0.0
 	github.com/siderolabs/go-procfs v0.1.2
 	github.com/siderolabs/go-retry v0.3.3
@@ -61,8 +62,8 @@ require (
 	golang.zx2c4.com/wireguard/wgctrl v0.0.0-20230429144221-925a1e7659e6
 	google.golang.org/grpc v1.65.0
 	google.golang.org/protobuf v1.34.2
+	k8s.io/api v0.30.2
 	k8s.io/apimachinery v0.30.2
-	k8s.io/apiserver v0.30.2
 	k8s.io/client-go v0.30.2
 	k8s.io/kubernetes v1.30.2
 )
@@ -188,8 +189,8 @@ require (
 	gopkg.in/warnings.v0 v0.1.2 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
-	k8s.io/api v0.30.2 // indirect
 	k8s.io/apiextensions-apiserver v0.30.2 // indirect
+	k8s.io/apiserver v0.30.2 // indirect
 	k8s.io/cloud-provider v0.30.2 // indirect
 	k8s.io/cluster-bootstrap v0.0.0 // indirect
 	k8s.io/component-base v0.30.2 // indirect

@@ -25,12 +25,14 @@ import (
 	"github.com/siderolabs/talos/pkg/machinery/resources/runtime"
 	"github.com/siderolabs/talos/pkg/machinery/resources/siderolink"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/siderolabs/talemu/internal/pkg/constants"
 	"github.com/siderolabs/talemu/internal/pkg/kubefactory"
 	"github.com/siderolabs/talemu/internal/pkg/machine/controllers"
 	"github.com/siderolabs/talemu/internal/pkg/machine/events"
+	"github.com/siderolabs/talemu/internal/pkg/machine/logging"
 	truntime "github.com/siderolabs/talemu/internal/pkg/machine/runtime"
 	"github.com/siderolabs/talemu/internal/pkg/machine/runtime/resources/talos"
 )
@@ -47,7 +49,7 @@ type Machine struct {
 func NewMachine(uuid string, logger *zap.Logger, globalState state.State) (*Machine, error) {
 	return &Machine{
 		uuid:        uuid,
-		logger:      logger.With(zap.String("machine", uuid)),
+		logger:      logger,
 		globalState: globalState,
 	}, nil
 }
@@ -65,7 +67,18 @@ type SideroLinkParams struct {
 
 // Run starts the machine.
 func (m *Machine) Run(ctx context.Context, siderolinkParams *SideroLinkParams, machineIndex int, kubernetes *kubefactory.Kubernetes) error {
-	rt, err := truntime.NewRuntime(ctx, m.logger, machineIndex, m.globalState, kubernetes)
+	logSink, err := logging.NewZapCore(siderolinkParams.LogsEndpoint)
+	if err != nil {
+		return err
+	}
+
+	core := zapcore.NewTee(m.logger.Core(), logSink)
+
+	defer logSink.Close(ctx) //nolint:errcheck
+
+	m.logger = zap.New(core).With(zap.String("machine", m.uuid))
+
+	rt, err := truntime.NewRuntime(ctx, m.logger, machineIndex, m.globalState, kubernetes, logSink)
 	if err != nil {
 		return err
 	}
@@ -78,7 +91,7 @@ func (m *Machine) Run(ctx context.Context, siderolinkParams *SideroLinkParams, m
 	hardwareInformation := hardware.NewSystemInformation(hardware.SystemInformationID)
 	hardwareInformation.TypedSpec().UUID = m.uuid
 	hardwareInformation.TypedSpec().ProductName = "Talos Emulator"
-	hardwareInformation.TypedSpec().Manufacturer = "SideroLabs"
+	hardwareInformation.TypedSpec().Manufacturer = "qemu"
 
 	siderolinkConfig := siderolink.NewConfig(config.NamespaceName, siderolink.ConfigID)
 	siderolinkConfig.TypedSpec().APIEndpoint = siderolinkParams.APIEndpoint
@@ -95,7 +108,7 @@ func (m *Machine) Run(ctx context.Context, siderolinkParams *SideroLinkParams, m
 	platformMetadata.TypedSpec().Hostname = m.uuid
 
 	processorInfo := hardware.NewProcessorInfo("1")
-	processorInfo.TypedSpec().Manufacturer = "SideroLabs"
+	processorInfo.TypedSpec().Manufacturer = "qemu"
 	processorInfo.TypedSpec().CoreCount = 64
 	processorInfo.TypedSpec().MaxSpeed = 4000
 	processorInfo.TypedSpec().ProductName = "Fake CPU"

@@ -158,7 +158,7 @@ func (ctrl *LocalAffiliateController) Run(ctx context.Context, r controller.Runt
 			continue
 		}
 
-		currentAddresses, err := safe.ReaderGetByID[*network.NodeAddress](ctx, r, network.FilteredNodeAddressID(network.NodeAddressCurrentID, k8s.NodeAddressFilterNoK8s))
+		currentAddresses, err := safe.ReaderGetByID[*network.NodeAddress](ctx, r, network.NodeAddressDefaultID)
 		if err != nil {
 			if !state.IsNotFoundError(err) {
 				return fmt.Errorf("error getting addresses: %w", err)

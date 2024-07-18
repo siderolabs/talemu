@@ -16,7 +16,6 @@ import (
 	"github.com/cosi-project/runtime/pkg/state"
 	"github.com/martinlindhe/base36"
 	"github.com/siderolabs/gen/optional"
-	"github.com/siderolabs/go-procfs/procfs"
 	talosconfig "github.com/siderolabs/talos/pkg/machinery/config"
 	"github.com/siderolabs/talos/pkg/machinery/resources/cluster"
 	"github.com/siderolabs/talos/pkg/machinery/resources/config"
@@ -26,7 +25,7 @@ import (
 
 // HostnameConfigController manages network.HostnameSpec based on machine configuration, kernel cmdline.
 type HostnameConfigController struct {
-	Cmdline *procfs.Cmdline
+	MachineID string
 }
 
 // Name implements controller.Controller interface.
@@ -133,6 +132,11 @@ func (ctrl *HostnameConfigController) Run(ctx context.Context, r controller.Runt
 			} else {
 				specs = append(specs, ctrl.getDefault(defaultAddr))
 			}
+		} else {
+			specs = append(specs, network.HostnameSpecSpec{
+				Hostname:    ctrl.MachineID,
+				ConfigLayer: network.ConfigDefault,
+			})
 		}
 
 		var ids []string

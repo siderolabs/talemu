@@ -20,6 +20,7 @@ import (
 	"github.com/siderolabs/talos/pkg/machinery/config/configloader"
 	"github.com/siderolabs/talos/pkg/machinery/resources/config"
 	"github.com/siderolabs/talos/pkg/machinery/resources/etcd"
+	"github.com/siderolabs/talos/pkg/machinery/resources/network"
 	"github.com/siderolabs/talos/pkg/machinery/resources/v1alpha1"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -184,6 +185,16 @@ func (c *machineService) Reset(ctx context.Context, request *machine.ResetReques
 		return nil, err
 	}
 
+	_, err = c.state.Teardown(ctx, config.Metadata())
+	if err != nil {
+		return nil, err
+	}
+
+	_, err = c.state.WatchFor(ctx, config.Metadata(), state.WithFinalizerEmpty())
+	if err != nil {
+		return nil, err
+	}
+
 	if err = c.state.Destroy(ctx, config.Metadata()); err != nil {
 		return nil, err
 	}
@@ -255,8 +266,11 @@ func (c *machineService) Version(ctx context.Context, _ *emptypb.Empty) (*machin
 		return nil, err
 	}
 
+	architecture := ""
+
 	if res != nil {
 		version = res.TypedSpec().Value.Value
+		architecture = res.TypedSpec().Value.Architecture
 	}
 
 	return &machine.VersionResponse{
@@ -264,7 +278,7 @@ func (c *machineService) Version(ctx context.Context, _ *emptypb.Empty) (*machin
 			{
 				Version: &machine.VersionInfo{
 					Tag:  version,
-					Arch: "amd64",
+					Arch: architecture,
 				},
 			},
 		},
@@ -513,29 +527,40 @@ func (c *machineService) ServiceList(ctx context.Context, _ *emptypb.Empty) (*ma
 		return nil, err
 	}
 
-	res.Messages = []*machine.ServiceList{
-		{
-			Services: safe.ToSlice(services, func(s *v1alpha1.Service) *machine.ServiceInfo {
-				state := "Stopped"
-				switch {
-				case s.TypedSpec().Running && s.TypedSpec().Healthy:
-					state = "Running"
-				case s.TypedSpec().Running && !s.TypedSpec().Healthy:
-					state = "Starting"
-				}
+	list := &machine.ServiceList{
+		Services: safe.ToSlice(services, func(s *v1alpha1.Service) *machine.ServiceInfo {
+			state := "Stopped"
+			switch {
+			case s.TypedSpec().Running && s.TypedSpec().Healthy:
+				state = "Running"
+			case s.TypedSpec().Running && !s.TypedSpec().Healthy:
+				state = "Starting"
+			}
 
-				return &machine.ServiceInfo{
-					Id:     s.Metadata().ID(),
-					State:  state,
-					Events: &machine.ServiceEvents{},
-					Health: &machine.ServiceHealth{
-						Unknown:    s.TypedSpec().Unknown,
-						Healthy:    s.TypedSpec().Healthy,
-						LastChange: timestamppb.New(s.Metadata().Updated()),
-					},
-				}
-			}),
+			return &machine.ServiceInfo{
+				Id:     s.Metadata().ID(),
+				State:  state,
+				Events: &machine.ServiceEvents{},
+				Health: &machine.ServiceHealth{
+					Unknown:    s.TypedSpec().Unknown,
+					Healthy:    s.TypedSpec().Healthy,
+					LastChange: timestamppb.New(s.Metadata().Updated()),
+				},
+			}
+		}),
+	}
+
+	list.Services = append(list.Services, &machine.ServiceInfo{
+		Id:     "machined",
+		State:  "Running",
+		Events: &machine.ServiceEvents{},
+		Health: &machine.ServiceHealth{
+			Healthy: true,
 		},
+	})
+
+	res.Messages = []*machine.ServiceList{
+		list,
 	}
 
 	return res, nil
@@ -558,4 +583,43 @@ func (c *machineService) Disks(ctx context.Context, _ *emptypb.Empty) (*storage.
 			},
 		},
 	}, nil
+}
+
+// Hostname implements machine.MachineServiceServer.
+func (c *machineService) Hostname(ctx context.Context, _ *emptypb.Empty) (*machine.HostnameResponse, error) {
+	hostname, err := safe.ReaderGetByID[*network.HostnameStatus](ctx, c.state, network.HostnameID)
+	if err != nil {
+		return nil, err
+	}
+
+	return &machine.HostnameResponse{
+		Messages: []*machine.Hostname{
+			{
+				Hostname: hostname.TypedSpec().Hostname,
+			},
+		},
+	}, nil
+}
+
+// Dmesg implements machine.MachineServiceServer.
+func (c *machineService) Dmesg(_ *machine.DmesgRequest, serv machine.MachineService_DmesgServer) error {
+	return serv.Send(&common.Data{
+		Bytes: []byte(
+			"I wish I was a real Talos...",
+		),
+	})
+}
+
+// Logs implements machine.MachineServiceServer.
+func (c *machineService) Logs(req *machine.LogsRequest, serv machine.MachineService_LogsServer) error {
+	return serv.Send(&common.Data{
+		Bytes: []byte(
+			fmt.Sprintf("I will pretend I know something about the service %q", req.Id),
+		),
+	})
+}
+
+// Containers implements machine.MachineServiceServer.
+func (c *machineService) Containers(context.Context, *machine.ContainersRequest) (*machine.ContainersResponse, error) {
+	return &machine.ContainersResponse{}, nil
 }

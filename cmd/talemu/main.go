@@ -92,7 +92,7 @@ var rootCmd = &cobra.Command{
 			return err
 		}
 
-		kubernetes, err := kubefactory.New(ctx, "_out", logger)
+		kubernetes, err := kubefactory.New(ctx, "_out/state", logger)
 		if err != nil {
 			return err
 		}

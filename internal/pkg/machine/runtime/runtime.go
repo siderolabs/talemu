@@ -21,6 +21,7 @@ import (
 
 	"github.com/siderolabs/talemu/internal/pkg/kubefactory"
 	"github.com/siderolabs/talemu/internal/pkg/machine/controllers"
+	"github.com/siderolabs/talemu/internal/pkg/machine/logging"
 	"github.com/siderolabs/talemu/internal/pkg/machine/runtime/resources/emu"
 	"github.com/siderolabs/talemu/internal/pkg/machine/runtime/resources/talos"
 	"github.com/siderolabs/talemu/internal/pkg/machine/services"
@@ -36,7 +37,9 @@ type Runtime struct {
 }
 
 // NewRuntime creates new runtime.
-func NewRuntime(ctx context.Context, logger *zap.Logger, machineIndex int, globalState state.State, kubernetes *kubefactory.Kubernetes) (*Runtime, error) {
+func NewRuntime(ctx context.Context, logger *zap.Logger, machineIndex int, globalState state.State,
+	kubernetes *kubefactory.Kubernetes, logSink *logging.ZapCore,
+) (*Runtime, error) {
 	stateDir := filepath.Join("_out/state/machines", strconv.FormatInt(int64(machineIndex), 10))
 
 	id := fmt.Sprintf("machine-%d", machineIndex)
@@ -72,7 +75,9 @@ func NewRuntime(ctx context.Context, logger *zap.Logger, machineIndex int, globa
 		&controllers.AddressSpecController{},
 		&controllers.GRPCTLSController{},
 		&controllers.MachineTypeController{},
-		&controllers.HostnameConfigController{},
+		&controllers.HostnameConfigController{
+			MachineID: id,
+		},
 		&controllers.HostnameMergeController{},
 		&controllers.HostnameSpecController{
 			GlobalState: globalState,
@@ -109,6 +114,19 @@ func NewRuntime(ctx context.Context, logger *zap.Logger, machineIndex int, globa
 		&controllers.KubernetesCertSANsController{},
 		&controllers.RenderSecretsStaticPodController{
 			MachineID: id,
+		},
+		&controllers.KubernetesNodeController{
+			MachineID:   id,
+			GlobalState: globalState,
+		},
+		&controllers.KubeconfigController{
+			GlobalState: globalState,
+		},
+		&controllers.StaticPodController{
+			MachineID: id,
+		},
+		&controllers.LogSinkController{
+			LogSink: logSink,
 		},
 	}
 

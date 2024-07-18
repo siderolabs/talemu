@@ -11,6 +11,7 @@ message ClusterStatusSpec {
   uint32 control_planes = 2;
   uint32 workers = 3;
   repeated string deny_etcd_members = 4;
+  bytes kubeconfig = 5;
 }
 
 // MachineStatusSpec is an emulated machine status.
@@ -29,6 +30,7 @@ message EventSinkStateSpec {
 // VersionSpec keeps current talos version of the emulated Talos node.
 message VersionSpec {
   string value = 1;
+  string architecture = 2;
 }
 
 // ImageSpec is the last image used in the upgrade request.

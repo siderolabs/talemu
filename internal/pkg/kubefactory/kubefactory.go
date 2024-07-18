@@ -10,10 +10,12 @@ import (
 	"fmt"
 	"net"
 	"path/filepath"
+	"sync"
 
 	clientv3 "go.etcd.io/etcd/client/v3"
 	"go.uber.org/zap"
 	"k8s.io/apimachinery/pkg/util/errors"
+	"k8s.io/apiserver/pkg/server"
 	"k8s.io/kubernetes/cmd/kube-apiserver/app"
 	"k8s.io/kubernetes/cmd/kube-apiserver/app/options"
 
@@ -22,9 +24,11 @@ import (
 
 // Kubernetes is a mini fake kubelet.
 type Kubernetes struct {
-	etcd    *Etcd
-	logger  *zap.Logger
+	etcd   *Etcd
+	logger *zap.Logger
+
 	dataDir string
+	mu      sync.Mutex
 }
 
 // New creates a kubernetes simulator.
@@ -79,6 +83,9 @@ func (k *Kubernetes) RunAPIService(ctx context.Context, address, iface, machineI
 	s.SecureServing.Listener = lis
 	s.SecureServing.ExternalAddress = net.ParseIP(address)
 
+	k.mu.Lock()
+	server.SetHostnameFuncForTests(machineID)
+
 	s.ServiceClusterIPRanges = address + "/108"
 
 	s.Authentication.Anonymous.Allow = false
@@ -93,6 +100,9 @@ func (k *Kubernetes) RunAPIService(ctx context.Context, address, iface, machineI
 
 	// set default options
 	completedOptions, err := s.Complete()
+
+	k.mu.Unlock()
+
 	if err != nil {
 		return err
 	}

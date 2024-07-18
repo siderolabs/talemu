@@ -13,6 +13,7 @@ import (
 	"github.com/cosi-project/runtime/pkg/safe"
 	"github.com/cosi-project/runtime/pkg/state"
 	"github.com/siderolabs/gen/optional"
+	"github.com/siderolabs/omni/client/pkg/constants"
 	"github.com/siderolabs/talos/pkg/machinery/resources/config"
 	"go.uber.org/zap"
 
@@ -99,7 +100,7 @@ func (ctrl *VersionController) Run(ctx context.Context, r controller.Runtime, lo
 		}
 
 		if version == "" {
-			continue
+			version = constants.DefaultTalosVersion
 		}
 
 		if err := safe.WriterModify(ctx, r, talos.NewVersion(talos.NamespaceName, talos.VersionID), func(res *talos.Version) error {
@@ -108,6 +109,7 @@ func (ctrl *VersionController) Run(ctx context.Context, r controller.Runtime, lo
 			}
 
 			res.TypedSpec().Value.Value = version
+			res.TypedSpec().Value.Architecture = "amd64"
 
 			return nil
 		}); err != nil {

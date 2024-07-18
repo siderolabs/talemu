@@ -8,16 +8,21 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net"
 	"net/netip"
 	"net/url"
 
 	"github.com/cosi-project/runtime/pkg/controller"
 	"github.com/cosi-project/runtime/pkg/controller/generic"
 	"github.com/cosi-project/runtime/pkg/controller/generic/transform"
+	"github.com/cosi-project/runtime/pkg/safe"
+	"github.com/cosi-project/runtime/pkg/state"
 	"github.com/siderolabs/crypto/x509"
 	"github.com/siderolabs/gen/optional"
+	"github.com/siderolabs/gen/xerrors"
 	"github.com/siderolabs/talos/pkg/machinery/constants"
 	"github.com/siderolabs/talos/pkg/machinery/resources/config"
+	"github.com/siderolabs/talos/pkg/machinery/resources/network"
 	"github.com/siderolabs/talos/pkg/machinery/resources/secrets"
 	"go.uber.org/zap"
 )
@@ -40,31 +45,6 @@ func rootMapFunc[Output generic.ResourceWithRD](output Output, requireControlPla
 	}
 }
 
-// RootEtcdController manages secrets.EtcdRoot based on configuration.
-type RootEtcdController = transform.Controller[*config.MachineConfig, *secrets.EtcdRoot]
-
-// NewRootEtcdController instanciates the controller.
-func NewRootEtcdController() *RootEtcdController {
-	return transform.NewController(
-		transform.Settings[*config.MachineConfig, *secrets.EtcdRoot]{
-			Name:                    "secrets.RootEtcdController",
-			MapMetadataOptionalFunc: rootMapFunc(secrets.NewEtcdRoot(secrets.EtcdRootID), true),
-			TransformFunc: func(_ context.Context, _ controller.Reader, _ *zap.Logger, cfg *config.MachineConfig, res *secrets.EtcdRoot) error {
-				cfgProvider := cfg.Config()
-				etcdSecrets := res.TypedSpec()
-
-				etcdSecrets.EtcdCA = cfgProvider.Cluster().Etcd().CA()
-
-				if etcdSecrets.EtcdCA == nil {
-					return errors.New("missing cluster.etcdCA secret")
-				}
-
-				return nil
-			},
-		},
-	)
-}
-
 // RootKubernetesController manages secrets.KubernetesRoot based on configuration.
 type RootKubernetesController = transform.Controller[*config.MachineConfig, *secrets.KubernetesRoot]
 
@@ -74,7 +54,7 @@ func NewRootKubernetesController() *RootKubernetesController {
 		transform.Settings[*config.MachineConfig, *secrets.KubernetesRoot]{
 			Name:                    "secrets.RootKubernetesController",
 			MapMetadataOptionalFunc: rootMapFunc(secrets.NewKubernetesRoot(secrets.KubernetesRootID), true),
-			TransformFunc: func(_ context.Context, _ controller.Reader, _ *zap.Logger, cfg *config.MachineConfig, res *secrets.KubernetesRoot) error {
+			TransformFunc: func(ctx context.Context, r controller.Reader, _ *zap.Logger, cfg *config.MachineConfig, res *secrets.KubernetesRoot) error {
 				cfgProvider := cfg.Config()
 				k8sSecrets := res.TypedSpec()
 
@@ -83,16 +63,24 @@ func NewRootKubernetesController() *RootKubernetesController {
 					localEndpoint *url.URL
 				)
 
-				if cfgProvider.Machine().Features().KubePrism().Enabled() {
-					localEndpoint, err = url.Parse(fmt.Sprintf("https://127.0.0.1:%d", cfgProvider.Machine().Features().KubePrism().Port()))
-					if err != nil {
-						return err
+				address, err := safe.ReaderGetByID[*network.NodeAddress](ctx, r, network.NodeAddressDefaultID)
+				if err != nil {
+					if state.IsNotFoundError(err) {
+						return xerrors.NewTagged[transform.SkipReconcileTag](err)
 					}
-				} else {
-					localEndpoint, err = url.Parse(fmt.Sprintf("https://localhost:%d", cfgProvider.Cluster().LocalAPIServerPort()))
-					if err != nil {
-						return err
-					}
+
+					return err
+				}
+
+				if len(address.TypedSpec().Addresses) == 0 {
+					return xerrors.NewTaggedf[transform.SkipReconcileTag]("no node addresses")
+				}
+
+				addr := address.TypedSpec().Addresses[0]
+
+				localEndpoint, err = url.Parse(fmt.Sprintf("https://%s", net.JoinHostPort(addr.Addr().String(), "6443")))
+				if err != nil {
+					return err
 				}
 
 				k8sSecrets.Name = cfgProvider.Cluster().Name()
@@ -107,7 +95,6 @@ func NewRootKubernetesController() *RootKubernetesController {
 				}
 
 				k8sSecrets.AggregatorCA = cfgProvider.Cluster().AggregatorCA()
-
 				if k8sSecrets.AggregatorCA == nil {
 					return errors.New("missing cluster.aggregatorCA secret")
 				}
@@ -141,6 +128,13 @@ func NewRootKubernetesController() *RootKubernetesController {
 				return nil
 			},
 		},
+		transform.WithIgnoreTearingDownInputs(),
+		transform.WithExtraInputs(controller.Input{
+			Namespace: network.NamespaceName,
+			Type:      network.NodeAddressType,
+			Kind:      controller.InputWeak,
+			ID:        optional.Some(network.NodeAddressDefaultID),
+		}),
 	)
 }
 
@@ -195,5 +189,6 @@ func NewRootOSController() *RootOSController {
 				return nil
 			},
 		},
+		transform.WithIgnoreTearingDownInputs(),
 	)
 }

@@ -14,7 +14,6 @@ import (
 	"github.com/cosi-project/runtime/pkg/safe"
 	"github.com/cosi-project/runtime/pkg/state"
 	"github.com/siderolabs/gen/optional"
-	"github.com/siderolabs/talos/pkg/machinery/resources/k8s"
 	"github.com/siderolabs/talos/pkg/machinery/resources/network"
 	"github.com/siderolabs/talos/pkg/machinery/resources/secrets"
 	"go.uber.org/zap"
@@ -46,7 +45,6 @@ func (ctrl *KubernetesCertSANsController) Inputs() []controller.Input {
 		{
 			Namespace: network.NamespaceName,
 			Type:      network.NodeAddressType,
-			ID:        optional.Some(network.FilteredNodeAddressID(network.NodeAddressCurrentID, k8s.NodeAddressFilterNoK8s)),
 			Kind:      controller.InputWeak,
 		},
 	}
@@ -97,7 +95,7 @@ func (ctrl *KubernetesCertSANsController) Run(ctx context.Context, r controller.
 
 		hostnameStatus := hostnameResource.TypedSpec()
 
-		addressesResource, err := safe.ReaderGetByID[*network.NodeAddress](ctx, r, network.FilteredNodeAddressID(network.NodeAddressCurrentID, k8s.NodeAddressFilterNoK8s))
+		addressesResource, err := safe.ReaderGetByID[*network.NodeAddress](ctx, r, network.NodeAddressDefaultID)
 		if err != nil {
 			if state.IsNotFoundError(err) {
 				continue

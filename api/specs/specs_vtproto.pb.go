@@ -35,6 +35,11 @@ func (m *ClusterStatusSpec) CloneVT() *ClusterStatusSpec {
 		copy(tmpContainer, rhs)
 		r.DenyEtcdMembers = tmpContainer
 	}
+	if rhs := m.Kubeconfig; rhs != nil {
+		tmpBytes := make([]byte, len(rhs))
+		copy(tmpBytes, rhs)
+		r.Kubeconfig = tmpBytes
+	}
 	if len(m.unknownFields) > 0 {
 		r.unknownFields = make([]byte, len(m.unknownFields))
 		copy(r.unknownFields, m.unknownFields)
@@ -98,6 +103,7 @@ func (m *VersionSpec) CloneVT() *VersionSpec {
 	}
 	r := new(VersionSpec)
 	r.Value = m.Value
+	r.Architecture = m.Architecture
 	if len(m.unknownFields) > 0 {
 		r.unknownFields = make([]byte, len(m.unknownFields))
 		copy(r.unknownFields, m.unknownFields)
@@ -190,6 +196,9 @@ func (this *ClusterStatusSpec) EqualVT(that *ClusterStatusSpec) bool {
 			return false
 		}
 	}
+	if string(this.Kubeconfig) != string(that.Kubeconfig) {
+		return false
+	}
 	return string(this.unknownFields) == string(that.unknownFields)
 }
 
@@ -266,6 +275,9 @@ func (this *VersionSpec) EqualVT(that *VersionSpec) bool {
 		return false
 	}
 	if this.Value != that.Value {
+		return false
+	}
+	if this.Architecture != that.Architecture {
 		return false
 	}
 	return string(this.unknownFields) == string(that.unknownFields)
@@ -382,6 +394,13 @@ func (m *ClusterStatusSpec) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 	if m.unknownFields != nil {
 		i -= len(m.unknownFields)
 		copy(dAtA[i:], m.unknownFields)
+	}
+	if len(m.Kubeconfig) > 0 {
+		i -= len(m.Kubeconfig)
+		copy(dAtA[i:], m.Kubeconfig)
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.Kubeconfig)))
+		i--
+		dAtA[i] = 0x2a
 	}
 	if len(m.DenyEtcdMembers) > 0 {
 		for iNdEx := len(m.DenyEtcdMembers) - 1; iNdEx >= 0; iNdEx-- {
@@ -550,6 +569,13 @@ func (m *VersionSpec) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 	if m.unknownFields != nil {
 		i -= len(m.unknownFields)
 		copy(dAtA[i:], m.unknownFields)
+	}
+	if len(m.Architecture) > 0 {
+		i -= len(m.Architecture)
+		copy(dAtA[i:], m.Architecture)
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.Architecture)))
+		i--
+		dAtA[i] = 0x12
 	}
 	if len(m.Value) > 0 {
 		i -= len(m.Value)
@@ -756,6 +782,10 @@ func (m *ClusterStatusSpec) SizeVT() (n int) {
 			n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
 		}
 	}
+	l = len(m.Kubeconfig)
+	if l > 0 {
+		n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
+	}
 	n += len(m.unknownFields)
 	return n
 }
@@ -809,6 +839,10 @@ func (m *VersionSpec) SizeVT() (n int) {
 	var l int
 	_ = l
 	l = len(m.Value)
+	if l > 0 {
+		n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
+	}
+	l = len(m.Architecture)
 	if l > 0 {
 		n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
 	}
@@ -998,6 +1032,40 @@ func (m *ClusterStatusSpec) UnmarshalVT(dAtA []byte) error {
 				return io.ErrUnexpectedEOF
 			}
 			m.DenyEtcdMembers = append(m.DenyEtcdMembers, string(dAtA[iNdEx:postIndex]))
+			iNdEx = postIndex
+		case 5:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Kubeconfig", wireType)
+			}
+			var byteLen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				byteLen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if byteLen < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			postIndex := iNdEx + byteLen
+			if postIndex < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Kubeconfig = append(m.Kubeconfig[:0], dAtA[iNdEx:postIndex]...)
+			if m.Kubeconfig == nil {
+				m.Kubeconfig = []byte{}
+			}
 			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
@@ -1392,6 +1460,38 @@ func (m *VersionSpec) UnmarshalVT(dAtA []byte) error {
 				return io.ErrUnexpectedEOF
 			}
 			m.Value = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Architecture", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Architecture = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
 		default:
 			iNdEx = preIndex

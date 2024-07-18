@@ -90,7 +90,7 @@ func (ctrl *RenderSecretsStaticPodController) Run(ctx context.Context, r control
 		}
 
 		// wipe certs dir if the machine is not configured
-		_, err := safe.ReaderGetByID[*config.MachineConfig](ctx, r, config.V1Alpha1ID)
+		config, err := safe.ReaderGetByID[*config.MachineConfig](ctx, r, config.V1Alpha1ID)
 		if err != nil {
 			if state.IsNotFoundError(err) {
 				if err = os.RemoveAll(certsDir); err != nil && !os.IsNotExist(err) {
@@ -101,6 +101,14 @@ func (ctrl *RenderSecretsStaticPodController) Run(ctx context.Context, r control
 			}
 
 			return err
+		}
+
+		if !config.Provider().Machine().Type().IsControlPlane() {
+			if err = os.RemoveAll(certsDir); err != nil && !os.IsNotExist(err) {
+				return err
+			}
+
+			continue
 		}
 
 		secretsRes, err := safe.ReaderGet[*secrets.Kubernetes](ctx, r, resource.NewMetadata(secrets.NamespaceName, secrets.KubernetesType, secrets.KubernetesID, resource.VersionUndefined))
