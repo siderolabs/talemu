@@ -39,6 +39,12 @@ message ImageSpec {
   string schematic = 2;
 }
 
+// CachedImageSpec is the image pulled by the ImagePull API.
+message CachedImageSpec {
+  string digest = 1;
+  int64 size = 2;
+}
+
 // ServiceSpec is the fake service information.
 message ServiceSpec {
   message Health {

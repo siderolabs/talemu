@@ -601,6 +601,42 @@ func (c *machineService) Hostname(ctx context.Context, _ *emptypb.Empty) (*machi
 	}, nil
 }
 
+// ImageList implements machine.MachineServiceServer.
+func (c *machineService) ImageList(_ *machine.ImageListRequest, serv machine.MachineService_ImageListServer) error {
+	images, err := safe.ReaderListAll[*talos.CachedImage](serv.Context(), c.state)
+	if err != nil {
+		return err
+	}
+
+	return images.ForEachErr(func(r *talos.CachedImage) error {
+		return serv.Send(&machine.ImageListResponse{
+			Name:      r.Metadata().ID(),
+			Digest:    r.TypedSpec().Value.Digest,
+			Size:      r.TypedSpec().Value.Size,
+			CreatedAt: timestamppb.New(r.Metadata().Created()),
+		})
+	})
+}
+
+// ImagePull implements machine.MachineServiceServer.
+func (c *machineService) ImagePull(ctx context.Context, req *machine.ImagePullRequest) (*machine.ImagePullResponse, error) {
+	if strings.HasSuffix(req.Reference, "-bad") {
+		return nil, fmt.Errorf("emulator is set to fail on images ending with -bad suffix")
+	}
+
+	image := talos.NewCachedImage(talos.NamespaceName, req.Reference)
+	image.TypedSpec().Value.Digest = "aaaa"
+	image.TypedSpec().Value.Size = 1024
+
+	if err := c.state.Create(ctx, image); err != nil && !state.IsConflictError(err) {
+		return nil, err
+	}
+
+	return &machine.ImagePullResponse{
+		Messages: []*machine.ImagePull{},
+	}, nil
+}
+
 // Dmesg implements machine.MachineServiceServer.
 func (c *machineService) Dmesg(_ *machine.DmesgRequest, serv machine.MachineService_DmesgServer) error {
 	return serv.Send(&common.Data{

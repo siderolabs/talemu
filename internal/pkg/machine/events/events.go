@@ -9,7 +9,6 @@ import (
 	"context"
 	"fmt"
 	"net"
-	"strings"
 	"time"
 
 	"github.com/cosi-project/runtime/pkg/resource"
@@ -41,7 +40,7 @@ type Handler struct {
 }
 
 // NewHandler creates new events handler.
-func NewHandler(ctx context.Context, st state.State, uuid string) (*Handler, error) {
+func NewHandler(ctx context.Context, st state.State, machineIndex int) (*Handler, error) {
 	config, err := safe.ReaderGetByID[*runtime.EventSinkConfig](ctx, st, runtime.EventSinkConfigID)
 	if err != nil {
 		return nil, err
@@ -54,9 +53,7 @@ func NewHandler(ctx context.Context, st state.State, uuid string) (*Handler, err
 		grpc.WithContextDialer(func(ctx context.Context, address string) (net.Conn, error) {
 			var dialer net.Dialer
 
-			_, id, _ := strings.Cut(uuid, "-")
-
-			dialer.Control = network.BindToInterface(constants.SideroLinkName + id)
+			dialer.Control = network.BindToInterface(fmt.Sprintf("%s%d", constants.SideroLinkName, machineIndex))
 
 			return dialer.DialContext(ctx, "tcp", address)
 		}),
@@ -75,7 +72,7 @@ func NewHandler(ctx context.Context, st state.State, uuid string) (*Handler, err
 func (h *Handler) Run(ctx context.Context, logger *zap.Logger) error {
 	var eg errgroup.Group
 
-	for _, id := range []string{emuconst.APIDService, emuconst.ETCDService} {
+	for _, id := range []string{emuconst.APIDService, emuconst.ETCDService, emuconst.KubeletService} {
 		eg.Go(func() error {
 			return h.runWithRetries(ctx, logger, func() error {
 				return generateEvents(ctx, h, v1alpha1.NewService(id), func(res *v1alpha1.Service) (*events.EventRequest, error) {

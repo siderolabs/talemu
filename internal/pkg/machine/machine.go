@@ -197,7 +197,7 @@ func (m *Machine) Run(ctx context.Context, siderolinkParams *SideroLinkParams, m
 		}
 	}
 
-	sink, err := events.NewHandler(ctx, rt.State(), m.uuid)
+	sink, err := events.NewHandler(ctx, rt.State(), machineIndex)
 	if err != nil {
 		return err
 	}

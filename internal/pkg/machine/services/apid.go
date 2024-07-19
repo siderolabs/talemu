@@ -145,6 +145,7 @@ func (apid *APID) Run(ctx context.Context, endpoint netip.Prefix, logger *zap.Lo
 		grpc.UnknownServiceHandler(
 			proxy.TransparentHandler(
 				router.Director,
+				proxy.WithStreamedDetector(router.StreamedDetector),
 			),
 		),
 		grpc.SharedWriteBuffer(true),

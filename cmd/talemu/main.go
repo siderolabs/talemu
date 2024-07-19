@@ -107,7 +107,7 @@ var rootCmd = &cobra.Command{
 		})
 
 		for i := range cfg.machinesCount {
-			machine, err := machine.NewMachine(fmt.Sprintf("machine-%04d", i+1000), logger, emulatorState)
+			machine, err := machine.NewMachine(fmt.Sprintf("%04d1802-c798-4da7-a410-f09abb48c8d8", i+1000), logger, emulatorState)
 			if err != nil {
 				return err
 			}

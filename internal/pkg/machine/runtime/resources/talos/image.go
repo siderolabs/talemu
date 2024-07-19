@@ -25,7 +25,7 @@ const (
 	// ImageType is the type of Image resource.
 	ImageType = resource.Type("Images.talemu.sidero.dev")
 
-	// ImageID is the single id of the Talos version of the emulated machine.
+	// ImageID is the single id of the Talos image installed on the machine.
 	ImageID = "current"
 )
 
