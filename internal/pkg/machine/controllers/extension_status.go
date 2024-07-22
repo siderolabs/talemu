@@ -14,12 +14,49 @@ import (
 	"github.com/cosi-project/runtime/pkg/state"
 	"github.com/siderolabs/gen/optional"
 	"github.com/siderolabs/image-factory/pkg/constants"
+	"github.com/siderolabs/talos/pkg/machinery/extensions"
 	"github.com/siderolabs/talos/pkg/machinery/resources/config"
 	"github.com/siderolabs/talos/pkg/machinery/resources/runtime"
 	"go.uber.org/zap"
 
 	"github.com/siderolabs/talemu/internal/pkg/machine/runtime/resources/talos"
 )
+
+const (
+	author = "none"
+	desc   = "fake description"
+)
+
+var knownSchematics = map[string]struct {
+	extensions []extensions.Metadata
+}{
+	"088171816e905ec439337da75b1bafb81de8c652ee41c099f2b9ef7d90847648": {
+		extensions: []extensions.Metadata{
+			{
+				Name:        "hello-world-service",
+				Version:     "1.0.0",
+				Author:      author,
+				Description: desc,
+			},
+			{
+				Name:        "qemu-guest-agent",
+				Version:     "1.0.0",
+				Author:      author,
+				Description: desc,
+			},
+		},
+	},
+	"5e0ac9d7e10ff9034bc4db865bf0337d40eeaec20683e27804939e1a88b7b654": {
+		extensions: []extensions.Metadata{
+			{
+				Name:        "hello-world-service",
+				Version:     "1.0.0",
+				Author:      author,
+				Description: desc,
+			},
+		},
+	},
+}
 
 // ExtensionStatusController computes extensions list from the configuration.
 // Updates machine status resource.
@@ -59,6 +96,8 @@ func (ctrl *ExtensionStatusController) Outputs() []controller.Output {
 }
 
 // Run implements controller.Controller interface.
+//
+//nolint:gocognit
 func (ctrl *ExtensionStatusController) Run(ctx context.Context, r controller.Runtime, _ *zap.Logger) error {
 	for {
 		select {
@@ -77,7 +116,7 @@ func (ctrl *ExtensionStatusController) Run(ctx context.Context, r controller.Run
 			return err
 		}
 
-		var schematic string
+		schematic := "5e0ac9d7e10ff9034bc4db865bf0337d40eeaec20683e27804939e1a88b7b654"
 
 		switch {
 		case image != nil:
@@ -103,13 +142,47 @@ func (ctrl *ExtensionStatusController) Run(ctx context.Context, r controller.Run
 			continue
 		}
 
+		touched := map[string]interface{}{}
+
 		extensionStatus := runtime.NewExtensionStatus(runtime.NamespaceName, constants.SchematicIDExtensionName)
 
-		// TODO: we might need to populate extra data here too
-
-		if err := safe.WriterModify(ctx, r, extensionStatus, func(res *runtime.ExtensionStatus) error {
+		if err = safe.WriterModify(ctx, r, extensionStatus, func(res *runtime.ExtensionStatus) error {
 			res.TypedSpec().Metadata.Name = constants.SchematicIDExtensionName
 			res.TypedSpec().Metadata.Version = schematic
+			// TODO: we might need to populate extra data here too
+
+			touched[res.Metadata().ID()] = struct{}{}
+
+			return nil
+		}); err != nil {
+			return err
+		}
+
+		if config, ok := knownSchematics[schematic]; ok {
+			for _, extension := range config.extensions {
+				extensionStatus = runtime.NewExtensionStatus(runtime.NamespaceName, extension.Name)
+
+				touched[extensionStatus.Metadata().ID()] = struct{}{}
+
+				if err = safe.WriterModify(ctx, r, extensionStatus, func(res *runtime.ExtensionStatus) error {
+					res.TypedSpec().Metadata = extension
+
+					return nil
+				}); err != nil {
+					return err
+				}
+			}
+		}
+
+		list, err := safe.ReaderListAll[*runtime.ExtensionStatus](ctx, r)
+		if err != nil {
+			return err
+		}
+
+		if err := list.ForEachErr(func(res *runtime.ExtensionStatus) error {
+			if _, ok := touched[res.Metadata().ID()]; !ok {
+				return r.Destroy(ctx, res.Metadata())
+			}
 
 			return nil
 		}); err != nil {

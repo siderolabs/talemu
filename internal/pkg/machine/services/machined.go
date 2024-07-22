@@ -9,7 +9,9 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"time"
 
+	"github.com/cosi-project/runtime/pkg/controller/generic"
 	"github.com/cosi-project/runtime/pkg/resource"
 	"github.com/cosi-project/runtime/pkg/safe"
 	"github.com/cosi-project/runtime/pkg/state"
@@ -24,6 +26,7 @@ import (
 	"github.com/siderolabs/talos/pkg/machinery/resources/v1alpha1"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
@@ -176,7 +179,7 @@ func (c *machineService) Reset(ctx context.Context, request *machine.ResetReques
 		return nil, status.Errorf(codes.Unimplemented, "this reset mode is not supported")
 	}
 
-	config, err := safe.ReaderGetByID[*config.MachineConfig](ctx, c.state, config.V1Alpha1ID)
+	cfg, err := safe.ReaderGetByID[*config.MachineConfig](ctx, c.state, config.V1Alpha1ID)
 	if err != nil {
 		if state.IsNotFoundError(err) {
 			return nil, status.Errorf(codes.InvalidArgument, "the machine is not configured")
@@ -185,21 +188,11 @@ func (c *machineService) Reset(ctx context.Context, request *machine.ResetReques
 		return nil, err
 	}
 
-	_, err = c.state.Teardown(ctx, config.Metadata())
-	if err != nil {
+	if err = destroyResourceByID[*config.MachineConfig](ctx, c.state, cfg.Metadata().ID()); err != nil {
 		return nil, err
 	}
 
-	_, err = c.state.WatchFor(ctx, config.Metadata(), state.WithFinalizerEmpty())
-	if err != nil {
-		return nil, err
-	}
-
-	if err = c.state.Destroy(ctx, config.Metadata()); err != nil {
-		return nil, err
-	}
-
-	id := config.Provider().Cluster().ID()
+	id := cfg.Provider().Cluster().ID()
 
 	clusterStatus, err := safe.ReaderGetByID[*emu.ClusterStatus](ctx, c.globalState, id)
 	if err != nil {
@@ -211,7 +204,7 @@ func (c *machineService) Reset(ctx context.Context, request *machine.ResetReques
 	}
 
 	clusterStatus, err = safe.StateUpdateWithConflicts(ctx, c.globalState, clusterStatus.Metadata(), func(r *emu.ClusterStatus) error {
-		if config.Provider().Machine().Type().IsControlPlane() {
+		if cfg.Provider().Machine().Type().IsControlPlane() {
 			r.TypedSpec().Value.ControlPlanes--
 
 			if clusterStatus.TypedSpec().Value.ControlPlanes == 0 {
@@ -304,18 +297,28 @@ func (c *machineService) Upgrade(ctx context.Context, req *machine.UpgradeReques
 	image.TypedSpec().Value.Schematic = schematic
 	image.TypedSpec().Value.Version = version
 
-	if err := c.state.Create(ctx, image); err != nil {
-		if state.IsConflictError(err) {
-			if _, err = safe.StateUpdateWithConflicts(ctx, c.state, image.Metadata(), func(res *talos.Image) error {
-				res.TypedSpec().Value = image.TypedSpec().Value
+	changed := true
 
-				return nil
-			}); err != nil {
-				return nil, err
-			}
+	if err := c.state.Create(ctx, image); err != nil {
+		if !state.IsConflictError(err) {
+			return nil, err
 		}
 
-		return nil, err
+		if _, err = safe.StateUpdateWithConflicts(ctx, c.state, image.Metadata(), func(res *talos.Image) error {
+			changed = !res.TypedSpec().Value.EqualVT(image.TypedSpec().Value)
+
+			res.TypedSpec().Value = image.TypedSpec().Value
+
+			return nil
+		}); err != nil {
+			return nil, err
+		}
+	}
+
+	if changed {
+		if _, err := c.Reboot(ctx, &machine.RebootRequest{}); err != nil {
+			return nil, err
+		}
 	}
 
 	return &machine.UpgradeResponse{
@@ -324,6 +327,27 @@ func (c *machineService) Upgrade(ctx context.Context, req *machine.UpgradeReques
 				Ack:     "Upgrade request received",
 				ActorId: "0",
 			},
+		},
+	}, nil
+}
+
+// Reboot implements machine.MachineServiceServer.
+func (c *machineService) Reboot(ctx context.Context, _ *machine.RebootRequest) (*machine.RebootResponse, error) {
+	reboot := talos.NewReboot(talos.NamespaceName, talos.RebootID)
+	reboot.TypedSpec().Value.Downtime = durationpb.New(time.Second * 2)
+
+	err := destroyResourceByID[*talos.Reboot](ctx, c.state, talos.RebootID)
+	if err != nil && !state.IsNotFoundError(err) {
+		return nil, err
+	}
+
+	if err = c.state.Create(ctx, reboot); err != nil {
+		return nil, err
+	}
+
+	return &machine.RebootResponse{
+		Messages: []*machine.Reboot{
+			{},
 		},
 	}, nil
 }
@@ -658,4 +682,26 @@ func (c *machineService) Logs(req *machine.LogsRequest, serv machine.MachineServ
 // Containers implements machine.MachineServiceServer.
 func (c *machineService) Containers(context.Context, *machine.ContainersRequest) (*machine.ContainersResponse, error) {
 	return &machine.ContainersResponse{}, nil
+}
+
+func destroyResourceByID[T generic.ResourceWithRD](ctx context.Context, st state.State, id resource.ID) error {
+	var res T
+
+	md := resource.NewMetadata(res.ResourceDefinition().DefaultNamespace, res.ResourceDefinition().Type, id, resource.VersionUndefined)
+
+	_, err := st.Teardown(ctx, md)
+	if err != nil {
+		return err
+	}
+
+	_, err = st.WatchFor(ctx, md, state.WithFinalizerEmpty())
+	if err != nil && !state.IsNotFoundError(err) {
+		return err
+	}
+
+	if err = st.Destroy(ctx, md); err != nil {
+		return err
+	}
+
+	return nil
 }

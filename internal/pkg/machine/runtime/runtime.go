@@ -63,6 +63,10 @@ func NewRuntime(ctx context.Context, logger *zap.Logger, machineIndex int, globa
 		return nil, err
 	}
 
+	qcontrollers := []controller.QController{
+		controllers.NewRebootStatusController(),
+	}
+
 	controllers := []controller.Controller{
 		&controllers.ManagerController{
 			MachineIndex: machineIndex,
@@ -137,6 +141,12 @@ func NewRuntime(ctx context.Context, logger *zap.Logger, machineIndex int, globa
 
 	for _, ctrl := range controllers {
 		if err = runtime.RegisterController(ctrl); err != nil {
+			return nil, err
+		}
+	}
+
+	for _, ctrl := range qcontrollers {
+		if err = runtime.RegisterQController(ctrl); err != nil {
 			return nil, err
 		}
 	}

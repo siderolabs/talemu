@@ -22,6 +22,8 @@ func init() {
 	mustRegisterResource(EventSinkStateType, &EventSinkState{})
 	mustRegisterResource(ImageType, &Image{})
 	mustRegisterResource(VersionType, &Version{})
+	mustRegisterResource(RebootType, &Reboot{})
+	mustRegisterResource(RebootStatusType, &RebootStatus{})
 }
 
 var resources []generic.ResourceWithRD

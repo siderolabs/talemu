@@ -183,6 +183,8 @@ func Register(ctx context.Context, state state.State) error {
 		&Disk{},
 		&Image{},
 		&Version{},
+		&Reboot{},
+		&RebootStatus{},
 	} {
 		if err := resourceRegistry.Register(ctx, r); err != nil {
 			return err

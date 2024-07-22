@@ -14,8 +14,6 @@ import (
 	"github.com/cosi-project/runtime/pkg/safe"
 	"github.com/cosi-project/runtime/pkg/state"
 	"github.com/jsimonetti/rtnetlink"
-	factoryconsts "github.com/siderolabs/image-factory/pkg/constants"
-	"github.com/siderolabs/image-factory/pkg/schematic"
 	"github.com/siderolabs/talos/pkg/machinery/api/storage"
 	"github.com/siderolabs/talos/pkg/machinery/nethelpers"
 	"github.com/siderolabs/talos/pkg/machinery/resources/config"
@@ -85,7 +83,7 @@ func (m *Machine) Run(ctx context.Context, siderolinkParams *SideroLinkParams, m
 
 	m.runtime = rt
 
-	resources := make([]resource.Resource, 0, 13)
+	resources := make([]resource.Resource, 0, 12)
 
 	// populate the initial machine state
 	hardwareInformation := hardware.NewSystemInformation(hardware.SystemInformationID)
@@ -126,28 +124,6 @@ func (m *Machine) Run(ctx context.Context, siderolinkParams *SideroLinkParams, m
 	eventSinkConfig := runtime.NewEventSinkConfig()
 	eventSinkConfig.TypedSpec().Endpoint = siderolinkParams.EventsEndpoint
 
-	helloWorldExtension := runtime.NewExtensionStatus(runtime.NamespaceName, "hello-world-service")
-	helloWorldExtension.TypedSpec().Metadata.Name = "hello-world-service"
-	helloWorldExtension.TypedSpec().Metadata.Version = "v1.0.0"
-
-	schematic := schematic.Schematic{
-		Customization: schematic.Customization{
-			SystemExtensions: schematic.SystemExtensions{
-				OfficialExtensions: []string{
-					"hello-world-service",
-				},
-			},
-		},
-	}
-
-	schematicInfo := runtime.NewExtensionStatus(runtime.NamespaceName, factoryconsts.SchematicIDExtensionName)
-	schematicInfo.TypedSpec().Metadata.Name = factoryconsts.SchematicIDExtensionName
-
-	schematicInfo.TypedSpec().Metadata.Version, err = schematic.ID()
-	if err != nil {
-		return err
-	}
-
 	defaultRoute := network.NewRouteStatus(network.NamespaceName, "inet4/192.168.0.1//1024")
 	defaultRoute.TypedSpec().Family = nethelpers.FamilyInet4
 	defaultRoute.TypedSpec().Source = netip.MustParseAddr("192.168.0.1")
@@ -181,8 +157,6 @@ func (m *Machine) Run(ctx context.Context, siderolinkParams *SideroLinkParams, m
 		trustdEndpoint,
 		eventSinkConfig,
 		disk,
-		schematicInfo,
-		helloWorldExtension,
 		defaultRoute,
 		memory,
 	)

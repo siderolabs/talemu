@@ -12,6 +12,7 @@ import (
 	"github.com/cosi-project/runtime/pkg/resource"
 	"github.com/cosi-project/runtime/pkg/safe"
 	"github.com/cosi-project/runtime/pkg/state"
+	"github.com/siderolabs/gen/optional"
 	"github.com/siderolabs/go-blockdevice/blockdevice/util/disk"
 	"github.com/siderolabs/talos/pkg/machinery/config/types/v1alpha1"
 	"github.com/siderolabs/talos/pkg/machinery/resources/config"
@@ -59,6 +60,12 @@ func (ctrl *MachineStatusController) Inputs() []controller.Input {
 			Type:      v1alpha1resource.ServiceType,
 			Kind:      controller.InputWeak,
 		},
+		{
+			Namespace: talos.NamespaceName,
+			ID:        optional.Some(talos.RebootID),
+			Type:      talos.RebootStatusType,
+			Kind:      controller.InputWeak,
+		},
 	}
 }
 
@@ -73,12 +80,19 @@ func (ctrl *MachineStatusController) Outputs() []controller.Output {
 }
 
 // Run implements controller.Controller interface.
+//
+//nolint:gocognit
 func (ctrl *MachineStatusController) Run(ctx context.Context, r controller.Runtime, _ *zap.Logger) error {
 	for {
 		select {
 		case <-ctx.Done():
 			return nil
 		case <-r.EventCh():
+		}
+
+		reboot, err := safe.ReaderGetByID[*talos.RebootStatus](ctx, r, talos.RebootID)
+		if err != nil && !state.IsNotFoundError(err) {
+			return err
 		}
 
 		config, err := safe.ReaderGetByID[*config.MachineConfig](ctx, r, config.V1Alpha1ID)
@@ -129,6 +143,10 @@ func (ctrl *MachineStatusController) Run(ctx context.Context, r controller.Runti
 
 				return fmt.Errorf("failed to query %w", err)
 			}
+		}
+
+		if reboot != nil {
+			stage = runtime.MachineStageRebooting
 		}
 
 		services := []string{emuconst.APIDService}

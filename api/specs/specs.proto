@@ -4,6 +4,7 @@ package specs;
 option go_package = "github.com/siderolabs/talemu/api/specs";
 
 import "google/protobuf/timestamp.proto";
+import "google/protobuf/duration.proto";
 
 // ClusterStatusSpec defines cluster status of the emulator.
 message ClusterStatusSpec {
@@ -58,3 +59,11 @@ message ServiceSpec {
   string state = 2;
   Health health = 3;
 }
+
+// RebootSpec keeps track of all reboots on the node.
+message RebootSpec {
+  google.protobuf.Duration downtime = 1;
+}
+
+// RebootStatusSpec is generated for each reboot spec.
+message RebootStatusSpec {}

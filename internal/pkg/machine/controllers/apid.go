@@ -20,6 +20,7 @@ import (
 	"go.uber.org/zap"
 
 	emuconst "github.com/siderolabs/talemu/internal/pkg/constants"
+	"github.com/siderolabs/talemu/internal/pkg/machine/runtime/resources/talos"
 	"github.com/siderolabs/talemu/internal/pkg/machine/services"
 )
 
@@ -49,6 +50,12 @@ func (ctrl *APIDController) Inputs() []controller.Input {
 			Type:      secrets.APIType,
 			Kind:      controller.InputWeak,
 		},
+		{
+			Namespace: talos.NamespaceName,
+			ID:        optional.Some(talos.RebootID),
+			Type:      talos.RebootStatusType,
+			Kind:      controller.InputWeak,
+		},
 	}
 }
 
@@ -69,61 +76,81 @@ func (ctrl *APIDController) Run(ctx context.Context, r controller.Runtime, logge
 		case <-ctx.Done():
 			return nil
 		case <-r.EventCh():
-			addresses, err := safe.ReaderListAll[*network.AddressStatus](ctx, r)
-			if err != nil {
+			if err := ctrl.reconcile(ctx, r, logger); err != nil {
 				return err
 			}
-
-			siderolink, found := addresses.Find(func(address *network.AddressStatus) bool {
-				return strings.HasPrefix(address.TypedSpec().LinkName, constants.SideroLinkName)
-			})
-			if !found {
-				logger.Info("apid is waiting for siderolink interface to be up")
-
-				continue
-			}
-
-			address := siderolink.TypedSpec().Address
-
-			apiCerts, err := safe.ReaderGetByID[*secrets.API](ctx, r, secrets.APIID)
-			if err != nil && !state.IsNotFoundError(err) {
-				return err
-			}
-
-			insecure := (apiCerts == nil)
-
-			if ctrl.address == address && ctrl.insecure == insecure {
-				continue
-			}
-
-			service := v1alpha1.NewService(emuconst.APIDService)
-
-			err = safe.WriterModify(ctx, r, service, func(res *v1alpha1.Service) error {
-				res.TypedSpec().Healthy = false
-				res.TypedSpec().Running = false
-
-				return nil
-			})
-			if err != nil {
-				return err
-			}
-
-			if err = ctrl.APID.Run(ctx, address, logger, apiCerts, siderolink.TypedSpec().LinkName); err != nil {
-				return err
-			}
-
-			err = safe.WriterModify(ctx, r, service, func(res *v1alpha1.Service) error {
-				res.TypedSpec().Healthy = true
-				res.TypedSpec().Running = true
-
-				return nil
-			})
-			if err != nil {
-				return err
-			}
-
-			ctrl.address = address
-			ctrl.insecure = insecure
 		}
 	}
+}
+
+func (ctrl *APIDController) reconcile(ctx context.Context, r controller.Runtime, logger *zap.Logger) error {
+	var err error
+
+	service := v1alpha1.NewService(emuconst.APIDService)
+
+	var (
+		healthy bool
+		running bool
+	)
+
+	defer func() {
+		err = safe.WriterModify(ctx, r, service, func(res *v1alpha1.Service) error {
+			res.TypedSpec().Healthy = healthy
+			res.TypedSpec().Running = running
+
+			return nil
+		})
+	}()
+
+	reboot, err := safe.ReaderGetByID[*talos.RebootStatus](ctx, r, talos.RebootID)
+	if err != nil && !state.IsNotFoundError(err) {
+		return err
+	}
+
+	if reboot != nil {
+		logger.Info("the machine is rebooting")
+
+		ctrl.address = netip.Prefix{}
+
+		return ctrl.APID.Stop()
+	}
+
+	addresses, err := safe.ReaderListAll[*network.AddressStatus](ctx, r)
+	if err != nil {
+		return err
+	}
+
+	siderolink, found := addresses.Find(func(address *network.AddressStatus) bool {
+		return strings.HasPrefix(address.TypedSpec().LinkName, constants.SideroLinkName)
+	})
+	if !found {
+		logger.Info("apid is waiting for siderolink interface to be up")
+
+		return nil
+	}
+
+	address := siderolink.TypedSpec().Address
+
+	apiCerts, err := safe.ReaderGetByID[*secrets.API](ctx, r, secrets.APIID)
+	if err != nil && !state.IsNotFoundError(err) {
+		return err
+	}
+
+	insecure := (apiCerts == nil)
+
+	running = true
+	healthy = true
+
+	if ctrl.address == address && ctrl.insecure == insecure {
+		return nil
+	}
+
+	if err = ctrl.APID.Run(ctx, address, logger, apiCerts, siderolink.TypedSpec().LinkName); err != nil {
+		return err
+	}
+
+	ctrl.address = address
+	ctrl.insecure = insecure
+
+	return nil
 }
