@@ -8,7 +8,6 @@ package runtime
 import (
 	"context"
 	"errors"
-	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -37,12 +36,10 @@ type Runtime struct {
 }
 
 // NewRuntime creates new runtime.
-func NewRuntime(ctx context.Context, logger *zap.Logger, machineIndex int, globalState state.State,
+func NewRuntime(ctx context.Context, logger *zap.Logger, machineIndex int, id string, globalState state.State,
 	kubernetes *kubefactory.Kubernetes, logSink *logging.ZapCore,
 ) (*Runtime, error) {
 	stateDir := filepath.Join("_out/state/machines", strconv.FormatInt(int64(machineIndex), 10))
-
-	id := fmt.Sprintf("machine-%d", machineIndex)
 
 	err := os.MkdirAll(stateDir, 0o664)
 	if err != nil && !errors.Is(err, os.ErrExist) {

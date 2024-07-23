@@ -76,7 +76,7 @@ func (m *Machine) Run(ctx context.Context, siderolinkParams *SideroLinkParams, m
 
 	m.logger = zap.New(core).With(zap.String("machine", m.uuid))
 
-	rt, err := truntime.NewRuntime(ctx, m.logger, machineIndex, m.globalState, kubernetes, logSink)
+	rt, err := truntime.NewRuntime(ctx, m.logger, machineIndex, m.uuid, m.globalState, kubernetes, logSink)
 	if err != nil {
 		return err
 	}

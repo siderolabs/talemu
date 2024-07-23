@@ -103,7 +103,7 @@ func (ctrl *StaticPodController) Run(ctx context.Context, r controller.Runtime, 
 	}
 }
 
-//nolint:gocognit,cyclop,gocyclo
+//nolint:gocognit,cyclop,gocyclo,maintidx
 func (ctrl *StaticPodController) reconcile(ctx context.Context, r controller.Runtime, logger *zap.Logger) error {
 	ctx, cancel := context.WithTimeout(ctx, time.Second*5)
 	defer cancel()
@@ -294,6 +294,20 @@ func (ctrl *StaticPodController) reconcile(ctx context.Context, r controller.Run
 		}
 
 		logger.Info("created static pod", zap.String("name", pod.Name))
+
+		query := metav1.ListOptions{
+			LabelSelector: fmt.Sprintf("%s!=%s,%s=%s",
+				inputVersionLabel, nodenameVersion,
+				machineIDLabel, ctrl.MachineID,
+			),
+		}
+
+		err = client.CoreV1().Pods(ns).DeleteCollection(ctx, metav1.DeleteOptions{
+			GracePeriodSeconds: pointer.To[int64](0),
+		}, query)
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil

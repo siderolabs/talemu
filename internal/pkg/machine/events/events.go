@@ -9,6 +9,8 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"net/netip"
+	"sync"
 	"time"
 
 	"github.com/cosi-project/runtime/pkg/resource"
@@ -19,6 +21,7 @@ import (
 	"github.com/siderolabs/siderolink/api/events"
 	"github.com/siderolabs/talos/pkg/machinery/api/machine"
 	"github.com/siderolabs/talos/pkg/machinery/constants"
+	"github.com/siderolabs/talos/pkg/machinery/resources/network"
 	"github.com/siderolabs/talos/pkg/machinery/resources/runtime"
 	"github.com/siderolabs/talos/pkg/machinery/resources/v1alpha1"
 	"go.uber.org/zap"
@@ -29,7 +32,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	emuconst "github.com/siderolabs/talemu/internal/pkg/constants"
-	"github.com/siderolabs/talemu/internal/pkg/machine/network"
+	emunet "github.com/siderolabs/talemu/internal/pkg/machine/network"
 	"github.com/siderolabs/talemu/internal/pkg/machine/runtime/resources/talos"
 )
 
@@ -46,14 +49,44 @@ func NewHandler(ctx context.Context, st state.State, machineIndex int) (*Handler
 		return nil, err
 	}
 
+	var (
+		bindAddress *net.TCPAddr
+		mu          sync.Mutex
+	)
+
 	conn, err := grpc.NewClient(
 		config.TypedSpec().Endpoint,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 		grpc.WithSharedWriteBuffer(true),
 		grpc.WithContextDialer(func(ctx context.Context, address string) (net.Conn, error) {
+			mu.Lock()
+			defer mu.Unlock()
+
 			var dialer net.Dialer
 
-			dialer.Control = network.BindToInterface(fmt.Sprintf("%s%d", constants.SideroLinkName, machineIndex))
+			if bindAddress == nil {
+				var addr *network.NodeAddress
+
+				addr, err = safe.ReaderGetByID[*network.NodeAddress](ctx, st, network.NodeAddressDefaultID)
+				if err != nil {
+					return nil, err
+				}
+
+				if len(addr.TypedSpec().Addresses) == 0 {
+					return nil, fmt.Errorf("failed to look up siderolink address")
+				}
+
+				siderolinkAddr := addr.TypedSpec().Addresses[0]
+
+				bindAddress = net.TCPAddrFromAddrPort(netip.AddrPortFrom(
+					siderolinkAddr.Addr(),
+					0,
+				))
+			}
+
+			dialer.LocalAddr = bindAddress
+
+			dialer.Control = emunet.BindToInterface(fmt.Sprintf("%s%d", constants.SideroLinkName, machineIndex))
 
 			return dialer.DialContext(ctx, "tcp", address)
 		}),

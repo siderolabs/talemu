@@ -33,7 +33,7 @@ func NewRebootStatusController() *RebootStatusController {
 			TransformFunc: func(_ context.Context, _ controller.Reader, _ *zap.Logger, reboot *talos.Reboot, _ *talos.RebootStatus) error {
 				rebootEndTime := reboot.Metadata().Updated().Add(reboot.TypedSpec().Value.Downtime.AsDuration())
 				if time.Now().Before(rebootEndTime) {
-					return controller.NewRequeueInterval(time.Since(rebootEndTime))
+					return controller.NewRequeueInterval(time.Until(rebootEndTime))
 				}
 
 				return xerrors.NewTaggedf[qtransform.DestroyOutputTag]("reboot done")

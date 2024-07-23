@@ -14,6 +14,7 @@ import (
 	"github.com/cosi-project/runtime/pkg/state"
 	"github.com/siderolabs/gen/optional"
 	"github.com/siderolabs/talos/pkg/machinery/constants"
+	"github.com/siderolabs/talos/pkg/machinery/resources/config"
 	"github.com/siderolabs/talos/pkg/machinery/resources/network"
 	"github.com/siderolabs/talos/pkg/machinery/resources/secrets"
 	"github.com/siderolabs/talos/pkg/machinery/resources/v1alpha1"
@@ -48,6 +49,12 @@ func (ctrl *APIDController) Inputs() []controller.Input {
 			Namespace: secrets.NamespaceName,
 			ID:        optional.Some(secrets.APIID),
 			Type:      secrets.APIType,
+			Kind:      controller.InputWeak,
+		},
+		{
+			Namespace: config.NamespaceName,
+			ID:        optional.Some(config.V1Alpha1ID),
+			Type:      config.MachineConfigType,
 			Kind:      controller.InputWeak,
 		},
 		{
@@ -136,10 +143,23 @@ func (ctrl *APIDController) reconcile(ctx context.Context, r controller.Runtime,
 		return err
 	}
 
+	config, err := safe.ReaderGetByID[*config.MachineConfig](ctx, r, config.V1Alpha1ID)
+	if err != nil && !state.IsNotFoundError(err) {
+		return err
+	}
+
 	insecure := (apiCerts == nil)
 
 	running = true
 	healthy = true
+
+	if insecure && config != nil {
+		logger.Info("the machine is configured but the certs are not ready yet")
+
+		ctrl.address = netip.Prefix{}
+
+		return ctrl.APID.Stop()
+	}
 
 	if ctrl.address == address && ctrl.insecure == insecure {
 		return nil

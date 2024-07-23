@@ -8,13 +8,13 @@ replace (
 	gopkg.in/yaml.v3 => github.com/unix4ever/yaml v0.0.0-20220527175918-f17b0f05cf2c
 
 	// all these rewrites are here to import k8s.io/kubernetes module
-	k8s.io/cluster-bootstrap => k8s.io/cluster-bootstrap v0.30.2
-	k8s.io/csi-translation-lib => k8s.io/csi-translation-lib v0.30.2
-	k8s.io/dynamic-resource-allocation => k8s.io/dynamic-resource-allocation v0.30.2
-	k8s.io/kube-aggregator => k8s.io/kube-aggregator v0.30.2
-	k8s.io/legacy-cloud-providers => k8s.io/legacy-cloud-providers v0.30.2
-	k8s.io/mount-utils => k8s.io/mount-utils v0.30.2
-	k8s.io/pod-security-admission => k8s.io/pod-security-admission v0.30.2
+	k8s.io/cluster-bootstrap => k8s.io/cluster-bootstrap v0.30.3
+	k8s.io/csi-translation-lib => k8s.io/csi-translation-lib v0.30.3
+	k8s.io/dynamic-resource-allocation => k8s.io/dynamic-resource-allocation v0.30.3
+	k8s.io/kube-aggregator => k8s.io/kube-aggregator v0.30.3
+	k8s.io/legacy-cloud-providers => k8s.io/legacy-cloud-providers v0.30.3
+	k8s.io/mount-utils => k8s.io/mount-utils v0.30.3
+	k8s.io/pod-security-admission => k8s.io/pod-security-admission v0.30.3
 )
 
 require (
@@ -62,10 +62,11 @@ require (
 	golang.zx2c4.com/wireguard/wgctrl v0.0.0-20230429144221-925a1e7659e6
 	google.golang.org/grpc v1.65.0
 	google.golang.org/protobuf v1.34.2
-	k8s.io/api v0.30.2
-	k8s.io/apimachinery v0.30.2
-	k8s.io/client-go v0.30.2
-	k8s.io/kubernetes v1.30.2
+	k8s.io/api v0.30.3
+	k8s.io/apimachinery v0.30.3
+	k8s.io/apiserver v0.30.3
+	k8s.io/client-go v0.30.3
+	k8s.io/kubernetes v1.30.3
 )
 
 require (
@@ -189,19 +190,18 @@ require (
 	gopkg.in/warnings.v0 v0.1.2 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
-	k8s.io/apiextensions-apiserver v0.30.2 // indirect
-	k8s.io/apiserver v0.30.2 // indirect
-	k8s.io/cloud-provider v0.30.2 // indirect
+	k8s.io/apiextensions-apiserver v0.30.3 // indirect
+	k8s.io/cloud-provider v0.30.3 // indirect
 	k8s.io/cluster-bootstrap v0.0.0 // indirect
-	k8s.io/component-base v0.30.2 // indirect
-	k8s.io/component-helpers v0.30.2 // indirect
-	k8s.io/controller-manager v0.30.2 // indirect
+	k8s.io/component-base v0.30.3 // indirect
+	k8s.io/component-helpers v0.30.3 // indirect
+	k8s.io/controller-manager v0.30.3 // indirect
 	k8s.io/dynamic-resource-allocation v0.0.0 // indirect
 	k8s.io/klog/v2 v2.130.1 // indirect
-	k8s.io/kms v0.30.2 // indirect
+	k8s.io/kms v0.30.3 // indirect
 	k8s.io/kube-aggregator v0.0.0 // indirect
 	k8s.io/kube-openapi v0.0.0-20240709000822-3c01b740850f // indirect
-	k8s.io/kubelet v0.30.2 // indirect
+	k8s.io/kubelet v0.30.3 // indirect
 	k8s.io/legacy-cloud-providers v0.0.0 // indirect
 	k8s.io/mount-utils v0.0.0 // indirect
 	k8s.io/pod-security-admission v0.0.0 // indirect
