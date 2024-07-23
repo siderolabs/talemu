@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net"
+	"net/netip"
 	"net/url"
 	"sync"
 	"time"
@@ -18,11 +19,12 @@ import (
 
 // LogSender writes zap logs to the remote destination.
 type LogSender struct {
-	endpoint *url.URL
-	conn     net.Conn
-	sema     chan struct{}
-	iface    string
-	mu       sync.Mutex
+	endpoint  *url.URL
+	conn      net.Conn
+	sema      chan struct{}
+	iface     string
+	localAddr netip.Prefix
+	mu        sync.Mutex
 }
 
 // NewLogSender returns log sender that sends logs in JSON over TCP (newline-delimited)
@@ -45,11 +47,12 @@ func (j *LogSender) ready() bool {
 	return j.iface != ""
 }
 
-func (j *LogSender) configure(iface string) {
+func (j *LogSender) configure(iface string, localAddr netip.Prefix) {
 	j.mu.Lock()
 	defer j.mu.Unlock()
 
 	j.iface = iface
+	j.localAddr = localAddr
 }
 
 func (j *LogSender) tryLock(ctx context.Context) (unlock func()) {
@@ -80,6 +83,7 @@ func (j *LogSender) marshalJSON(e *LogEvent) ([]byte, error) {
 func (j *LogSender) Send(ctx context.Context, e *LogEvent) error {
 	j.mu.Lock()
 	iface := j.iface
+	localAddr := j.localAddr
 	j.mu.Unlock()
 
 	if iface == "" {
@@ -104,6 +108,7 @@ func (j *LogSender) Send(ctx context.Context, e *LogEvent) error {
 
 	var dialer net.Dialer
 
+	dialer.LocalAddr = net.TCPAddrFromAddrPort(netip.AddrPortFrom(localAddr.Addr(), 0))
 	dialer.Control = network.BindToInterface(iface)
 
 	// Connect (or "connect" for UDP) if no connection is established already.

@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/siderolabs/go-circular"
+	"github.com/siderolabs/talos/pkg/machinery/resources/network"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
@@ -56,8 +57,8 @@ func NewZapCore(endpoint string) (*ZapCore, error) {
 }
 
 // ConfigureInterface inits the sender.
-func (core *ZapCore) ConfigureInterface(ctx context.Context, iface string) error {
-	core.sender.configure(iface)
+func (core *ZapCore) ConfigureInterface(ctx context.Context, res *network.AddressStatus) error {
+	core.sender.configure(res.TypedSpec().LinkName, res.TypedSpec().Address)
 
 	ctx, cancel := context.WithTimeout(ctx, time.Second)
 	defer cancel()

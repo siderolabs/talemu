@@ -59,7 +59,7 @@ func (ctrl *LogSinkController) Run(ctx context.Context, r controller.Runtime, _ 
 
 		if err = addresses.ForEachErr(func(r *network.AddressStatus) error {
 			if strings.HasPrefix(r.TypedSpec().LinkName, constants.SideroLinkName) {
-				return ctrl.LogSink.ConfigureInterface(ctx, r.TypedSpec().LinkName)
+				return ctrl.LogSink.ConfigureInterface(ctx, r)
 			}
 
 			return nil

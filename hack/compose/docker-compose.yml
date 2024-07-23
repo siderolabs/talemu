@@ -5,6 +5,7 @@ services:
       - state:/_out/state
     container_name: talemu
     restart: on-failure
+    network_mode: host
     cap_add:
       - NET_ADMIN
     build:

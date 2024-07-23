@@ -9,6 +9,7 @@ import (
 	stdlibx509 "crypto/x509"
 	"fmt"
 	"net"
+	"net/netip"
 	"strings"
 	"time"
 
@@ -335,6 +336,7 @@ func (ctrl *GRPCTLSController) generateWorker(ctx context.Context, r controller.
 	remoteGen, err := gen.NewRemoteGenerator(func(ctx context.Context, addr string) (net.Conn, error) {
 		var dialer net.Dialer
 
+		dialer.LocalAddr = net.TCPAddrFromAddrPort(netip.AddrPortFrom(address.TypedSpec().Address.Addr(), 0))
 		dialer.Control = emunet.BindToInterface(address.TypedSpec().LinkName)
 
 		return dialer.DialContext(ctx, "tcp", addr)

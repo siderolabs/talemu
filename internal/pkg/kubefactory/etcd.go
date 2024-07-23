@@ -48,6 +48,17 @@ func NewEmbeddedEtcd(ctx context.Context, path string, logger *zap.Logger) (*Etc
 	cfg.ExperimentalCompactHashCheckEnabled = true
 	cfg.ExperimentalInitialCorruptCheck = true
 
+	// run the emulator etcd on a different port to avoid clashing with Omni etcd
+	caddr, _ := url.Parse("http://localhost:2400") //nolint:errcheck
+	paddr, _ := url.Parse("http://localhost:2401") //nolint:errcheck
+
+	cfg.InitialCluster = fmt.Sprintf("default=%s", paddr.String())
+	cfg.ListenClientUrls = []url.URL{*caddr}
+	cfg.AdvertiseClientUrls = []url.URL{*caddr}
+
+	cfg.ListenPeerUrls = []url.URL{*paddr}
+	cfg.AdvertisePeerUrls = []url.URL{*paddr}
+
 	peerURL, err := url.Parse("http://localhost:0")
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse URL: %w", err)
