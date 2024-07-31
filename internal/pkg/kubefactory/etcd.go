@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"net"
 	"net/url"
+	"os"
 	"time"
 
 	"github.com/siderolabs/gen/xslices"
@@ -36,6 +37,10 @@ func NewEmbeddedEtcd(ctx context.Context, path string, logger *zap.Logger) (*Etc
 	)
 
 	logger.Info("starting embedded etcd server", zap.String("data_dir", path))
+
+	if err := os.MkdirAll(path, 0o775); err != nil && !os.IsExist(err) {
+		return nil, err
+	}
 
 	cfg := embed.NewConfig()
 	cfg.Dir = path

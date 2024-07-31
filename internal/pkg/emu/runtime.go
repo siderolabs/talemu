@@ -51,6 +51,21 @@ func NewRuntime(globalState state.State, kubernetes *kubefactory.Kubernetes, log
 	}, nil
 }
 
+// State returns runtime state.
+func (rt *Runtime) State() state.State {
+	return rt.globalState
+}
+
+// RegisterQController in the wrapped COSI runtime.
+func (rt *Runtime) RegisterQController(ctrl controller.QController) error {
+	return rt.runtime.RegisterQController(ctrl)
+}
+
+// RegisterController in the wrapped COSI runtime.
+func (rt *Runtime) RegisterController(ctrl controller.Controller) error {
+	return rt.runtime.RegisterController(ctrl)
+}
+
 // Run starts the runtime.
 func (rt *Runtime) Run(ctx context.Context) error {
 	rt.logger.Info("starting global runtime")

@@ -1,8 +1,8 @@
-# syntax = docker/dockerfile-upstream:1.8.1-labs
+# syntax = docker/dockerfile-upstream:1.9.0-labs
 
 # THIS FILE WAS AUTOMATICALLY GENERATED, PLEASE DO NOT EDIT.
 #
-# Generated on 2024-07-11T16:29:15Z by kres 8c8b007.
+# Generated on 2024-07-31T12:19:21Z by kres faf91e3.
 
 ARG TOOLCHAIN
 
@@ -11,7 +11,7 @@ FROM ghcr.io/siderolabs/ca-certificates:v1.7.0 AS image-ca-certificates
 FROM ghcr.io/siderolabs/fhs:v1.7.0 AS image-fhs
 
 # runs markdownlint
-FROM docker.io/oven/bun:1.1.17-alpine AS lint-markdown
+FROM docker.io/oven/bun:1.1.20-alpine AS lint-markdown
 WORKDIR /src
 RUN bun i markdownlint-cli@0.41.0 sentences-per-line@0.2.1
 COPY .markdownlint.json .
@@ -120,6 +120,14 @@ COPY --from=proto-compile /api/ /api/
 FROM scratch AS unit-tests
 COPY --from=unit-tests-run /src/coverage.txt /coverage-unit-tests.txt
 
+# builds talemu-cloud-provider-linux-amd64
+FROM base AS talemu-cloud-provider-linux-amd64-build
+COPY --from=generate / /
+WORKDIR /src/cmd/talemu-cloud-provider
+ARG GO_BUILDFLAGS
+ARG GO_LDFLAGS
+RUN --mount=type=cache,target=/root/.cache/go-build --mount=type=cache,target=/go/pkg go build ${GO_BUILDFLAGS} -ldflags "${GO_LDFLAGS}" -o /talemu-cloud-provider-linux-amd64
+
 # builds talemu-linux-amd64
 FROM base AS talemu-linux-amd64-build
 COPY --from=generate / /
@@ -128,13 +136,29 @@ ARG GO_BUILDFLAGS
 ARG GO_LDFLAGS
 RUN --mount=type=cache,target=/root/.cache/go-build --mount=type=cache,target=/go/pkg go build ${GO_BUILDFLAGS} -ldflags "${GO_LDFLAGS}" -o /talemu-linux-amd64
 
+FROM scratch AS talemu-cloud-provider-linux-amd64
+COPY --from=talemu-cloud-provider-linux-amd64-build /talemu-cloud-provider-linux-amd64 /talemu-cloud-provider-linux-amd64
+
 FROM scratch AS talemu-linux-amd64
 COPY --from=talemu-linux-amd64-build /talemu-linux-amd64 /talemu-linux-amd64
+
+FROM talemu-cloud-provider-linux-${TARGETARCH} AS talemu-cloud-provider
+
+FROM scratch AS talemu-cloud-provider-all
+COPY --from=talemu-cloud-provider-linux-amd64 / /
 
 FROM talemu-linux-${TARGETARCH} AS talemu
 
 FROM scratch AS talemu-all
 COPY --from=talemu-linux-amd64 / /
+
+FROM scratch AS image-talemu-cloud-provider
+ARG TARGETARCH
+COPY --from=talemu-cloud-provider talemu-cloud-provider-linux-${TARGETARCH} /talemu-cloud-provider
+COPY --from=image-fhs / /
+COPY --from=image-ca-certificates / /
+LABEL org.opencontainers.image.source=https://github.com/siderolabs/talemu
+ENTRYPOINT ["/talemu-cloud-provider"]
 
 FROM scratch AS image-talemu
 ARG TARGETARCH

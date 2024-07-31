@@ -1,5 +1,5 @@
 syntax = "proto3";
-package specs;
+package emuspecs;
 
 option go_package = "github.com/siderolabs/talemu/api/specs";
 
@@ -67,3 +67,11 @@ message RebootSpec {
 
 // RebootStatusSpec is generated for each reboot spec.
 message RebootStatusSpec {}
+
+// MachineSpec started by the cloud provider emulator.
+message MachineSpec {
+  int32 slot = 1;
+  string uuid = 2;
+  string schematic = 3;
+  string talos_version = 4;
+}

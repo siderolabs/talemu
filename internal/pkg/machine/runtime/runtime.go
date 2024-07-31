@@ -11,7 +11,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"strconv"
 
 	"github.com/cosi-project/runtime/pkg/controller"
 	"github.com/cosi-project/runtime/pkg/controller/runtime"
@@ -36,12 +35,12 @@ type Runtime struct {
 }
 
 // NewRuntime creates new runtime.
-func NewRuntime(ctx context.Context, logger *zap.Logger, machineIndex int, id string, globalState state.State,
+func NewRuntime(ctx context.Context, logger *zap.Logger, slot int, id string, globalState state.State,
 	kubernetes *kubefactory.Kubernetes, logSink *logging.ZapCore,
 ) (*Runtime, error) {
-	stateDir := filepath.Join("_out/state/machines", strconv.FormatInt(int64(machineIndex), 10))
+	stateDir := GetStateDir(id)
 
-	err := os.MkdirAll(stateDir, 0o664)
+	err := os.MkdirAll(stateDir, 0o755)
 	if err != nil && !errors.Is(err, os.ErrExist) {
 		return nil, err
 	}
@@ -66,7 +65,7 @@ func NewRuntime(ctx context.Context, logger *zap.Logger, machineIndex int, id st
 
 	controllers := []controller.Controller{
 		&controllers.ManagerController{
-			MachineIndex: machineIndex,
+			Slot: slot,
 		},
 		&controllers.LinkSpecController{},
 		&controllers.LinkStatusController{},

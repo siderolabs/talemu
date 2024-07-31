@@ -18,8 +18,9 @@ replace (
 )
 
 require (
+	github.com/adrg/xdg v0.5.0
 	github.com/akutz/memconn v0.1.0
-	github.com/cosi-project/runtime v0.5.2
+	github.com/cosi-project/runtime v0.5.5
 	github.com/grpc-ecosystem/go-grpc-middleware/v2 v2.1.0
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/jsimonetti/rtnetlink v1.4.2
@@ -37,6 +38,7 @@ require (
 	github.com/siderolabs/discovery-api v0.1.4
 	github.com/siderolabs/discovery-client v0.1.9
 	github.com/siderolabs/gen v0.5.0
+	github.com/siderolabs/go-api-signature v0.3.4
 	github.com/siderolabs/go-blockdevice v0.4.7
 	github.com/siderolabs/go-circular v0.1.0
 	github.com/siderolabs/go-pointer v1.0.0
@@ -45,7 +47,7 @@ require (
 	github.com/siderolabs/grpc-proxy v0.4.1
 	github.com/siderolabs/image-factory v0.2.1
 	github.com/siderolabs/net v0.4.0
-	github.com/siderolabs/omni/client v0.39.0
+	github.com/siderolabs/omni/client v0.40.0
 	github.com/siderolabs/siderolink v0.3.9
 	github.com/siderolabs/talos/pkg/machinery v1.8.0-alpha.1.0.20240709134906-3bab15214de9
 	github.com/spf13/cobra v1.8.1
@@ -74,12 +76,16 @@ require (
 	github.com/Azure/go-ansiterm v0.0.0-20210617225240-d185dfc1b5a1 // indirect
 	github.com/GoogleCloudPlatform/k8s-cloud-provider v1.18.1-0.20220218231025-f11817397a1b // indirect
 	github.com/NYTimes/gziphandler v1.1.1 // indirect
+	github.com/ProtonMail/go-crypto v1.0.0 // indirect
+	github.com/ProtonMail/go-mime v0.0.0-20230322103455-7d82a3887f2f // indirect
+	github.com/ProtonMail/gopenpgp/v2 v2.7.5 // indirect
 	github.com/antlr/antlr4/runtime/Go/antlr/v4 v4.0.0-20230512164433-5d1fd1a340c9 // indirect
 	github.com/asaskevich/govalidator v0.0.0-20230301143203-a9d515a09cc2 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/blang/semver/v4 v4.0.0 // indirect
 	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
+	github.com/cloudflare/circl v1.3.9 // indirect
 	github.com/containerd/go-cni v1.1.10 // indirect
 	github.com/containernetworking/cni v1.2.2 // indirect
 	github.com/coreos/go-oidc v2.2.1+incompatible // indirect
@@ -138,6 +144,7 @@ require (
 	github.com/opencontainers/go-digest v1.0.0 // indirect
 	github.com/opencontainers/runtime-spec v1.2.0 // indirect
 	github.com/opencontainers/selinux v1.11.0 // indirect
+	github.com/pkg/browser v0.0.0-20240102092130-5ac0b6a4141c // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/pquerna/cachecontrol v0.1.0 // indirect

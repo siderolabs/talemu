@@ -40,13 +40,13 @@ import (
 
 // ManagerController interacts with SideroLink API and brings up the SideroLink Wireguard interface.
 type ManagerController struct {
-	pd           provisionData
-	nodeKey      wgtypes.Key
-	MachineIndex int
+	pd      provisionData
+	nodeKey wgtypes.Key
+	Slot    int
 }
 
 func (ctrl *ManagerController) interfaceName() string {
-	return fmt.Sprintf("%s%d", constants.SideroLinkName, ctrl.MachineIndex)
+	return fmt.Sprintf("%s%d", constants.SideroLinkName, ctrl.Slot)
 }
 
 // Name implements controller.Controller interface.

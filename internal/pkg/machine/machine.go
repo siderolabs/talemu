@@ -40,6 +40,7 @@ type Machine struct {
 	globalState state.State
 	runtime     *truntime.Runtime
 	logger      *zap.Logger
+	shutdown    chan struct{}
 	uuid        string
 }
 
@@ -49,22 +50,21 @@ func NewMachine(uuid string, logger *zap.Logger, globalState state.State) (*Mach
 		uuid:        uuid,
 		logger:      logger,
 		globalState: globalState,
+		shutdown:    make(chan struct{}, 1),
 	}, nil
 }
 
-// SideroLinkParams is the siderolink params needed to join Omni instance.
-type SideroLinkParams struct {
-	APIEndpoint    string
-	JoinToken      string
-	LogsEndpoint   string
-	EventsEndpoint string
-	Host           string
-	Insecure       bool
-	TunnelMode     bool
-}
-
 // Run starts the machine.
-func (m *Machine) Run(ctx context.Context, siderolinkParams *SideroLinkParams, machineIndex int, kubernetes *kubefactory.Kubernetes) error {
+func (m *Machine) Run(ctx context.Context, siderolinkParams *SideroLinkParams, slot int, kubernetes *kubefactory.Kubernetes, options ...Option) error {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	var opts Options
+
+	for _, o := range options {
+		o(&opts)
+	}
+
 	logSink, err := logging.NewZapCore(siderolinkParams.LogsEndpoint)
 	if err != nil {
 		return err
@@ -76,7 +76,7 @@ func (m *Machine) Run(ctx context.Context, siderolinkParams *SideroLinkParams, m
 
 	m.logger = zap.New(core).With(zap.String("machine", m.uuid))
 
-	rt, err := truntime.NewRuntime(ctx, m.logger, machineIndex, m.uuid, m.globalState, kubernetes, logSink)
+	rt, err := truntime.NewRuntime(ctx, m.logger, slot, m.uuid, m.globalState, kubernetes, logSink)
 	if err != nil {
 		return err
 	}
@@ -161,6 +161,15 @@ func (m *Machine) Run(ctx context.Context, siderolinkParams *SideroLinkParams, m
 		memory,
 	)
 
+	if opts.schematic != "" || opts.talosVersion != "" {
+		image := talos.NewImage(talos.NamespaceName, talos.ImageID)
+
+		image.TypedSpec().Value.Schematic = opts.schematic
+		image.TypedSpec().Value.Version = opts.talosVersion
+
+		resources = append(resources, image)
+	}
+
 	for _, r := range resources {
 		if err = rt.State().Create(ctx, r); err != nil {
 			if state.IsConflictError(err) {
@@ -171,12 +180,22 @@ func (m *Machine) Run(ctx context.Context, siderolinkParams *SideroLinkParams, m
 		}
 	}
 
-	sink, err := events.NewHandler(ctx, rt.State(), machineIndex)
+	sink, err := events.NewHandler(ctx, rt.State())
 	if err != nil {
 		return err
 	}
 
 	var eg errgroup.Group
+
+	eg.Go(func() error {
+		select {
+		case <-ctx.Done():
+		case <-m.shutdown:
+			cancel()
+		}
+
+		return nil
+	})
 
 	eg.Go(func() error {
 		return rt.Run(ctx)
@@ -193,6 +212,11 @@ func (m *Machine) Run(ctx context.Context, siderolinkParams *SideroLinkParams, m
 func (m *Machine) Cleanup(ctx context.Context) error {
 	if m.runtime == nil {
 		return nil
+	}
+
+	select {
+	case m.shutdown <- struct{}{}:
+	default:
 	}
 
 	// remove all created interfaces

@@ -3,11 +3,11 @@
 Runs multiple fake Talos nodes at the same time.
 To be used in pair with Omni.
 
-## Running emulator
+## Running Emulator Static Mode
 
-Do `Copy Kernel Args` in the Omni UI, then paste the to `--kernel-args` flag.
+Do `Copy Kernel Args` in the Omni UI.
 
-Create `hack/compose/docker-compose.override.yml` file with the kernel args params.
+Create `hack/compose/docker-compose.override.yml` and paste copied kernel args there.
 
 Final YAML file can look like this:
 
@@ -24,3 +24,33 @@ services:
 Run `make docker-compose-up` command.
 
 This will spawn one hundred fake Talos nodes.
+
+## Cloud Provider Mode
+
+Run:
+
+```bash
+make cloud-provider
+```
+
+Then run:
+
+```bash
+sudo -E _out/talemu-cloud-provider-linux-amd64 --create-service-account --omni-api-endpoint=https://localhost:8099
+```
+
+Create a machine request using `omnictl`:
+
+```yaml
+metadata:
+    namespace: cloud-provider
+    type: MachineRequests.omni.sidero.dev
+    id: machine-1
+    labels:
+      omni.sidero.dev/cloud-provider-id: talemu
+spec:
+  talosversion: v1.7.5
+  schematicid: 376567988ad370138ad8b2698212367b8edcb69b5fd68c80be1f2ec7d603b4ba
+```
+
+The machine should be created by the emulator and appear in Omni.

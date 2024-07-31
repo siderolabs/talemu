@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"net"
 	"net/netip"
+	"strings"
 	"sync"
 	"time"
 
@@ -43,7 +44,7 @@ type Handler struct {
 }
 
 // NewHandler creates new events handler.
-func NewHandler(ctx context.Context, st state.State, machineIndex int) (*Handler, error) {
+func NewHandler(ctx context.Context, st state.State) (*Handler, error) {
 	config, err := safe.ReaderGetByID[*runtime.EventSinkConfig](ctx, st, runtime.EventSinkConfigID)
 	if err != nil {
 		return nil, err
@@ -62,31 +63,37 @@ func NewHandler(ctx context.Context, st state.State, machineIndex int) (*Handler
 			mu.Lock()
 			defer mu.Unlock()
 
-			var dialer net.Dialer
+			var (
+				dialer   net.Dialer
+				linkName string
+			)
 
 			if bindAddress == nil {
-				var addr *network.NodeAddress
-
-				addr, err = safe.ReaderGetByID[*network.NodeAddress](ctx, st, network.NodeAddressDefaultID)
+				list, e := safe.ReaderListAll[*network.AddressStatus](ctx, st)
 				if err != nil {
-					return nil, err
+					return nil, e
 				}
 
-				if len(addr.TypedSpec().Addresses) == 0 {
+				addr, ok := list.Find(func(r *network.AddressStatus) bool {
+					return strings.HasPrefix(r.TypedSpec().LinkName, constants.SideroLinkName)
+				})
+				if !ok {
 					return nil, fmt.Errorf("failed to look up siderolink address")
 				}
 
-				siderolinkAddr := addr.TypedSpec().Addresses[0]
+				siderolinkAddr := addr.TypedSpec().Address
 
 				bindAddress = net.TCPAddrFromAddrPort(netip.AddrPortFrom(
 					siderolinkAddr.Addr(),
 					0,
 				))
+
+				linkName = addr.TypedSpec().LinkName
 			}
 
 			dialer.LocalAddr = bindAddress
 
-			dialer.Control = emunet.BindToInterface(fmt.Sprintf("%s%d", constants.SideroLinkName, machineIndex))
+			dialer.Control = emunet.BindToInterface(linkName)
 
 			return dialer.DialContext(ctx, "tcp", address)
 		}),

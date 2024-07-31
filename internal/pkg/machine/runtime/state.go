@@ -17,20 +17,35 @@ import (
 	"github.com/cosi-project/runtime/pkg/state/impl/namespaced"
 	"github.com/cosi-project/runtime/pkg/state/impl/store"
 	"github.com/cosi-project/runtime/pkg/state/impl/store/bolt"
+	"github.com/siderolabs/gen/xslices"
 	"go.etcd.io/bbolt"
 	"go.uber.org/zap"
 )
 
+// NamespacedState defines additional namespaced state to pass to the namespaced.NewState.
+type NamespacedState struct {
+	State     state.State
+	Namespace string
+}
+
 // NewState creates State.
-func NewState(path string, logger *zap.Logger) (state.State, io.Closer, error) {
+func NewState(path string, logger *zap.Logger, namespacedStates ...NamespacedState) (state.State, io.Closer, error) {
 	builder, backingStore, err := newBoltStateBuilder(path, &bbolt.Options{}, true, logger)
 	if err != nil {
 		return nil, nil, err
 	}
 
+	nsStates := xslices.ToMap(namespacedStates, func(nst NamespacedState) (string, state.State) {
+		return nst.Namespace, nst.State
+	})
+
 	state := state.WrapCore(namespaced.NewState(func(n resource.Namespace) state.CoreState {
 		if n == meta.NamespaceName {
 			return inmem.NewState(n)
+		}
+
+		if st, ok := nsStates[n]; ok {
+			return st
 		}
 
 		return builder(n)
@@ -116,4 +131,9 @@ func newBoltStateBuilder(path string, options *bbolt.Options, compact bool, logg
 			inmem.WithHistoryMaxCapacity(5000),
 		)(ns)
 	}, boltStore, nil
+}
+
+// GetStateDir constructs state directory for the machine.
+func GetStateDir(id string) string {
+	return filepath.Join("_out/state/machines", id)
 }

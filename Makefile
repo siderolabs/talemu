@@ -1,6 +1,6 @@
 # THIS FILE WAS AUTOMATICALLY GENERATED, PLEASE DO NOT EDIT.
 #
-# Generated on 2024-07-08T16:02:22Z by kres 8c8b007.
+# Generated on 2024-07-31T12:19:21Z by kres faf91e3.
 
 # common variables
 
@@ -21,11 +21,11 @@ PROTOBUF_GO_VERSION ?= 1.34.2
 GRPC_GO_VERSION ?= 1.4.0
 GRPC_GATEWAY_VERSION ?= 2.20.0
 VTPROTOBUF_VERSION ?= 0.6.0
-GOIMPORTS_VERSION ?= 0.22.0
+GOIMPORTS_VERSION ?= 0.23.0
 DEEPCOPY_VERSION ?= v0.5.6
 GOLANGCILINT_VERSION ?= v1.59.1
 GOFUMPT_VERSION ?= v0.6.0
-GO_VERSION ?= 1.22.4
+GO_VERSION ?= 1.22.5
 GO_BUILDFLAGS ?=
 GO_LDFLAGS ?=
 CGO_ENABLED ?= 0
@@ -135,7 +135,7 @@ else
 GO_LDFLAGS += -s
 endif
 
-all: unit-tests talemu image-talemu docker-compose-up docker-compose-down lint
+all: unit-tests talemu image-talemu talemu-cloud-provider image-talemu-cloud-provider docker-compose-up docker-compose-down lint
 
 $(ARTIFACTS):  ## Creates artifacts directory.
 	@mkdir -p $(ARTIFACTS)
@@ -202,6 +202,20 @@ lint: lint-golangci-lint lint-gofumpt lint-govulncheck lint-markdown  ## Run all
 .PHONY: image-talemu
 image-talemu:  ## Builds image for talemu.
 	@$(MAKE) target-$@ TARGET_ARGS="--tag=$(REGISTRY)/$(USERNAME)/talemu:$(IMAGE_TAG)"
+
+.PHONY: $(ARTIFACTS)/talemu-cloud-provider-linux-amd64
+$(ARTIFACTS)/talemu-cloud-provider-linux-amd64:
+	@$(MAKE) local-talemu-cloud-provider-linux-amd64 DEST=$(ARTIFACTS)
+
+.PHONY: talemu-cloud-provider-linux-amd64
+talemu-cloud-provider-linux-amd64: $(ARTIFACTS)/talemu-cloud-provider-linux-amd64  ## Builds executable for talemu-cloud-provider-linux-amd64.
+
+.PHONY: talemu-cloud-provider
+talemu-cloud-provider: talemu-cloud-provider-linux-amd64  ## Builds executables for talemu-cloud-provider.
+
+.PHONY: image-talemu-cloud-provider
+image-talemu-cloud-provider:  ## Builds image for talemu-cloud-provider.
+	@$(MAKE) target-$@ TARGET_ARGS="--tag=$(REGISTRY)/$(USERNAME)/talemu-cloud-provider:$(IMAGE_TAG)"
 
 .PHONY: docker-compose-up
 docker-compose-up:
