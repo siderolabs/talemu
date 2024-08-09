@@ -31,6 +31,7 @@ import (
 	"github.com/siderolabs/talemu/internal/pkg/machine/controllers"
 	"github.com/siderolabs/talemu/internal/pkg/machine/events"
 	"github.com/siderolabs/talemu/internal/pkg/machine/logging"
+	machinenetwork "github.com/siderolabs/talemu/internal/pkg/machine/network"
 	truntime "github.com/siderolabs/talemu/internal/pkg/machine/runtime"
 	"github.com/siderolabs/talemu/internal/pkg/machine/runtime/resources/talos"
 )
@@ -65,6 +66,16 @@ func (m *Machine) Run(ctx context.Context, siderolinkParams *SideroLinkParams, s
 		o(&opts)
 	}
 
+	if opts.nc == nil {
+		opts.nc = machinenetwork.NewClient()
+
+		if err := opts.nc.Run(ctx); err != nil {
+			return err
+		}
+
+		defer opts.nc.Close() //nolint:errcheck
+	}
+
 	logSink, err := logging.NewZapCore(siderolinkParams.LogsEndpoint)
 	if err != nil {
 		return err
@@ -76,7 +87,7 @@ func (m *Machine) Run(ctx context.Context, siderolinkParams *SideroLinkParams, s
 
 	m.logger = zap.New(core).With(zap.String("machine", m.uuid))
 
-	rt, err := truntime.NewRuntime(ctx, m.logger, slot, m.uuid, m.globalState, kubernetes, logSink)
+	rt, err := truntime.NewRuntime(ctx, m.logger, slot, m.uuid, m.globalState, kubernetes, opts.nc, logSink)
 	if err != nil {
 		return err
 	}
@@ -180,7 +191,7 @@ func (m *Machine) Run(ctx context.Context, siderolinkParams *SideroLinkParams, s
 		}
 	}
 
-	sink, err := events.NewHandler(ctx, rt.State())
+	sink, err := events.NewHandler(rt.State())
 	if err != nil {
 		return err
 	}

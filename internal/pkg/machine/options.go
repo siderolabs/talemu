@@ -4,8 +4,11 @@
 
 package machine
 
+import "github.com/siderolabs/talemu/internal/pkg/machine/network"
+
 // Options is the extra machine options.
 type Options struct {
+	nc           *network.Client
 	talosVersion string
 	schematic    string
 }
@@ -24,5 +27,12 @@ func WithTalosVersion(version string) Option {
 func WithSchematic(schematic string) Option {
 	return func(o *Options) {
 		o.schematic = schematic
+	}
+}
+
+// WithNetworkClient explicitly sets the network client to use in the machine controllers.
+func WithNetworkClient(nc *network.Client) Option {
+	return func(o *Options) {
+		o.nc = nc
 	}
 }

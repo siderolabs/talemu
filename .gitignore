@@ -1,6 +1,7 @@
 # THIS FILE WAS AUTOMATICALLY GENERATED, PLEASE DO NOT EDIT.
 #
-# Generated on 2024-04-23T19:38:57Z by kres 0610b40-dirty.
+# Generated on 2024-08-14T14:55:16Z by kres 7be2a05.
 
 _out
 hack/compose/docker-compose.override.yml
+hack/compose/docker-compose-provider.override.yml

@@ -8,6 +8,7 @@ package controllers
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/cosi-project/runtime/pkg/controller"
 	"github.com/cosi-project/runtime/pkg/controller/generic/qtransform"
@@ -49,6 +50,10 @@ func NewMachineRequestStatusController() *MachineRequestStatusController {
 				schematicID := request.TypedSpec().Value.SchematicId
 				talosVersion := request.TypedSpec().Value.TalosVersion
 
+				if strings.HasPrefix(talosVersion, "v") {
+					talosVersion = "v" + talosVersion
+				}
+
 				logger.Info("received machine request", zap.String("schematic_id", schematicID), zap.String("talos_version", talosVersion))
 
 				var err error
@@ -70,6 +75,8 @@ func NewMachineRequestStatusController() *MachineRequestStatusController {
 				machine.TypedSpec().Value.Schematic = schematicID
 				machine.TypedSpec().Value.TalosVersion = talosVersion
 				machine.TypedSpec().Value.Uuid = uuid
+
+				*machine.Metadata().Labels() = *request.Metadata().Labels()
 
 				return nil
 			},

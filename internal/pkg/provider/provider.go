@@ -10,17 +10,18 @@ import (
 
 	"github.com/siderolabs/talemu/internal/pkg/emu"
 	"github.com/siderolabs/talemu/internal/pkg/kubefactory"
+	"github.com/siderolabs/talemu/internal/pkg/machine/network"
 	"github.com/siderolabs/talemu/internal/pkg/provider/controllers"
 )
 
 // RegisterControllers registers additional controllers required for the cloud provider.
-func RegisterControllers(runtime *emu.Runtime, kubernetes *kubefactory.Kubernetes) error {
+func RegisterControllers(runtime *emu.Runtime, kubernetes *kubefactory.Kubernetes, nc *network.Client) error {
 	qcontrollers := []controller.QController{
 		controllers.NewMachineRequestStatusController(),
 	}
 
 	controllers := []controller.Controller{
-		controllers.NewMachineController(runtime.State(), kubernetes),
+		controllers.NewMachineController(runtime.State(), kubernetes, nc),
 	}
 
 	for _, ctrl := range qcontrollers {

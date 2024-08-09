@@ -25,6 +25,7 @@ import (
 
 	emuruntime "github.com/siderolabs/talemu/internal/pkg/emu"
 	"github.com/siderolabs/talemu/internal/pkg/kubefactory"
+	"github.com/siderolabs/talemu/internal/pkg/machine/network"
 	"github.com/siderolabs/talemu/internal/pkg/machine/runtime"
 	"github.com/siderolabs/talemu/internal/pkg/machine/runtime/resources/emu"
 	"github.com/siderolabs/talemu/internal/pkg/provider"
@@ -50,9 +51,19 @@ var rootCmd = &cobra.Command{
 		}
 
 		if cfg.createServiceAccount {
-			err = createServiceAccount(cmd.Context())
-			if err != nil {
-				return err
+			for {
+				err = createServiceAccount(cmd.Context())
+				if err == nil {
+					break
+				}
+
+				logger.Error("failed to create service account", zap.Error(err))
+
+				select {
+				case <-cmd.Context().Done():
+					return err
+				case <-time.After(time.Second * 5):
+				}
 			}
 		}
 
@@ -97,7 +108,15 @@ var rootCmd = &cobra.Command{
 			return err
 		}
 
-		if err = provider.RegisterControllers(runtime, kubernetes); err != nil {
+		nc := network.NewClient()
+
+		if err = nc.Run(cmd.Context()); err != nil {
+			return err
+		}
+
+		defer nc.Close() //nolint:errcheck
+
+		if err = provider.RegisterControllers(runtime, kubernetes, nc); err != nil {
 			return err
 		}
 
@@ -112,6 +131,8 @@ func createServiceAccount(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+
+	defer rootClient.Close() //nolint:errcheck
 
 	name := access.CloudProviderServiceAccountPrefix + meta.ProviderID
 

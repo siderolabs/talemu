@@ -6,6 +6,7 @@ package emu
 
 import (
 	"context"
+	"time"
 
 	"github.com/cosi-project/runtime/pkg/controller"
 	"github.com/cosi-project/runtime/pkg/controller/runtime"
@@ -70,5 +71,19 @@ func (rt *Runtime) RegisterController(ctrl controller.Controller) error {
 func (rt *Runtime) Run(ctx context.Context) error {
 	rt.logger.Info("starting global runtime")
 
-	return rt.runtime.Run(ctx)
+	for {
+		err := rt.runtime.Run(ctx)
+
+		if err == nil {
+			return nil
+		}
+
+		rt.logger.Error("global runtime crashed", zap.Error(err))
+
+		select {
+		case <-ctx.Done():
+			return err
+		case <-time.After(time.Second * 10):
+		}
+	}
 }

@@ -8,6 +8,7 @@ package events
 import (
 	"context"
 	"fmt"
+	"math/rand"
 	"net"
 	"net/netip"
 	"strings"
@@ -39,15 +40,24 @@ import (
 
 // Handler watches machine status resource and turns each resource change into an event.
 type Handler struct {
-	state  state.State
-	client events.EventSinkServiceClient
+	state state.State
 }
 
 // NewHandler creates new events handler.
-func NewHandler(ctx context.Context, st state.State) (*Handler, error) {
-	config, err := safe.ReaderGetByID[*runtime.EventSinkConfig](ctx, st, runtime.EventSinkConfigID)
+func NewHandler(st state.State) (*Handler, error) {
+	return &Handler{
+		state: st,
+	}, nil
+}
+
+// Run starts the events handler.
+func (h *Handler) Run(ctx context.Context, logger *zap.Logger) error {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	config, err := safe.ReaderGetByID[*runtime.EventSinkConfig](ctx, h.state, runtime.EventSinkConfigID)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	var (
@@ -69,7 +79,7 @@ func NewHandler(ctx context.Context, st state.State) (*Handler, error) {
 			)
 
 			if bindAddress == nil {
-				list, e := safe.ReaderListAll[*network.AddressStatus](ctx, st)
+				list, e := safe.ReaderListAll[*network.AddressStatus](ctx, h.state)
 				if err != nil {
 					return nil, e
 				}
@@ -99,23 +109,19 @@ func NewHandler(ctx context.Context, st state.State) (*Handler, error) {
 		}),
 	)
 	if err != nil {
-		return nil, fmt.Errorf("error establishing connection to event sink: %w", err)
+		return fmt.Errorf("error establishing connection to event sink: %w", err)
 	}
 
-	return &Handler{
-		state:  st,
-		client: events.NewEventSinkServiceClient(conn),
-	}, nil
-}
+	defer conn.Close() //nolint:errcheck
 
-// Run starts the events handler.
-func (h *Handler) Run(ctx context.Context, logger *zap.Logger) error {
 	var eg errgroup.Group
+
+	client := events.NewEventSinkServiceClient(conn)
 
 	for _, id := range []string{emuconst.APIDService, emuconst.ETCDService, emuconst.KubeletService} {
 		eg.Go(func() error {
 			return h.runWithRetries(ctx, logger, func() error {
-				return generateEvents(ctx, h, v1alpha1.NewService(id), func(res *v1alpha1.Service) (*events.EventRequest, error) {
+				return generateEvents(ctx, h, v1alpha1.NewService(id), client, func(res *v1alpha1.Service) (*events.EventRequest, error) {
 					id := xid.NewWithTime(res.Metadata().Updated())
 
 					state := "Stopped"
@@ -148,7 +154,7 @@ func (h *Handler) Run(ctx context.Context, logger *zap.Logger) error {
 
 	eg.Go(func() error {
 		return h.runWithRetries(ctx, logger, func() error {
-			return generateEvents(ctx, h, runtime.NewMachineStatus(), func(res *runtime.MachineStatus) (*events.EventRequest, error) {
+			return generateEvents(ctx, h, runtime.NewMachineStatus(), client, func(res *runtime.MachineStatus) (*events.EventRequest, error) {
 				id := xid.NewWithTime(res.Metadata().Updated())
 
 				payload := &machine.MachineStatusEvent{
@@ -183,17 +189,24 @@ func (h *Handler) Run(ctx context.Context, logger *zap.Logger) error {
 }
 
 func (h *Handler) runWithRetries(ctx context.Context, logger *zap.Logger, cb func() error) error {
+	backoff := time.Second
+
 	for {
 		err := cb()
 		if err != nil {
 			logger.WithOptions(zap.AddStacktrace(zap.PanicLevel)).Warn("event sink connector crashed", zap.Error(err))
 
-			time.Sleep(time.Second)
+			time.Sleep(backoff)
 
 			select {
 			case <-ctx.Done():
 				return nil
 			default:
+			}
+
+			backoff = backoff*2 + time.Second*time.Duration(rand.Intn(10))
+			if backoff > time.Second*30 {
+				backoff = time.Second * 30
 			}
 
 			continue
@@ -204,7 +217,7 @@ func (h *Handler) runWithRetries(ctx context.Context, logger *zap.Logger, cb fun
 }
 
 //nolint:gocognit,gocyclo,cyclop
-func generateEvents[T resource.Resource](ctx context.Context, h *Handler, res T, callback func(res T) (*events.EventRequest, error), logger *zap.Logger) error {
+func generateEvents[T resource.Resource](ctx context.Context, h *Handler, res T, client events.EventSinkServiceClient, callback func(res T) (*events.EventRequest, error), logger *zap.Logger) error {
 	latest, err := h.state.Get(ctx, res.Metadata())
 	if err != nil && !state.IsNotFoundError(err) {
 		return err
@@ -277,7 +290,7 @@ func generateEvents[T resource.Resource](ctx context.Context, h *Handler, res T,
 							return err
 						}
 
-						if _, err = h.client.Publish(ctx, event); err != nil {
+						if _, err = client.Publish(ctx, event); err != nil {
 							return err
 						}
 

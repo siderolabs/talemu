@@ -14,6 +14,7 @@ import (
 
 	"github.com/siderolabs/talemu/internal/pkg/kubefactory"
 	"github.com/siderolabs/talemu/internal/pkg/machine"
+	"github.com/siderolabs/talemu/internal/pkg/machine/network"
 	"github.com/siderolabs/talemu/internal/pkg/provider/resources"
 )
 
@@ -25,6 +26,7 @@ type TaskSpec struct {
 	GlobalState state.State
 	Params      *machine.SideroLinkParams
 	Kubernetes  *kubefactory.Kubernetes
+	NC          *network.Client
 }
 
 // ID implements task.TaskSpec.
@@ -34,7 +36,7 @@ func (s TaskSpec) ID() task.ID {
 
 // Equal implements task.TaskSpec.
 func (s TaskSpec) Equal(other TaskSpec) bool {
-	return s.Machine.Metadata().Equal(*other.Machine.Metadata()) && s.Machine.TypedSpec().Value.EqualVT(other.Machine.TypedSpec().Value)
+	return s.Machine.Metadata().ID() == other.Machine.Metadata().ID() && s.Machine.TypedSpec().Value.EqualVT(other.Machine.TypedSpec().Value)
 }
 
 // RunTask implements task.TaskSpec.
@@ -53,5 +55,6 @@ func (s TaskSpec) RunTask(ctx context.Context, logger *zap.Logger, _ any) error 
 		s.Kubernetes,
 		machine.WithTalosVersion(s.Machine.TypedSpec().Value.TalosVersion),
 		machine.WithSchematic(s.Machine.TypedSpec().Value.Schematic),
+		machine.WithNetworkClient(s.NC),
 	)
 }

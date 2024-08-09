@@ -17,22 +17,23 @@ import (
 	"github.com/cosi-project/runtime/pkg/resource"
 	"github.com/cosi-project/runtime/pkg/safe"
 	"github.com/cosi-project/runtime/pkg/state"
-	"github.com/jsimonetti/rtnetlink/v2"
+	"github.com/jsimonetti/rtnetlink"
 	"github.com/mdlayher/ethtool"
 	ethtoolioctl "github.com/safchain/ethtool"
 	"github.com/siderolabs/talos/pkg/machinery/constants"
 	"github.com/siderolabs/talos/pkg/machinery/nethelpers"
 	"github.com/siderolabs/talos/pkg/machinery/resources/network"
 	"go.uber.org/zap"
-	"golang.org/x/sys/unix"
 	"golang.zx2c4.com/wireguard/wgctrl"
 	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
 
-	"github.com/siderolabs/talemu/internal/pkg/machine/network/watch"
+	machinenetwork "github.com/siderolabs/talemu/internal/pkg/machine/network"
 )
 
 // LinkStatusController manages secrets.Etcd based on configuration.
-type LinkStatusController struct{}
+type LinkStatusController struct {
+	NC *machinenetwork.Client
+}
 
 // Name implements controller.Controller interface.
 func (ctrl *LinkStatusController) Name() string {
@@ -62,51 +63,6 @@ func (ctrl *LinkStatusController) Outputs() []controller.Output {
 
 // Run implements controller.Controller interface.
 func (ctrl *LinkStatusController) Run(ctx context.Context, r controller.Runtime, logger *zap.Logger) error {
-	// create watch connections to rtnetlink and ethtool via genetlink
-	// these connections are used only to join multicast groups and receive notifications on changes
-	// other connections are used to send requests and receive responses, as we can't mix the notifications and request/responses
-	rtnetlinkWatcher, err := watch.NewRtNetlink(watch.NewDefaultRateLimitedTrigger(ctx, r), unix.RTMGRP_LINK)
-	if err != nil {
-		return err
-	}
-
-	defer rtnetlinkWatcher.Done()
-
-	ethtoolWatcher, err := watch.NewEthtool(watch.NewDefaultRateLimitedTrigger(ctx, r))
-	if err != nil {
-		logger.Warn("ethtool watcher failed to start", zap.Error(err))
-	} else {
-		defer ethtoolWatcher.Done()
-	}
-
-	conn, err := rtnetlink.Dial(nil)
-	if err != nil {
-		return fmt.Errorf("error dialing rtnetlink socket: %w", err)
-	}
-
-	defer conn.Close() //nolint:errcheck
-
-	ethClient, err := ethtool.New()
-	if err != nil {
-		logger.Warn("error dialing ethtool socket", zap.Error(err))
-	} else {
-		defer ethClient.Close() //nolint:errcheck
-	}
-
-	ethIoctlClient, err := ethtoolioctl.NewEthtool()
-	if err != nil {
-		logger.Warn("error dialing ethtool ioctl socket", zap.Error(err))
-	} else {
-		defer ethIoctlClient.Close()
-	}
-
-	wgClient, err := wgctrl.New()
-	if err != nil {
-		logger.Warn("error creating wireguard client", zap.Error(err))
-	} else {
-		defer wgClient.Close() //nolint:errcheck
-	}
-
 	for {
 		select {
 		case <-ctx.Done():
@@ -114,7 +70,7 @@ func (ctrl *LinkStatusController) Run(ctx context.Context, r controller.Runtime,
 		case <-r.EventCh():
 		}
 
-		if err = ctrl.reconcile(ctx, r, logger, conn, ethClient, ethIoctlClient, wgClient); err != nil {
+		if err := ctrl.reconcile(ctx, r, logger, ctrl.NC.Conn(), ctrl.NC.Eth(), ctrl.NC.EthIoCtl(), ctrl.NC.Wg()); err != nil {
 			return err
 		}
 

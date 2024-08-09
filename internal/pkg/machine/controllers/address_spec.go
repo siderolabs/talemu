@@ -21,13 +21,14 @@ import (
 	"github.com/siderolabs/talos/pkg/machinery/resources/network"
 	"go.uber.org/zap"
 	"go4.org/netipx"
-	"golang.org/x/sys/unix"
 
-	"github.com/siderolabs/talemu/internal/pkg/machine/network/watch"
+	machinenetwork "github.com/siderolabs/talemu/internal/pkg/machine/network"
 )
 
 // AddressSpecController applies network.AddressSpec to the actual interfaces.
-type AddressSpecController struct{}
+type AddressSpecController struct {
+	NC *machinenetwork.Client
+}
 
 // Name implements controller.Controller interface.
 func (ctrl *AddressSpecController) Name() string {
@@ -59,21 +60,6 @@ func (ctrl *AddressSpecController) Outputs() []controller.Output {
 //
 //nolint:gocognit
 func (ctrl *AddressSpecController) Run(ctx context.Context, r controller.Runtime, logger *zap.Logger) error {
-	// watch link changes as some address might need to be re-applied if the link appears
-	watcher, err := watch.NewRtNetlink(watch.NewDefaultRateLimitedTrigger(ctx, r), unix.RTMGRP_LINK)
-	if err != nil {
-		return err
-	}
-
-	defer watcher.Done()
-
-	conn, err := rtnetlink.Dial(nil)
-	if err != nil {
-		return fmt.Errorf("error dialing rtnetlink socket: %w", err)
-	}
-
-	defer conn.Close() //nolint:errcheck
-
 	for {
 		select {
 		case <-ctx.Done():
@@ -103,13 +89,13 @@ func (ctrl *AddressSpecController) Run(ctx context.Context, r controller.Runtime
 		}
 
 		// list rtnetlink links (interfaces)
-		links, err := conn.Link.List()
+		links, err := ctrl.NC.Conn().Link.List()
 		if err != nil {
 			return fmt.Errorf("error listing links: %w", err)
 		}
 
 		// list rtnetlink addresses
-		addrs, err := conn.Address.List()
+		addrs, err := ctrl.NC.Conn().Address.List()
 		if err != nil {
 			return fmt.Errorf("error listing addresses: %w", err)
 		}
@@ -120,7 +106,7 @@ func (ctrl *AddressSpecController) Run(ctx context.Context, r controller.Runtime
 		for _, res := range list.Items {
 			address := res.(*network.AddressSpec) //nolint:forcetypeassert,errcheck
 
-			if err = ctrl.syncAddress(ctx, r, logger, conn, links, addrs, address); err != nil {
+			if err = ctrl.syncAddress(ctx, r, logger, ctrl.NC.Conn(), links, addrs, address); err != nil {
 				return err
 			}
 

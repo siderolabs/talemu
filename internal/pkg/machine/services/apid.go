@@ -101,8 +101,6 @@ func (apid *APID) Run(ctx context.Context, endpoint netip.Prefix, logger *zap.Lo
 
 	tlsCredentials := credentials.NewTLS(cfg)
 
-	eg, ctx := errgroup.WithContext(ctx)
-
 	backendFactory := backend.NewAPIDFactory(provider)
 	remoteFactory := backendFactory.Get
 
@@ -171,6 +169,10 @@ func (apid *APID) Run(ctx context.Context, endpoint netip.Prefix, logger *zap.Lo
 	storage.RegisterStorageServiceServer(localServer, machineSrv)
 	cosiv1alpha1.RegisterStateServer(localServer, resourceState)
 
+	eg, ctx := errgroup.WithContext(ctx)
+
+	apid.eg = eg
+
 	eg.Go(func() error {
 		listener, err := memconn.Listener()
 		if err != nil {
@@ -212,8 +214,6 @@ func (apid *APID) Run(ctx context.Context, endpoint netip.Prefix, logger *zap.Lo
 	eg.Go(func() error {
 		return s.Serve(lis)
 	})
-
-	apid.eg = eg
 
 	return nil
 }

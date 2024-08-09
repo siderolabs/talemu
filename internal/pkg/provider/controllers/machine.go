@@ -24,6 +24,7 @@ import (
 
 	"github.com/siderolabs/talemu/internal/pkg/kubefactory"
 	"github.com/siderolabs/talemu/internal/pkg/machine"
+	"github.com/siderolabs/talemu/internal/pkg/machine/network"
 	"github.com/siderolabs/talemu/internal/pkg/machine/runtime"
 	"github.com/siderolabs/talemu/internal/pkg/machine/runtime/resources/emu"
 	machinetask "github.com/siderolabs/talemu/internal/pkg/provider/controllers/machine"
@@ -34,15 +35,17 @@ import (
 type MachineController struct {
 	runner      *task.Runner[any, machinetask.TaskSpec]
 	kubernetes  *kubefactory.Kubernetes
+	nc          *network.Client
 	globalState state.State
 }
 
 // NewMachineController creates new machine controller.
-func NewMachineController(globalState state.State, kubernetes *kubefactory.Kubernetes) *MachineController {
+func NewMachineController(globalState state.State, kubernetes *kubefactory.Kubernetes, nc *network.Client) *MachineController {
 	return &MachineController{
 		runner:      task.NewEqualRunner[machinetask.TaskSpec](),
 		globalState: globalState,
 		kubernetes:  kubernetes,
+		nc:          nc,
 	}
 }
 
@@ -89,6 +92,8 @@ func (ctrl *MachineController) Run(ctx context.Context, r controller.Runtime, lo
 	for {
 		select {
 		case <-ctx.Done():
+			ctrl.runner.Stop()
+
 			return nil
 		case <-r.EventCh():
 		}
@@ -114,6 +119,8 @@ func (ctrl *MachineController) Run(ctx context.Context, r controller.Runtime, lo
 			}
 
 			if err = safe.WriterModify(ctx, r, cloud.NewMachineRequestStatus(m.Metadata().ID()), func(r *cloud.MachineRequestStatus) error {
+				*r.Metadata().Labels() = *m.Metadata().Labels()
+
 				r.TypedSpec().Value.Id = m.TypedSpec().Value.Uuid
 				r.TypedSpec().Value.Stage = cloudspecs.MachineRequestStatusSpec_PROVISIONED
 
@@ -146,6 +153,7 @@ func (ctrl *MachineController) Run(ctx context.Context, r controller.Runtime, lo
 				GlobalState: ctrl.globalState,
 				Kubernetes:  ctrl.kubernetes,
 				Params:      params,
+				NC:          ctrl.nc,
 			}, nil)
 
 			touchedIDs[m.Metadata().ID()] = struct{}{}

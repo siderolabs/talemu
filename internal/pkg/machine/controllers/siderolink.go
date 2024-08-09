@@ -36,10 +36,13 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
+
+	machinenetwork "github.com/siderolabs/talemu/internal/pkg/machine/network"
 )
 
 // ManagerController interacts with SideroLink API and brings up the SideroLink Wireguard interface.
 type ManagerController struct {
+	NC      *machinenetwork.Client
 	pd      provisionData
 	nodeKey wgtypes.Key
 	Slot    int
@@ -100,17 +103,6 @@ func (ctrl *ManagerController) Outputs() []controller.Output {
 //
 //nolint:gocyclo,cyclop,gocognit
 func (ctrl *ManagerController) Run(ctx context.Context, r controller.Runtime, logger *zap.Logger) error {
-	wgClient, wgClientErr := wgctrl.New()
-	if wgClientErr != nil {
-		return wgClientErr
-	}
-
-	defer func() {
-		if closeErr := wgClient.Close(); closeErr != nil {
-			logger.Error("failed to close wg client", zap.Error(closeErr))
-		}
-	}()
-
 	var zeroKey wgtypes.Key
 
 	if bytes.Equal(ctrl.nodeKey[:], zeroKey[:]) {
@@ -130,7 +122,7 @@ func (ctrl *ManagerController) Run(ctx context.Context, r controller.Runtime, lo
 		case <-ctx.Done():
 			return nil
 		case <-ticker.C:
-			reconnect, err := ctrl.shouldReconnect(wgClient)
+			reconnect, err := ctrl.shouldReconnect(ctrl.NC.Wg())
 			if err != nil {
 				return err
 			}

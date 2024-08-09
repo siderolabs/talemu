@@ -26,11 +26,13 @@ import (
 	"golang.zx2c4.com/wireguard/wgctrl"
 	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
 
-	"github.com/siderolabs/talemu/internal/pkg/machine/network/watch"
+	machinenetwork "github.com/siderolabs/talemu/internal/pkg/machine/network"
 )
 
 // LinkSpecController applies network.LinkSpec to the actual interfaces.
-type LinkSpecController struct{}
+type LinkSpecController struct {
+	NC *machinenetwork.Client
+}
 
 // Name implements controller.Controller interface.
 func (ctrl *LinkSpecController) Name() string {
@@ -61,27 +63,6 @@ func (ctrl *LinkSpecController) Outputs() []controller.Output {
 // Run implements controller.Controller interface.
 func (ctrl *LinkSpecController) Run(ctx context.Context, r controller.Runtime, logger *zap.Logger) error {
 	// watch link changes as some routes might need to be re-applied if the link appears
-	watcher, err := watch.NewRtNetlink(watch.NewDefaultRateLimitedTrigger(ctx, r), unix.RTMGRP_LINK)
-	if err != nil {
-		return err
-	}
-
-	defer watcher.Done()
-
-	conn, err := rtnetlink.Dial(nil)
-	if err != nil {
-		return fmt.Errorf("error dialing rtnetlink socket: %w", err)
-	}
-
-	defer conn.Close() //nolint:errcheck
-
-	wgClient, err := wgctrl.New()
-	if err != nil {
-		logger.Warn("error creating wireguard client", zap.Error(err))
-	} else {
-		defer wgClient.Close() //nolint:errcheck
-	}
-
 	for {
 		select {
 		case <-ctx.Done():
@@ -107,7 +88,7 @@ func (ctrl *LinkSpecController) Run(ctx context.Context, r controller.Runtime, l
 		}
 
 		// list rtnetlink links (interfaces)
-		links, err := conn.Link.List()
+		links, err := ctrl.NC.Conn().Link.List()
 		if err != nil {
 			return fmt.Errorf("error listing links: %w", err)
 		}
@@ -118,7 +99,7 @@ func (ctrl *LinkSpecController) Run(ctx context.Context, r controller.Runtime, l
 		for _, res := range list.Items {
 			link := res.(*network.LinkSpec) //nolint:forcetypeassert,errcheck
 
-			if err = ctrl.syncLink(ctx, r, logger, conn, wgClient, &links, link); err != nil {
+			if err = ctrl.syncLink(ctx, r, logger, ctrl.NC.Conn(), ctrl.NC.Wg(), &links, link); err != nil {
 				multiErr = multierror.Append(multiErr, err)
 			}
 		}
@@ -294,7 +275,7 @@ func (ctrl *LinkSpecController) syncLink(ctx context.Context, r controller.Runti
 			link.TypedSpec().Wireguard.Sort()
 
 			// order here is important: we allow listenPort to be zero in the configuration
-			if !existingSpec.Equal(&link.TypedSpec().Wireguard) {
+			if !WireguardSpec(&existingSpec).Equal(&link.TypedSpec().Wireguard) {
 				config, err := WireguardSpec(&link.TypedSpec().Wireguard).Encode(&existingSpec)
 				if err != nil {
 					return fmt.Errorf("error creating wireguard config patch for %q: %w", link.TypedSpec().Name, err)

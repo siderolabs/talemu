@@ -7,6 +7,7 @@ package clientconfig
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -14,33 +15,18 @@ import (
 	"time"
 
 	"github.com/adrg/xdg"
-	"github.com/hashicorp/go-multierror"
-	"github.com/siderolabs/gen/containers"
-	authpb "github.com/siderolabs/go-api-signature/api/auth"
 	authcli "github.com/siderolabs/go-api-signature/pkg/client/auth"
 	"github.com/siderolabs/go-api-signature/pkg/client/interceptor"
 	"github.com/siderolabs/go-api-signature/pkg/message"
 	"github.com/siderolabs/go-api-signature/pkg/pgp"
 	"github.com/siderolabs/omni/client/pkg/client"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 )
 
 const (
 	defaultEmail = "test-user@siderolabs.com"
 )
-
-type clientCacheKey struct {
-	role         string
-	email        string
-	skipUserRole bool
-}
-
-type clientOrError struct {
-	client *client.Client
-	err    error
-}
-
-var clientCache = containers.ConcurrentMap[clientCacheKey, clientOrError]{}
 
 // ClientConfig is a test client.
 type ClientConfig struct {
@@ -67,54 +53,17 @@ func (t *ClientConfig) GetClient(publicKeyOpts ...authcli.RegisterPGPPublicKeyOp
 // Clients are cached by their configuration, so if a client with the
 // given configuration was created before, the cached one will be returned.
 func (t *ClientConfig) GetClientForEmail(email string, publicKeyOpts ...authcli.RegisterPGPPublicKeyOption) (*client.Client, error) {
-	cacheKey := t.buildCacheKey(email, publicKeyOpts)
+	signatureInterceptor := buildSignatureInterceptor(email, publicKeyOpts...)
 
-	cliOrErr, _ := clientCache.GetOrCall(cacheKey, func() clientOrError {
-		signatureInterceptor := buildSignatureInterceptor(email, publicKeyOpts...)
-
-		cli, err := client.New(t.endpoint,
-			client.WithGrpcOpts(
-				grpc.WithUnaryInterceptor(signatureInterceptor.Unary()),
-				grpc.WithStreamInterceptor(signatureInterceptor.Stream()),
-			),
-		)
-
-		return clientOrError{
-			client: cli,
-			err:    err,
-		}
-	})
-
-	return cliOrErr.client, cliOrErr.err
-}
-
-// Close closes all the clients created by this config.
-func (t *ClientConfig) Close() error {
-	var multiErr error
-
-	clientCache.ForEach(func(_ clientCacheKey, cliOrErr clientOrError) {
-		if cliOrErr.client != nil {
-			if err := cliOrErr.client.Close(); err != nil {
-				multiErr = multierror.Append(multiErr, err)
-			}
-		}
-	})
-
-	return multiErr
-}
-
-func (t *ClientConfig) buildCacheKey(email string, publicKeyOpts []authcli.RegisterPGPPublicKeyOption) clientCacheKey {
-	var req authpb.RegisterPublicKeyRequest
-
-	for _, o := range publicKeyOpts {
-		o(&req)
-	}
-
-	return clientCacheKey{
-		role:         req.Role,
-		email:        email,
-		skipUserRole: req.SkipUserRole,
-	}
+	return client.New(t.endpoint,
+		client.WithGrpcOpts(
+			grpc.WithUnaryInterceptor(signatureInterceptor.Unary()),
+			grpc.WithStreamInterceptor(signatureInterceptor.Stream()),
+			grpc.WithTransportCredentials(credentials.NewTLS(&tls.Config{
+				InsecureSkipVerify: true,
+			})),
+		),
+	)
 }
 
 var talosAPIKeyMutex sync.Mutex

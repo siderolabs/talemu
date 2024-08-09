@@ -20,6 +20,7 @@ import (
 	"github.com/siderolabs/talemu/internal/pkg/kubefactory"
 	"github.com/siderolabs/talemu/internal/pkg/machine/controllers"
 	"github.com/siderolabs/talemu/internal/pkg/machine/logging"
+	"github.com/siderolabs/talemu/internal/pkg/machine/network"
 	"github.com/siderolabs/talemu/internal/pkg/machine/runtime/resources/emu"
 	"github.com/siderolabs/talemu/internal/pkg/machine/runtime/resources/talos"
 	"github.com/siderolabs/talemu/internal/pkg/machine/services"
@@ -36,7 +37,7 @@ type Runtime struct {
 
 // NewRuntime creates new runtime.
 func NewRuntime(ctx context.Context, logger *zap.Logger, slot int, id string, globalState state.State,
-	kubernetes *kubefactory.Kubernetes, logSink *logging.ZapCore,
+	kubernetes *kubefactory.Kubernetes, nc *network.Client, logSink *logging.ZapCore,
 ) (*Runtime, error) {
 	stateDir := GetStateDir(id)
 
@@ -66,13 +67,20 @@ func NewRuntime(ctx context.Context, logger *zap.Logger, slot int, id string, gl
 	controllers := []controller.Controller{
 		&controllers.ManagerController{
 			Slot: slot,
+			NC:   nc,
 		},
-		&controllers.LinkSpecController{},
-		&controllers.LinkStatusController{},
+		&controllers.LinkSpecController{
+			NC: nc,
+		},
+		&controllers.LinkStatusController{
+			NC: nc,
+		},
 		&controllers.APIDController{
 			APID: services.NewAPID(id, st, globalState),
 		},
-		&controllers.AddressSpecController{},
+		&controllers.AddressSpecController{
+			NC: nc,
+		},
 		&controllers.GRPCTLSController{},
 		&controllers.MachineTypeController{},
 		&controllers.HostnameConfigController{

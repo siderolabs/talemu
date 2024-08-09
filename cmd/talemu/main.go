@@ -22,6 +22,7 @@ import (
 	emuruntime "github.com/siderolabs/talemu/internal/pkg/emu"
 	"github.com/siderolabs/talemu/internal/pkg/kubefactory"
 	"github.com/siderolabs/talemu/internal/pkg/machine"
+	"github.com/siderolabs/talemu/internal/pkg/machine/network"
 	"github.com/siderolabs/talemu/internal/pkg/machine/runtime"
 	"github.com/siderolabs/talemu/internal/pkg/machine/runtime/resources/emu"
 )
@@ -81,17 +82,25 @@ var rootCmd = &cobra.Command{
 			return runtime.Run(ctx)
 		})
 
+		nc := network.NewClient()
+
+		if err = nc.Run(cmd.Context()); err != nil {
+			return err
+		}
+
+		defer nc.Close() //nolint:errcheck
+
 		for i := range cfg.machinesCount {
-			machine, err := machine.NewMachine(fmt.Sprintf("%04d1802-c798-4da7-a410-f09abb48c8d8", i+1000), logger, emulatorState)
+			m, err := machine.NewMachine(fmt.Sprintf("%04d1802-c798-4da7-a410-f09abb48c8d8", i+1000), logger, emulatorState)
 			if err != nil {
 				return err
 			}
 
 			eg.Go(func() error {
-				return machine.Run(ctx, params, i+1000, kubernetes)
+				return m.Run(ctx, params, i+1000, kubernetes, machine.WithNetworkClient(nc))
 			})
 
-			machines = append(machines, machine)
+			machines = append(machines, m)
 		}
 
 		var errors error
