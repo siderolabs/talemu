@@ -17,6 +17,18 @@ replace (
 	k8s.io/pod-security-admission => k8s.io/pod-security-admission v0.30.3
 )
 
+replace (
+	// to make goland happy
+	k8s.io/cli-runtime => k8s.io/cli-runtime v0.30.3
+	k8s.io/endpointslice => k8s.io/endpointslice v0.30.3
+	k8s.io/kube-controller-manager => k8s.io/kube-controller-manager v0.30.3
+	k8s.io/kube-proxy => k8s.io/kube-proxy v0.30.3
+	k8s.io/kube-scheduler => k8s.io/kube-scheduler v0.30.3
+	k8s.io/kubectl => k8s.io/kubectl v0.30.3
+	k8s.io/metrics => k8s.io/metrics v0.30.3
+	k8s.io/sample-apiserver => k8s.io/sample-apiserver v0.30.3
+)
+
 require (
 	github.com/adrg/xdg v0.5.0
 	github.com/akutz/memconn v0.1.0
@@ -24,7 +36,6 @@ require (
 	github.com/grpc-ecosystem/go-grpc-middleware/v2 v2.1.0
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/jsimonetti/rtnetlink v1.4.2
-	github.com/jsimonetti/rtnetlink/v2 v2.0.2
 	github.com/jxskiss/base62 v1.1.0
 	github.com/martinlindhe/base36 v1.1.1
 	github.com/mdlayher/arp v0.0.0-20220512170110-6706a2966875
@@ -128,6 +139,7 @@ require (
 	github.com/jonboulle/clockwork v0.4.0 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/josharian/native v1.1.0 // indirect
+	github.com/jsimonetti/rtnetlink/v2 v2.0.2 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/mailru/easyjson v0.7.7 // indirect
 	github.com/matttproud/golang_protobuf_extensions/v2 v2.0.0 // indirect

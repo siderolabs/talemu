@@ -23,7 +23,9 @@ import (
 	"github.com/siderolabs/talos/pkg/machinery/resources/config"
 	"github.com/siderolabs/talos/pkg/machinery/resources/etcd"
 	"github.com/siderolabs/talos/pkg/machinery/resources/network"
+	"github.com/siderolabs/talos/pkg/machinery/resources/runtime"
 	"github.com/siderolabs/talos/pkg/machinery/resources/v1alpha1"
+	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/durationpb"
@@ -40,7 +42,10 @@ type machineService struct {
 
 	state       state.State
 	globalState state.State
-	machineID   string
+
+	logger *zap.Logger
+
+	machineID string
 }
 
 // ApplyConfiguration implements machine.MachineServiceServer.
@@ -682,6 +687,55 @@ func (c *machineService) Logs(req *machine.LogsRequest, serv machine.MachineServ
 // Containers implements machine.MachineServiceServer.
 func (c *machineService) Containers(context.Context, *machine.ContainersRequest) (*machine.ContainersResponse, error) {
 	return &machine.ContainersResponse{}, nil
+}
+
+// MetaWrite implements machine.MachineServiceServer.
+func (c *machineService) MetaWrite(ctx context.Context, req *machine.MetaWriteRequest) (*machine.MetaWriteResponse, error) {
+	metaKey := runtime.NewMetaKey(runtime.NamespaceName, runtime.MetaKeyTagToID(uint8(req.Key)))
+
+	metaKey.TypedSpec().Value = string(req.Value)
+
+	if err := c.state.Create(ctx, metaKey); err != nil {
+		if !state.IsConflictError(err) {
+			return nil, err
+		}
+
+		_, err = safe.StateUpdateWithConflicts(ctx, c.state, metaKey.Metadata(), func(r *runtime.MetaKey) error {
+			r.TypedSpec().Value = string(req.Value)
+
+			return nil
+		})
+		if err != nil {
+			return nil, err
+		}
+
+		c.logger.Info("updated meta", zap.Uint32("key", req.Key), zap.Binary("value", req.Value))
+
+		return &machine.MetaWriteResponse{}, nil
+	}
+
+	c.logger.Info("created meta", zap.Uint32("key", req.Key), zap.Binary("value", req.Value))
+
+	return &machine.MetaWriteResponse{}, nil
+}
+
+// MetaDelete implements machine.MachineServiceServer.
+func (c *machineService) MetaDelete(ctx context.Context, req *machine.MetaDeleteRequest) (*machine.MetaDeleteResponse, error) {
+	metaKey := runtime.NewMetaKey(runtime.NamespaceName, runtime.MetaKeyTagToID(uint8(req.Key)))
+
+	if err := c.state.Destroy(ctx, metaKey.Metadata()); err != nil {
+		if !state.IsNotFoundError(err) {
+			return nil, err
+		}
+
+		c.logger.Info("meta not found", zap.Uint32("key", req.Key))
+
+		return nil, status.Error(codes.NotFound, "meta not found")
+	}
+
+	c.logger.Info("deleted meta", zap.Uint32("key", req.Key))
+
+	return &machine.MetaDeleteResponse{}, nil
 }
 
 func destroyResourceByID[T generic.ResourceWithRD](ctx context.Context, st state.State, id resource.ID) error {

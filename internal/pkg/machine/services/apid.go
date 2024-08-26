@@ -157,6 +157,7 @@ func (apid *APID) Run(ctx context.Context, endpoint netip.Prefix, logger *zap.Lo
 		state:       apid.state,
 		globalState: apid.globalState,
 		machineID:   apid.machineID,
+		logger:      logger.With(zap.String("component", "machined")),
 	}
 
 	localServer := grpc.NewServer(
