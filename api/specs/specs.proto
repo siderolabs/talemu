@@ -68,10 +68,19 @@ message RebootSpec {
 // RebootStatusSpec is generated for each reboot spec.
 message RebootStatusSpec {}
 
-// MachineSpec started by the cloud provider emulator.
+// MachineSpec is stored in Omni in the infra provisioner state.
 message MachineSpec {
   int32 slot = 1;
   string uuid = 2;
   string schematic = 3;
   string talos_version = 4;
+}
+
+// MachineTaskSpec is stored in the emulator state and the c.
+message MachineTaskSpec {
+  int32 slot = 1;
+  string uuid = 2;
+  string schematic = 3;
+  string talos_version = 4;
+  string connection_args = 5;
 }

@@ -70,7 +70,7 @@ func (m *Machine) Run(ctx context.Context, siderolinkParams *SideroLinkParams, s
 		opts.nc = machinenetwork.NewClient()
 
 		if err := opts.nc.Run(ctx); err != nil {
-			return err
+			return fmt.Errorf("netclient creation failed: %w", err)
 		}
 
 		defer opts.nc.Close() //nolint:errcheck
@@ -78,7 +78,7 @@ func (m *Machine) Run(ctx context.Context, siderolinkParams *SideroLinkParams, s
 
 	logSink, err := logging.NewZapCore(siderolinkParams.LogsEndpoint)
 	if err != nil {
-		return err
+		return fmt.Errorf("log sink creation failed: %w", err)
 	}
 
 	core := zapcore.NewTee(m.logger.Core(), logSink)
@@ -89,7 +89,7 @@ func (m *Machine) Run(ctx context.Context, siderolinkParams *SideroLinkParams, s
 
 	rt, err := truntime.NewRuntime(ctx, m.logger, slot, m.uuid, m.globalState, kubernetes, opts.nc, logSink)
 	if err != nil {
-		return err
+		return fmt.Errorf("COSI runtime creation failed: %w", err)
 	}
 
 	m.runtime = rt
@@ -187,7 +187,7 @@ func (m *Machine) Run(ctx context.Context, siderolinkParams *SideroLinkParams, s
 				continue
 			}
 
-			return err
+			return fmt.Errorf("failed to create resource %s: %w", r.Metadata(), err)
 		}
 	}
 

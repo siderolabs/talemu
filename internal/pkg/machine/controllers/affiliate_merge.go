@@ -61,8 +61,8 @@ func (ctrl *AffiliateMergeController) Run(ctx context.Context, r controller.Runt
 
 		mergedAffiliates := make(map[resource.ID]*cluster.AffiliateSpec, rawAffiliates.Len())
 
-		for it := rawAffiliates.Iterator(); it.Next(); {
-			affiliateSpec := it.Value().TypedSpec()
+		for affiliate := range rawAffiliates.All() {
+			affiliateSpec := affiliate.TypedSpec()
 			id := affiliateSpec.NodeID
 
 			if affiliate, ok := mergedAffiliates[id]; ok {
@@ -92,9 +92,7 @@ func (ctrl *AffiliateMergeController) Run(ctx context.Context, r controller.Runt
 			return fmt.Errorf("error listing resources: %w", err)
 		}
 
-		for it := list.Iterator(); it.Next(); {
-			res := it.Value()
-
+		for res := range list.All() {
 			if res.Metadata().Owner() != ctrl.Name() {
 				continue
 			}

@@ -293,7 +293,7 @@ func (ctrl *KubernetesNodeController) computeNodeStatus(ctx context.Context, r c
 	}
 
 	nodeInfo.KubeletVersion = getImageVersion(config.Provider().Machine().Kubelet().Image())
-	nodeInfo.KubeProxyVersion = getImageVersion(config.Provider().Cluster().Proxy().Image())
+	nodeInfo.KubeProxyVersion = getImageVersion(config.Provider().Cluster().Proxy().Image()) //nolint:staticcheck
 
 	address, err := safe.ReaderGetByID[*network.NodeAddress](ctx, r, network.NodeAddressDefaultID)
 	if err != nil && !state.IsNotFoundError(err) {

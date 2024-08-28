@@ -535,7 +535,7 @@ func (*RebootStatusSpec) Descriptor() ([]byte, []int) {
 	return file_specs_specs_proto_rawDescGZIP(), []int{8}
 }
 
-// MachineSpec started by the cloud provider emulator.
+// MachineSpec is stored in Omni in the infra provisioner state.
 type MachineSpec struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
@@ -607,6 +607,86 @@ func (x *MachineSpec) GetTalosVersion() string {
 	return ""
 }
 
+// MachineTaskSpec is stored in the emulator state and the c.
+type MachineTaskSpec struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	Slot           int32  `protobuf:"varint,1,opt,name=slot,proto3" json:"slot,omitempty"`
+	Uuid           string `protobuf:"bytes,2,opt,name=uuid,proto3" json:"uuid,omitempty"`
+	Schematic      string `protobuf:"bytes,3,opt,name=schematic,proto3" json:"schematic,omitempty"`
+	TalosVersion   string `protobuf:"bytes,4,opt,name=talos_version,json=talosVersion,proto3" json:"talos_version,omitempty"`
+	ConnectionArgs string `protobuf:"bytes,5,opt,name=connection_args,json=connectionArgs,proto3" json:"connection_args,omitempty"`
+}
+
+func (x *MachineTaskSpec) Reset() {
+	*x = MachineTaskSpec{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_specs_specs_proto_msgTypes[10]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *MachineTaskSpec) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*MachineTaskSpec) ProtoMessage() {}
+
+func (x *MachineTaskSpec) ProtoReflect() protoreflect.Message {
+	mi := &file_specs_specs_proto_msgTypes[10]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use MachineTaskSpec.ProtoReflect.Descriptor instead.
+func (*MachineTaskSpec) Descriptor() ([]byte, []int) {
+	return file_specs_specs_proto_rawDescGZIP(), []int{10}
+}
+
+func (x *MachineTaskSpec) GetSlot() int32 {
+	if x != nil {
+		return x.Slot
+	}
+	return 0
+}
+
+func (x *MachineTaskSpec) GetUuid() string {
+	if x != nil {
+		return x.Uuid
+	}
+	return ""
+}
+
+func (x *MachineTaskSpec) GetSchematic() string {
+	if x != nil {
+		return x.Schematic
+	}
+	return ""
+}
+
+func (x *MachineTaskSpec) GetTalosVersion() string {
+	if x != nil {
+		return x.TalosVersion
+	}
+	return ""
+}
+
+func (x *MachineTaskSpec) GetConnectionArgs() string {
+	if x != nil {
+		return x.ConnectionArgs
+	}
+	return ""
+}
+
 type ServiceSpec_Health struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
@@ -621,7 +701,7 @@ type ServiceSpec_Health struct {
 func (x *ServiceSpec_Health) Reset() {
 	*x = ServiceSpec_Health{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_specs_specs_proto_msgTypes[11]
+		mi := &file_specs_specs_proto_msgTypes[12]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -634,7 +714,7 @@ func (x *ServiceSpec_Health) String() string {
 func (*ServiceSpec_Health) ProtoMessage() {}
 
 func (x *ServiceSpec_Health) ProtoReflect() protoreflect.Message {
-	mi := &file_specs_specs_proto_msgTypes[11]
+	mi := &file_specs_specs_proto_msgTypes[12]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -759,10 +839,20 @@ var file_specs_specs_proto_rawDesc = []byte{
 	0x09, 0x52, 0x09, 0x73, 0x63, 0x68, 0x65, 0x6d, 0x61, 0x74, 0x69, 0x63, 0x12, 0x23, 0x0a, 0x0d,
 	0x74, 0x61, 0x6c, 0x6f, 0x73, 0x5f, 0x76, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e, 0x18, 0x04, 0x20,
 	0x01, 0x28, 0x09, 0x52, 0x0c, 0x74, 0x61, 0x6c, 0x6f, 0x73, 0x56, 0x65, 0x72, 0x73, 0x69, 0x6f,
-	0x6e, 0x42, 0x28, 0x5a, 0x26, 0x67, 0x69, 0x74, 0x68, 0x75, 0x62, 0x2e, 0x63, 0x6f, 0x6d, 0x2f,
-	0x73, 0x69, 0x64, 0x65, 0x72, 0x6f, 0x6c, 0x61, 0x62, 0x73, 0x2f, 0x74, 0x61, 0x6c, 0x65, 0x6d,
-	0x75, 0x2f, 0x61, 0x70, 0x69, 0x2f, 0x73, 0x70, 0x65, 0x63, 0x73, 0x62, 0x06, 0x70, 0x72, 0x6f,
-	0x74, 0x6f, 0x33,
+	0x6e, 0x22, 0xa5, 0x01, 0x0a, 0x0f, 0x4d, 0x61, 0x63, 0x68, 0x69, 0x6e, 0x65, 0x54, 0x61, 0x73,
+	0x6b, 0x53, 0x70, 0x65, 0x63, 0x12, 0x12, 0x0a, 0x04, 0x73, 0x6c, 0x6f, 0x74, 0x18, 0x01, 0x20,
+	0x01, 0x28, 0x05, 0x52, 0x04, 0x73, 0x6c, 0x6f, 0x74, 0x12, 0x12, 0x0a, 0x04, 0x75, 0x75, 0x69,
+	0x64, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09, 0x52, 0x04, 0x75, 0x75, 0x69, 0x64, 0x12, 0x1c, 0x0a,
+	0x09, 0x73, 0x63, 0x68, 0x65, 0x6d, 0x61, 0x74, 0x69, 0x63, 0x18, 0x03, 0x20, 0x01, 0x28, 0x09,
+	0x52, 0x09, 0x73, 0x63, 0x68, 0x65, 0x6d, 0x61, 0x74, 0x69, 0x63, 0x12, 0x23, 0x0a, 0x0d, 0x74,
+	0x61, 0x6c, 0x6f, 0x73, 0x5f, 0x76, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e, 0x18, 0x04, 0x20, 0x01,
+	0x28, 0x09, 0x52, 0x0c, 0x74, 0x61, 0x6c, 0x6f, 0x73, 0x56, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e,
+	0x12, 0x27, 0x0a, 0x0f, 0x63, 0x6f, 0x6e, 0x6e, 0x65, 0x63, 0x74, 0x69, 0x6f, 0x6e, 0x5f, 0x61,
+	0x72, 0x67, 0x73, 0x18, 0x05, 0x20, 0x01, 0x28, 0x09, 0x52, 0x0e, 0x63, 0x6f, 0x6e, 0x6e, 0x65,
+	0x63, 0x74, 0x69, 0x6f, 0x6e, 0x41, 0x72, 0x67, 0x73, 0x42, 0x28, 0x5a, 0x26, 0x67, 0x69, 0x74,
+	0x68, 0x75, 0x62, 0x2e, 0x63, 0x6f, 0x6d, 0x2f, 0x73, 0x69, 0x64, 0x65, 0x72, 0x6f, 0x6c, 0x61,
+	0x62, 0x73, 0x2f, 0x74, 0x61, 0x6c, 0x65, 0x6d, 0x75, 0x2f, 0x61, 0x70, 0x69, 0x2f, 0x73, 0x70,
+	0x65, 0x63, 0x73, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
 }
 
 var (
@@ -777,7 +867,7 @@ func file_specs_specs_proto_rawDescGZIP() []byte {
 	return file_specs_specs_proto_rawDescData
 }
 
-var file_specs_specs_proto_msgTypes = make([]protoimpl.MessageInfo, 12)
+var file_specs_specs_proto_msgTypes = make([]protoimpl.MessageInfo, 13)
 var file_specs_specs_proto_goTypes = []any{
 	(*ClusterStatusSpec)(nil),     // 0: emuspecs.ClusterStatusSpec
 	(*MachineStatusSpec)(nil),     // 1: emuspecs.MachineStatusSpec
@@ -789,16 +879,17 @@ var file_specs_specs_proto_goTypes = []any{
 	(*RebootSpec)(nil),            // 7: emuspecs.RebootSpec
 	(*RebootStatusSpec)(nil),      // 8: emuspecs.RebootStatusSpec
 	(*MachineSpec)(nil),           // 9: emuspecs.MachineSpec
-	nil,                           // 10: emuspecs.EventSinkStateSpec.VersionsEntry
-	(*ServiceSpec_Health)(nil),    // 11: emuspecs.ServiceSpec.Health
-	(*durationpb.Duration)(nil),   // 12: google.protobuf.Duration
-	(*timestamppb.Timestamp)(nil), // 13: google.protobuf.Timestamp
+	(*MachineTaskSpec)(nil),       // 10: emuspecs.MachineTaskSpec
+	nil,                           // 11: emuspecs.EventSinkStateSpec.VersionsEntry
+	(*ServiceSpec_Health)(nil),    // 12: emuspecs.ServiceSpec.Health
+	(*durationpb.Duration)(nil),   // 13: google.protobuf.Duration
+	(*timestamppb.Timestamp)(nil), // 14: google.protobuf.Timestamp
 }
 var file_specs_specs_proto_depIdxs = []int32{
-	10, // 0: emuspecs.EventSinkStateSpec.versions:type_name -> emuspecs.EventSinkStateSpec.VersionsEntry
-	11, // 1: emuspecs.ServiceSpec.health:type_name -> emuspecs.ServiceSpec.Health
-	12, // 2: emuspecs.RebootSpec.downtime:type_name -> google.protobuf.Duration
-	13, // 3: emuspecs.ServiceSpec.Health.last_change:type_name -> google.protobuf.Timestamp
+	11, // 0: emuspecs.EventSinkStateSpec.versions:type_name -> emuspecs.EventSinkStateSpec.VersionsEntry
+	12, // 1: emuspecs.ServiceSpec.health:type_name -> emuspecs.ServiceSpec.Health
+	13, // 2: emuspecs.RebootSpec.downtime:type_name -> google.protobuf.Duration
+	14, // 3: emuspecs.ServiceSpec.Health.last_change:type_name -> google.protobuf.Timestamp
 	4,  // [4:4] is the sub-list for method output_type
 	4,  // [4:4] is the sub-list for method input_type
 	4,  // [4:4] is the sub-list for extension type_name
@@ -932,7 +1023,19 @@ func file_specs_specs_proto_init() {
 				return nil
 			}
 		}
-		file_specs_specs_proto_msgTypes[11].Exporter = func(v any, i int) any {
+		file_specs_specs_proto_msgTypes[10].Exporter = func(v any, i int) any {
+			switch v := v.(*MachineTaskSpec); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_specs_specs_proto_msgTypes[12].Exporter = func(v any, i int) any {
 			switch v := v.(*ServiceSpec_Health); i {
 			case 0:
 				return &v.state
@@ -951,7 +1054,7 @@ func file_specs_specs_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: file_specs_specs_proto_rawDesc,
 			NumEnums:      0,
-			NumMessages:   12,
+			NumMessages:   13,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

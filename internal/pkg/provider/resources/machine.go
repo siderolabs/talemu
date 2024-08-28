@@ -9,9 +9,10 @@ import (
 	"github.com/cosi-project/runtime/pkg/resource/meta"
 	"github.com/cosi-project/runtime/pkg/resource/protobuf"
 	"github.com/cosi-project/runtime/pkg/resource/typed"
+	"github.com/siderolabs/omni/client/pkg/infra"
 
 	"github.com/siderolabs/talemu/api/specs"
-	"github.com/siderolabs/talemu/internal/pkg/machine/runtime/resources/emu"
+	providermeta "github.com/siderolabs/talemu/internal/pkg/provider/meta"
 )
 
 // NewMachine creates new Machine.
@@ -23,11 +24,9 @@ func NewMachine(ns, id string) *Machine {
 }
 
 // MachineType is the type of Machine resource.
-//
-// tsgen:MachineType
-const MachineType = resource.Type("Machines.talemu.sidero.dev")
+var MachineType = infra.ResourceType("Machine", providermeta.ProviderID)
 
-// Machine describes virtual machine configuration.
+// Machine describes fake machine configuration.
 type Machine = typed.Resource[MachineSpec, MachineExtension]
 
 // MachineSpec wraps specs.MachineSpec.
@@ -41,7 +40,7 @@ func (MachineExtension) ResourceDefinition() meta.ResourceDefinitionSpec {
 	return meta.ResourceDefinitionSpec{
 		Type:             MachineType,
 		Aliases:          []resource.Type{},
-		DefaultNamespace: emu.NamespaceName,
+		DefaultNamespace: infra.ResourceNamespace(providermeta.ProviderID),
 		PrintColumns:     []meta.PrintColumn{},
 	}
 }

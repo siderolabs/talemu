@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-// Package resources contains cloud provider resources.
+// Package resources contains infra provider resources.
 package resources
 
 import (
@@ -18,7 +18,7 @@ import (
 const NamespaceName = "emulator"
 
 func init() {
-	mustRegisterResource(MachineType, &Machine{})
+	mustRegisterResource(MachineTaskType, &MachineTask{})
 }
 
 var resources []generic.ResourceWithRD

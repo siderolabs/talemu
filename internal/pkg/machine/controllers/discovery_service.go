@@ -360,8 +360,8 @@ func pbOtherEndpoints(otherEndpointsList safe.List[*kubespan.Endpoint]) []discov
 
 	result := make([]discoveryclient.Endpoint, 0, otherEndpointsList.Len())
 
-	for it := otherEndpointsList.Iterator(); it.Next(); {
-		endpoint := it.Value().TypedSpec()
+	for res := range otherEndpointsList.All() {
+		endpoint := res.TypedSpec()
 
 		result = append(result, discoveryclient.Endpoint{
 			AffiliateID: endpoint.AffiliateID,
@@ -488,8 +488,7 @@ func cleanupAffiliates(ctx context.Context, ctrl controller.Controller, r contro
 		return fmt.Errorf("error listing resources: %w", err)
 	}
 
-	for it := list.Iterator(); it.Next(); {
-		res := it.Value()
+	for res := range list.All() {
 		if res.Metadata().Owner() != ctrl.Name() {
 			continue
 		}

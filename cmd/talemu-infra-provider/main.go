@@ -18,7 +18,9 @@ import (
 	"github.com/siderolabs/go-api-signature/pkg/serviceaccount"
 	"github.com/siderolabs/omni/client/api/omni/management"
 	"github.com/siderolabs/omni/client/pkg/access"
-	"github.com/siderolabs/omni/client/pkg/omni/resources"
+	"github.com/siderolabs/omni/client/pkg/client"
+	"github.com/siderolabs/omni/client/pkg/infra"
+	"github.com/siderolabs/omni/client/pkg/panichandler"
 	"github.com/spf13/cobra"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -35,9 +37,9 @@ import (
 
 // rootCmd represents the base command when called without any subcommands.
 var rootCmd = &cobra.Command{
-	Use:          "talemu-cloud-provider",
-	Short:        "Talos emulator cloud provider",
-	Long:         `Connects to Omni as a cloud provider and creates/removes machines for MachineRequests`,
+	Use:          "talemu-infra-provider",
+	Short:        "Talos emulator infra provider",
+	Long:         `Connects to Omni as a infra provider and creates/removes machines for MachineRequests`,
 	SilenceUsage: true,
 	RunE: func(cmd *cobra.Command, _ []string) error {
 		loggerConfig := zap.NewDevelopmentConfig()
@@ -51,7 +53,9 @@ var rootCmd = &cobra.Command{
 		}
 
 		if cfg.createServiceAccount {
+			logger.Info("creating service account")
 			for {
+
 				err = createServiceAccount(cmd.Context())
 				if err == nil {
 					break
@@ -67,27 +71,11 @@ var rootCmd = &cobra.Command{
 			}
 		}
 
-		providerState, err := provider.NewState(cfg.omniAPIEndpoint, cfg.serviceAccountKey)
-		if err != nil {
-			return err
-		}
-
-		defer providerState.Close() //nolint:errcheck
-
 		if err = os.MkdirAll("_out/state", 0o755); err != nil && !errors.Is(err, os.ErrExist) {
 			return err
 		}
 
-		emulatorState, backingStore, err := runtime.NewState("_out/state/emulator.db", logger, runtime.NamespacedState{
-			Namespace: resources.CloudProviderSpecificNamespacePrefix + meta.ProviderID,
-			State:     providerState.State(),
-		}, runtime.NamespacedState{
-			Namespace: resources.CloudProviderNamespace,
-			State:     providerState.State(),
-		}, runtime.NamespacedState{
-			Namespace: resources.DefaultNamespace,
-			State:     providerState.State(),
-		})
+		emulatorState, backingStore, err := runtime.NewState("_out/state/emulator.db", logger)
 		if err != nil {
 			return err
 		}
@@ -116,11 +104,30 @@ var rootCmd = &cobra.Command{
 
 		defer nc.Close() //nolint:errcheck
 
+		provisioner := provider.NewProvisioner(emulatorState)
+
+		ip, err := infra.NewProvider(meta.ProviderID, provisioner)
+		if err != nil {
+			return err
+		}
+
 		if err = provider.RegisterControllers(runtime, kubernetes, nc); err != nil {
 			return err
 		}
 
-		return runtime.Run(cmd.Context())
+		eg, ctx := panichandler.ErrGroupWithContext(cmd.Context())
+
+		eg.Go(func() error {
+			return ip.Run(ctx, logger, infra.WithOmniEndpoint(cfg.omniAPIEndpoint), infra.WithClientOptions(
+				client.WithServiceAccount(cfg.serviceAccountKey),
+			))
+		})
+
+		eg.Go(func() error {
+			return runtime.Run(ctx)
+		})
+
+		return eg.Wait()
 	},
 }
 
@@ -134,7 +141,7 @@ func createServiceAccount(ctx context.Context) error {
 
 	defer rootClient.Close() //nolint:errcheck
 
-	name := access.CloudProviderServiceAccountPrefix + meta.ProviderID
+	name := access.InfraProviderServiceAccountPrefix + meta.ProviderID
 
 	sa := access.ParseServiceAccountFromName(name)
 
@@ -168,7 +175,7 @@ func createServiceAccount(ctx context.Context) error {
 	}
 
 	// create service account with the generated key
-	_, err = rootClient.Management().CreateServiceAccount(ctx, name, armoredPublicKey, "CloudProvider", false)
+	_, err = rootClient.Management().CreateServiceAccount(ctx, name, armoredPublicKey, "InfraProvider", false)
 
 	return err
 }
@@ -196,7 +203,7 @@ func app() error {
 func init() {
 	rootCmd.Flags().StringVar(&cfg.omniAPIEndpoint, "omni-api-endpoint", os.Getenv("OMNI_ENDPOINT"),
 		"the endpoint of the Omni API, if not set, defaults to OMNI_ENDPOINT env var.")
-	rootCmd.Flags().StringVar(&meta.ProviderID, "id", meta.ProviderID, "the id of the cloud provider, it is used to match the resources with the cloud provider label.")
+	rootCmd.Flags().StringVar(&meta.ProviderID, "id", meta.ProviderID, "the id of the infra provider, it is used to match the resources with the infra provider label.")
 	rootCmd.Flags().StringVar(&cfg.serviceAccountKey, "key", os.Getenv("OMNI_SERVICE_ACCOUNT_KEY"), "Omni service account key, if not set, defaults to OMNI_SERVICE_ACCOUNT_KEY.")
 	rootCmd.Flags().BoolVar(&cfg.createServiceAccount, "create-service-account", false,
 		"try creating service account for itself (works only if Omni is running in debug mode)")

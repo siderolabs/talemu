@@ -8,7 +8,6 @@ package controllers
 import (
 	"context"
 	"errors"
-	"fmt"
 	"os"
 
 	"github.com/cosi-project/runtime/pkg/controller"
@@ -16,10 +15,6 @@ import (
 	"github.com/cosi-project/runtime/pkg/safe"
 	"github.com/cosi-project/runtime/pkg/state"
 	"github.com/cosi-project/runtime/pkg/task"
-	cloudspecs "github.com/siderolabs/omni/client/api/omni/specs/cloud"
-	omnires "github.com/siderolabs/omni/client/pkg/omni/resources"
-	"github.com/siderolabs/omni/client/pkg/omni/resources/cloud"
-	"github.com/siderolabs/omni/client/pkg/omni/resources/siderolink"
 	"go.uber.org/zap"
 
 	"github.com/siderolabs/talemu/internal/pkg/kubefactory"
@@ -59,35 +54,18 @@ func (ctrl *MachineController) Inputs() []controller.Input {
 	return []controller.Input{
 		{
 			Namespace: emu.NamespaceName,
-			Type:      resources.MachineType,
+			Type:      resources.MachineTaskType,
 			Kind:      controller.InputStrong,
-		},
-		{
-			Namespace: omnires.CloudProviderNamespace,
-			Type:      cloud.MachineRequestStatusType,
-			Kind:      controller.InputDestroyReady,
-		},
-		{
-			Namespace: omnires.DefaultNamespace,
-			Type:      siderolink.ConnectionParamsType,
-			Kind:      controller.InputWeak,
 		},
 	}
 }
 
 // Outputs implements controller.Controller interface.
 func (ctrl *MachineController) Outputs() []controller.Output {
-	return []controller.Output{
-		{
-			Type: cloud.MachineRequestStatusType,
-			Kind: controller.OutputShared,
-		},
-	}
+	return nil
 }
 
 // Run implements controller.Controller interface.
-//
-//nolint:gocognit,gocyclo,cyclop
 func (ctrl *MachineController) Run(ctx context.Context, r controller.Runtime, logger *zap.Logger) error {
 	for {
 		select {
@@ -98,17 +76,23 @@ func (ctrl *MachineController) Run(ctx context.Context, r controller.Runtime, lo
 		case <-r.EventCh():
 		}
 
-		machines, err := safe.ReaderListAll[*resources.Machine](ctx, r)
+		machines, err := safe.ReaderListAll[*resources.MachineTask](ctx, r)
 		if err != nil {
 			return errors.New("error listing machines")
 		}
 
 		touchedIDs := make(map[resource.ID]struct{})
 
-		for it := machines.Iterator(); it.Next(); {
-			m := it.Value()
-
+		for m := range machines.All() {
 			if m.Metadata().Phase() == resource.PhaseTearingDown {
+				if err = ctrl.resetMachine(ctx, m, logger); err != nil {
+					return err
+				}
+
+				if err = r.RemoveFinalizer(ctx, m.Metadata(), ctrl.Name()); err != nil {
+					return err
+				}
+
 				continue
 			}
 
@@ -118,32 +102,9 @@ func (ctrl *MachineController) Run(ctx context.Context, r controller.Runtime, lo
 				}
 			}
 
-			if err = safe.WriterModify(ctx, r, cloud.NewMachineRequestStatus(m.Metadata().ID()), func(r *cloud.MachineRequestStatus) error {
-				*r.Metadata().Labels() = *m.Metadata().Labels()
+			var params *machine.SideroLinkParams
 
-				r.TypedSpec().Value.Id = m.TypedSpec().Value.Uuid
-				r.TypedSpec().Value.Stage = cloudspecs.MachineRequestStatusSpec_PROVISIONED
-
-				return nil
-			}); err != nil {
-				if state.IsPhaseConflictError(err) {
-					continue
-				}
-
-				return err
-			}
-
-			var (
-				connectionParams *siderolink.ConnectionParams
-				params           *machine.SideroLinkParams
-			)
-
-			connectionParams, err = safe.ReaderGetByID[*siderolink.ConnectionParams](ctx, r, siderolink.ConfigID)
-			if err != nil {
-				return err
-			}
-
-			params, err = machine.ParseKernelArgs(connectionParams.TypedSpec().Value.Args)
+			params, err = machine.ParseKernelArgs(m.TypedSpec().Value.ConnectionArgs)
 			if err != nil {
 				return err
 			}
@@ -159,49 +120,11 @@ func (ctrl *MachineController) Run(ctx context.Context, r controller.Runtime, lo
 			touchedIDs[m.Metadata().ID()] = struct{}{}
 		}
 
-		machineRequestStatuses, err := safe.ReaderListAll[*cloud.MachineRequestStatus](ctx, r)
-		if err != nil {
-			return fmt.Errorf("error listing resources: %w", err)
-		}
-
-		for it := machineRequestStatuses.Iterator(); it.Next(); {
-			res := it.Value()
-
-			machine := resources.NewMachine(emu.NamespaceName, res.Metadata().ID())
-
-			machine.TypedSpec().Value.Uuid = res.TypedSpec().Value.Id
-
-			if _, ok := touchedIDs[res.Metadata().ID()]; !ok {
-				var ready bool
-
-				ready, err = r.Teardown(ctx, res.Metadata())
-				if err != nil {
-					return err
-				}
-
-				if !ready {
-					continue
-				}
-
-				if err = ctrl.resetMachine(ctx, machine, logger); err != nil {
-					return err
-				}
-
-				if err = r.RemoveFinalizer(ctx, machine.Metadata(), ctrl.Name()); err != nil {
-					return err
-				}
-
-				if err = r.Destroy(ctx, res.Metadata()); err != nil && !state.IsNotFoundError(err) {
-					return err
-				}
-			}
-		}
-
 		r.ResetRestartBackoff()
 	}
 }
 
-func (ctrl *MachineController) resetMachine(ctx context.Context, m *resources.Machine, logger *zap.Logger) error {
+func (ctrl *MachineController) resetMachine(ctx context.Context, m *resources.MachineTask, logger *zap.Logger) error {
 	logger.Info("reset machine", zap.String("uuid", m.TypedSpec().Value.Uuid), zap.String("request", m.Metadata().ID()))
 
 	ctrl.runner.StopTask(logger, m.Metadata().ID())

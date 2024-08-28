@@ -8,6 +8,7 @@ package runtime
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -43,21 +44,21 @@ func NewRuntime(ctx context.Context, logger *zap.Logger, slot int, id string, gl
 
 	err := os.MkdirAll(stateDir, 0o755)
 	if err != nil && !errors.Is(err, os.ErrExist) {
-		return nil, err
+		return nil, fmt.Errorf("failed to create state directories %w", err)
 	}
 
 	st, backingStore, err := NewState(filepath.Join(stateDir, "state.db"), logger)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to create state %w", err)
 	}
 
 	if err = talos.Register(ctx, st); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to register talos resources %w", err)
 	}
 
 	machineStatus := emu.NewMachineStatus(emu.NamespaceName, id)
 	if err = globalState.Create(ctx, machineStatus); err != nil && !state.IsConflictError(err) {
-		return nil, err
+		return nil, fmt.Errorf("failed to create machine status %s, %w", id, err)
 	}
 
 	qcontrollers := []controller.QController{

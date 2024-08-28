@@ -112,7 +112,7 @@ func (k *Kubernetes) RunAPIService(ctx context.Context, address, iface, machineI
 		return errors.NewAggregate(errs)
 	}
 
-	return app.Run(completedOptions, ctx.Done())
+	return app.Run(ctx, completedOptions)
 }
 
 func clusterPrefix(clusterID string) string {

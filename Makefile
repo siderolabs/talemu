@@ -1,6 +1,6 @@
 # THIS FILE WAS AUTOMATICALLY GENERATED, PLEASE DO NOT EDIT.
 #
-# Generated on 2024-08-14T14:58:43Z by kres 7be2a05.
+# Generated on 2024-09-02T11:17:15Z by kres b5ca957.
 
 # common variables
 
@@ -19,12 +19,12 @@ USERNAME ?= siderolabs
 REGISTRY_AND_USERNAME ?= $(REGISTRY)/$(USERNAME)
 PROTOBUF_GO_VERSION ?= 1.34.2
 GRPC_GO_VERSION ?= 1.5.1
-GRPC_GATEWAY_VERSION ?= 2.21.0
+GRPC_GATEWAY_VERSION ?= 2.22.0
 VTPROTOBUF_VERSION ?= 0.6.0
 GOIMPORTS_VERSION ?= 0.24.0
 DEEPCOPY_VERSION ?= v0.5.6
-GOLANGCILINT_VERSION ?= v1.60.1
-GOFUMPT_VERSION ?= v0.6.0
+GOLANGCILINT_VERSION ?= v1.60.3
+GOFUMPT_VERSION ?= v0.7.0
 GO_VERSION ?= 1.23.0
 GO_BUILDFLAGS ?=
 GO_LDFLAGS ?=
@@ -135,7 +135,7 @@ else
 GO_LDFLAGS += -s
 endif
 
-all: unit-tests talemu image-talemu talemu-cloud-provider image-talemu-cloud-provider docker-compose-up docker-compose-down docker-compose-provider-up docker-compose-provider-down lint
+all: unit-tests talemu image-talemu talemu-infra-provider image-talemu-infra-provider docker-compose-up docker-compose-down docker-compose-provider-up docker-compose-provider-down lint
 
 $(ARTIFACTS):  ## Creates artifacts directory.
 	@mkdir -p $(ARTIFACTS)
@@ -203,19 +203,19 @@ lint: lint-golangci-lint lint-gofumpt lint-govulncheck lint-markdown  ## Run all
 image-talemu:  ## Builds image for talemu.
 	@$(MAKE) target-$@ TARGET_ARGS="--tag=$(REGISTRY)/$(USERNAME)/talemu:$(IMAGE_TAG)"
 
-.PHONY: $(ARTIFACTS)/talemu-cloud-provider-linux-amd64
-$(ARTIFACTS)/talemu-cloud-provider-linux-amd64:
-	@$(MAKE) local-talemu-cloud-provider-linux-amd64 DEST=$(ARTIFACTS)
+.PHONY: $(ARTIFACTS)/talemu-infra-provider-linux-amd64
+$(ARTIFACTS)/talemu-infra-provider-linux-amd64:
+	@$(MAKE) local-talemu-infra-provider-linux-amd64 DEST=$(ARTIFACTS)
 
-.PHONY: talemu-cloud-provider-linux-amd64
-talemu-cloud-provider-linux-amd64: $(ARTIFACTS)/talemu-cloud-provider-linux-amd64  ## Builds executable for talemu-cloud-provider-linux-amd64.
+.PHONY: talemu-infra-provider-linux-amd64
+talemu-infra-provider-linux-amd64: $(ARTIFACTS)/talemu-infra-provider-linux-amd64  ## Builds executable for talemu-infra-provider-linux-amd64.
 
-.PHONY: talemu-cloud-provider
-talemu-cloud-provider: talemu-cloud-provider-linux-amd64  ## Builds executables for talemu-cloud-provider.
+.PHONY: talemu-infra-provider
+talemu-infra-provider: talemu-infra-provider-linux-amd64  ## Builds executables for talemu-infra-provider.
 
-.PHONY: image-talemu-cloud-provider
-image-talemu-cloud-provider:  ## Builds image for talemu-cloud-provider.
-	@$(MAKE) target-$@ TARGET_ARGS="--tag=$(REGISTRY)/$(USERNAME)/talemu-cloud-provider:$(IMAGE_TAG)"
+.PHONY: image-talemu-infra-provider
+image-talemu-infra-provider:  ## Builds image for talemu-infra-provider.
+	@$(MAKE) target-$@ TARGET_ARGS="--tag=$(REGISTRY)/$(USERNAME)/talemu-infra-provider:$(IMAGE_TAG)"
 
 .PHONY: docker-compose-up
 docker-compose-up:

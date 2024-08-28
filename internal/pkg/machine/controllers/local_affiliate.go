@@ -221,9 +221,7 @@ func (ctrl *LocalAffiliateController) Run(ctx context.Context, r controller.Runt
 			return fmt.Errorf("error listing resources: %w", err)
 		}
 
-		for it := list.Iterator(); it.Next(); {
-			res := it.Value()
-
+		for res := range list.All() {
 			if res.Metadata().Owner() != ctrl.Name() {
 				continue
 			}

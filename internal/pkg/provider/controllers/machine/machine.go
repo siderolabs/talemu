@@ -22,7 +22,7 @@ import (
 type TaskSpec struct {
 	_ [0]func() // make uncomparable
 
-	Machine     *resources.Machine
+	Machine     *resources.MachineTask
 	GlobalState state.State
 	Params      *machine.SideroLinkParams
 	Kubernetes  *kubefactory.Kubernetes
