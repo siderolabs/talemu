@@ -127,7 +127,7 @@ spec:
         COMPOSE_DOCKER_CLI_BUILD=1
         DOCKER_BUILDKIT=1
         GO_LDFLAGS="$(GO_LDFLAGS)"
-        docker compose -p talemu-cloud-provider --file ./hack/compose/docker-compose-provider.yml --file ./hack/compose/docker-compose-provider.override.yml up --build
+        docker compose -p talemu-infra-provider --file ./hack/compose/docker-compose-provider.yml --file ./hack/compose/docker-compose-provider.override.yml up --build
 ---
 kind: custom.Step
 name: docker-compose-provider-down
@@ -162,4 +162,4 @@ spec:
         COMPOSE_DOCKER_CLI_BUILD=1
         DOCKER_BUILDKIT=1
         GO_LDFLAGS="$(GO_LDFLAGS)"
-        docker compose -p talemu-cloud-provider --file ./hack/compose/docker-compose-provider.yml --file ./hack/compose/docker-compose-provider.override.yml down --rmi local --remove-orphans --volumes=$(REMOVE_VOLUMES)
+        docker compose -p talemu-infra-provider --file ./hack/compose/docker-compose-provider.yml --file ./hack/compose/docker-compose-provider.override.yml down --rmi local --remove-orphans --volumes=$(REMOVE_VOLUMES)

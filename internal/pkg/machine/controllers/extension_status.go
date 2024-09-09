@@ -46,6 +46,16 @@ var knownSchematics = map[string]struct {
 			},
 		},
 	},
+	"cf9b7aab9ed7c365d5384509b4d31c02fdaa06d2b3ac6cc0bc806f28130eff1f": {
+		extensions: []extensions.Metadata{
+			{
+				Name:        "hello-world-service",
+				Version:     "1.0.0",
+				Author:      author,
+				Description: desc,
+			},
+		},
+	},
 	"5e0ac9d7e10ff9034bc4db865bf0337d40eeaec20683e27804939e1a88b7b654": {
 		extensions: []extensions.Metadata{
 			{

@@ -489,7 +489,9 @@ func withTransportCredentials(insec bool) grpc.DialOption {
 	if insec {
 		transportCredentials = insecure.NewCredentials()
 	} else {
-		transportCredentials = credentials.NewTLS(&tls.Config{})
+		transportCredentials = credentials.NewTLS(&tls.Config{
+			InsecureSkipVerify: true,
+		})
 	}
 
 	return grpc.WithTransportCredentials(transportCredentials)

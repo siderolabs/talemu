@@ -177,7 +177,7 @@ func (ctrl *KubernetesController) Run(ctx context.Context, r controller.Runtime,
 
 				stopServer()
 
-				serverCtx, cancelServerCtx = context.WithCancel(ctx)
+				serverCtx, cancelServerCtx = context.WithCancel(ctx) //nolint:fatcontext
 
 				logger.Info("starting kubernetes api server", zap.String("address", address))
 

@@ -120,6 +120,7 @@ var rootCmd = &cobra.Command{
 		eg.Go(func() error {
 			return ip.Run(ctx, logger, infra.WithOmniEndpoint(cfg.omniAPIEndpoint), infra.WithClientOptions(
 				client.WithServiceAccount(cfg.serviceAccountKey),
+				client.WithInsecureSkipTLSVerify(true),
 			))
 		})
 

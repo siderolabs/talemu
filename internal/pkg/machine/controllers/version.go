@@ -100,12 +100,16 @@ func (ctrl *VersionController) Run(ctx context.Context, r controller.Runtime, lo
 		}
 
 		if version == "" {
-			version = constants.DefaultTalosVersion
+			version = "v" + constants.DefaultTalosVersion
 		}
 
 		if err := safe.WriterModify(ctx, r, talos.NewVersion(talos.NamespaceName, talos.VersionID), func(res *talos.Version) error {
 			if version != res.TypedSpec().Value.Value {
 				logger.Info("version updated", zap.String("source", source))
+			}
+
+			if !strings.HasPrefix(version, "v") {
+				version = "v" + version
 			}
 
 			res.TypedSpec().Value.Value = version

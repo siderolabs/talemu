@@ -4,7 +4,11 @@
 
 package machine
 
-import "github.com/siderolabs/talemu/internal/pkg/machine/network"
+import (
+	"strings"
+
+	"github.com/siderolabs/talemu/internal/pkg/machine/network"
+)
 
 // Options is the extra machine options.
 type Options struct {
@@ -19,6 +23,10 @@ type Option func(*Options)
 // WithTalosVersion creates the machine with the initial talos version.
 func WithTalosVersion(version string) Option {
 	return func(o *Options) {
+		if !strings.HasPrefix(version, "v") {
+			version = "v" + version
+		}
+
 		o.talosVersion = version
 	}
 }

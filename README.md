@@ -25,29 +25,29 @@ Run `make docker-compose-up` command.
 
 This will spawn one hundred fake Talos nodes.
 
-## Cloud Provider Mode
+## Infra Provider Mode
 
 Run:
 
 ```bash
-make cloud-provider
+make infra-provider
 ```
 
 Then run:
 
 ```bash
-sudo -E _out/talemu-cloud-provider-linux-amd64 --create-service-account --omni-api-endpoint=https://localhost:8099
+sudo -E _out/talemu-infra-provider-linux-amd64 --create-service-account --omni-api-endpoint=https://localhost:8099
 ```
 
 Create a machine request using `omnictl`:
 
 ```yaml
 metadata:
-    namespace: cloud-provider
+    namespace: infra-provider
     type: MachineRequests.omni.sidero.dev
     id: machine-1
     labels:
-      omni.sidero.dev/cloud-provider-id: talemu
+      omni.sidero.dev/infra-provider-id: talemu
 spec:
   talosversion: v1.7.5
   schematicid: 376567988ad370138ad8b2698212367b8edcb69b5fd68c80be1f2ec7d603b4ba

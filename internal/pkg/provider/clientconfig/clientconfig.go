@@ -41,21 +41,16 @@ func New(endpoint string) *ClientConfig {
 }
 
 // GetClient returns a test client for the default test email.
-//
-// Clients are cached by their configuration, so if a client with the
-// given configuration was created before, the cached one will be returned.
 func (t *ClientConfig) GetClient(publicKeyOpts ...authcli.RegisterPGPPublicKeyOption) (*client.Client, error) {
 	return t.GetClientForEmail(defaultEmail, publicKeyOpts...)
 }
 
 // GetClientForEmail returns a test client for the given email.
-//
-// Clients are cached by their configuration, so if a client with the
-// given configuration was created before, the cached one will be returned.
 func (t *ClientConfig) GetClientForEmail(email string, publicKeyOpts ...authcli.RegisterPGPPublicKeyOption) (*client.Client, error) {
 	signatureInterceptor := buildSignatureInterceptor(email, publicKeyOpts...)
 
 	return client.New(t.endpoint,
+		client.WithInsecureSkipTLSVerify(true),
 		client.WithGrpcOpts(
 			grpc.WithUnaryInterceptor(signatureInterceptor.Unary()),
 			grpc.WithStreamInterceptor(signatureInterceptor.Stream()),

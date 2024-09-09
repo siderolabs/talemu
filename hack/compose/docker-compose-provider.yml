@@ -1,14 +1,15 @@
 version: '3.8'
 services:
-  talemu-cloud-provider:
+  talemu-infra-provider:
+    network_mode: "host"
     volumes:
       - state:/_out/provider
-    container_name: talemu-cloud-provider
+    container_name: talemu-infra-provider
     restart: on-failure
     cap_add:
       - NET_ADMIN
     build:
-      target: image-talemu-cloud-provider
+      target: image-talemu-infra-provider
       context: ../../
       dockerfile: Dockerfile
       args:
