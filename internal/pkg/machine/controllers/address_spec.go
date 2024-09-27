@@ -43,6 +43,11 @@ func (ctrl *AddressSpecController) Inputs() []controller.Input {
 			Type:      network.AddressSpecType,
 			Kind:      controller.InputStrong,
 		},
+		{
+			Namespace: network.NamespaceName,
+			Type:      network.LinkStatusType,
+			Kind:      controller.InputWeak,
+		},
 	}
 }
 

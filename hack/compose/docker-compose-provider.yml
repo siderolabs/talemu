@@ -3,7 +3,7 @@ services:
   talemu-infra-provider:
     network_mode: "host"
     volumes:
-      - state:/_out/provider
+      - state:/_out/state/
     container_name: talemu-infra-provider
     restart: on-failure
     cap_add:

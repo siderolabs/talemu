@@ -7,6 +7,7 @@ package main
 
 import (
 	"context"
+	_ "embed"
 	"errors"
 	"os"
 	"os/signal"
@@ -34,6 +35,9 @@ import (
 	"github.com/siderolabs/talemu/internal/pkg/provider/clientconfig"
 	"github.com/siderolabs/talemu/internal/pkg/provider/meta"
 )
+
+//go:embed data/schema.json
+var schema string
 
 // rootCmd represents the base command when called without any subcommands.
 var rootCmd = &cobra.Command{
@@ -106,7 +110,11 @@ var rootCmd = &cobra.Command{
 
 		provisioner := provider.NewProvisioner(emulatorState)
 
-		ip, err := infra.NewProvider(meta.ProviderID, provisioner)
+		ip, err := infra.NewProvider(meta.ProviderID, provisioner, infra.ProviderConfig{
+			Name:        "Talemu",
+			Description: "Emulates fake Talos nodes connected to Omni",
+			Schema:      schema,
+		})
 		if err != nil {
 			return err
 		}

@@ -32,7 +32,7 @@ replace (
 require (
 	github.com/adrg/xdg v0.5.0
 	github.com/akutz/memconn v0.1.0
-	github.com/cosi-project/runtime v0.6.1
+	github.com/cosi-project/runtime v0.6.4
 	github.com/grpc-ecosystem/go-grpc-middleware/v2 v2.1.0
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/jsimonetti/rtnetlink v1.4.2
@@ -58,9 +58,9 @@ require (
 	github.com/siderolabs/grpc-proxy v0.4.1
 	github.com/siderolabs/image-factory v0.5.0
 	github.com/siderolabs/net v0.4.0
-	github.com/siderolabs/omni/client v0.0.0-20240905115751-03604222ea95
+	github.com/siderolabs/omni/client v0.0.0-20240927130402-41c3bd523210
 	github.com/siderolabs/siderolink v0.3.9
-	github.com/siderolabs/talos/pkg/machinery v1.8.0-alpha.2.0.20240830181738-6f7c3a8e5c63
+	github.com/siderolabs/talos/pkg/machinery v1.8.0
 	github.com/spf13/cobra v1.8.1
 	github.com/stretchr/testify v1.9.0
 	go.etcd.io/bbolt v1.3.11
@@ -73,7 +73,7 @@ require (
 	golang.org/x/sys v0.25.0
 	golang.org/x/time v0.6.0
 	golang.zx2c4.com/wireguard/wgctrl v0.0.0-20230429144221-925a1e7659e6
-	google.golang.org/grpc v1.66.0
+	google.golang.org/grpc v1.66.2
 	google.golang.org/protobuf v1.34.2
 	k8s.io/api v0.31.0
 	k8s.io/apimachinery v0.31.0
@@ -164,7 +164,7 @@ require (
 	github.com/prometheus/procfs v0.15.1 // indirect
 	github.com/robfig/cron/v3 v3.0.1 // indirect
 	github.com/ryanuber/go-glob v1.0.0 // indirect
-	github.com/siderolabs/go-blockdevice/v2 v2.0.1 // indirect
+	github.com/siderolabs/go-blockdevice/v2 v2.0.2 // indirect
 	github.com/siderolabs/protoenc v0.2.1 // indirect
 	github.com/sirupsen/logrus v1.9.3 // indirect
 	github.com/soheilhy/cmux v0.1.5 // indirect

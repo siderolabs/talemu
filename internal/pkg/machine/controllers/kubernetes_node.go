@@ -201,12 +201,12 @@ func (ctrl *KubernetesNodeController) Run(ctx context.Context, r controller.Runt
 			return err
 		}
 
-		nodenameVersion := nodename.Metadata().Version().String()
+		inputVersion := nodename.Metadata().Version().String()
 
 		labels := ctrl.computeNodeLabels(config, hostname, version)
 
 		labels[machineIDLabel] = ctrl.MachineID
-		labels[inputVersionLabel] = nodenameVersion
+		labels[inputVersionLabel] = inputVersion
 
 		node, err := client.CoreV1().Nodes().Get(ctx, nodename.TypedSpec().Nodename, metav1.GetOptions{})
 		if err != nil && !errors.IsNotFound(err) {
@@ -240,11 +240,13 @@ func (ctrl *KubernetesNodeController) Run(ctx context.Context, r controller.Runt
 			if _, err = client.CoreV1().Nodes().Update(ctx, node, metav1.UpdateOptions{}); err != nil {
 				return err
 			}
+
+			logger.Info("updated node", zap.String("node", nodename.TypedSpec().Nodename))
 		}
 
 		query := metav1.ListOptions{
 			LabelSelector: fmt.Sprintf("%s!=%s,%s=%s",
-				inputVersionLabel, nodenameVersion,
+				inputVersionLabel, inputVersion,
 				machineIDLabel, ctrl.MachineID,
 			),
 		}
