@@ -42,7 +42,7 @@ require (
 	github.com/mdlayher/ethtool v0.1.0
 	github.com/mdlayher/genetlink v1.3.2
 	github.com/mdlayher/netlink v1.7.2
-	github.com/planetscale/vtprotobuf v0.6.1-0.20240319094008-0393e58bdf10
+	github.com/planetscale/vtprotobuf v0.6.1-0.20240917153116-6f2963f01587
 	github.com/rs/xid v1.6.0
 	github.com/safchain/ethtool v0.4.1
 	github.com/siderolabs/crypto v0.4.4
@@ -58,7 +58,7 @@ require (
 	github.com/siderolabs/grpc-proxy v0.4.1
 	github.com/siderolabs/image-factory v0.5.0
 	github.com/siderolabs/net v0.4.0
-	github.com/siderolabs/omni/client v0.0.0-20240927130402-41c3bd523210
+	github.com/siderolabs/omni/client v0.0.0-20241022154508-8c737ba699ff
 	github.com/siderolabs/siderolink v0.3.9
 	github.com/siderolabs/talos/pkg/machinery v1.8.0
 	github.com/spf13/cobra v1.8.1
@@ -73,7 +73,7 @@ require (
 	golang.org/x/sys v0.25.0
 	golang.org/x/time v0.6.0
 	golang.zx2c4.com/wireguard/wgctrl v0.0.0-20230429144221-925a1e7659e6
-	google.golang.org/grpc v1.66.2
+	google.golang.org/grpc v1.67.0
 	google.golang.org/protobuf v1.34.2
 	k8s.io/api v0.31.0
 	k8s.io/apimachinery v0.31.0
@@ -165,6 +165,7 @@ require (
 	github.com/robfig/cron/v3 v3.0.1 // indirect
 	github.com/ryanuber/go-glob v1.0.0 // indirect
 	github.com/siderolabs/go-blockdevice/v2 v2.0.2 // indirect
+	github.com/siderolabs/proto-codec v0.1.1 // indirect
 	github.com/siderolabs/protoenc v0.2.1 // indirect
 	github.com/sirupsen/logrus v1.9.3 // indirect
 	github.com/soheilhy/cmux v0.1.5 // indirect
