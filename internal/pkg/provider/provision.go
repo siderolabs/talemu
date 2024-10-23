@@ -80,7 +80,7 @@ func (p *Provisioner) ProvisionSteps() []provision.Step[*resources.Machine] {
 				Uuid:           ms.Uuid,
 				Schematic:      ms.Schematic,
 				TalosVersion:   ms.TalosVersion,
-				ConnectionArgs: pctx.ConnectionParams.KernelArgs,
+				ConnectionArgs: pctx.ConnectionParams,
 			}
 
 			pctx.SetMachineUUID(machineTask.TypedSpec().Value.Uuid)
