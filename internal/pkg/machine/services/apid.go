@@ -139,7 +139,7 @@ func (apid *APID) Run(ctx context.Context, endpoint netip.Prefix, logger *zap.Lo
 
 	serverOptions := []grpc.ServerOption{
 		grpc.Creds(tlsCredentials),
-		grpc.ForceServerCodec(proxy.Codec()),
+		grpc.ForceServerCodecV2(proxy.Codec()),
 		grpc.UnknownServiceHandler(
 			proxy.TransparentHandler(
 				router.Director,
@@ -162,7 +162,7 @@ func (apid *APID) Run(ctx context.Context, endpoint netip.Prefix, logger *zap.Lo
 
 	localServer := grpc.NewServer(
 		grpc.Creds(insecure.NewCredentials()),
-		grpc.ForceServerCodec(proxy.Codec()),
+		grpc.ForceServerCodecV2(proxy.Codec()),
 		grpc.SharedWriteBuffer(true),
 	)
 
