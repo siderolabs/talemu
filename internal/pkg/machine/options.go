@@ -15,6 +15,7 @@ type Options struct {
 	nc           *network.Client
 	talosVersion string
 	schematic    string
+	secureBoot   bool
 }
 
 // Option represents a single extra machine option.
@@ -42,5 +43,12 @@ func WithSchematic(schematic string) Option {
 func WithNetworkClient(nc *network.Client) Option {
 	return func(o *Options) {
 		o.nc = nc
+	}
+}
+
+// WithSecureBoot simulates secure boot mode for the machine.
+func WithSecureBoot(value bool) Option {
+	return func(o *Options) {
+		o.secureBoot = value
 	}
 }

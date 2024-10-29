@@ -83,4 +83,5 @@ message MachineTaskSpec {
   string schematic = 3;
   string talos_version = 4;
   string connection_args = 5;
+  bool secure_boot = 6;
 }

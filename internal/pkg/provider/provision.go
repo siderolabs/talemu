@@ -34,6 +34,10 @@ func NewProvisioner(state state.State) *Provisioner {
 	}
 }
 
+type providerData struct {
+	SecureBoot bool `yaml:"secure_boot"`
+}
+
 // ProvisionSteps implements infra.Provisioner.
 func (p *Provisioner) ProvisionSteps() []provision.Step[*resources.Machine] {
 	return []provision.Step[*resources.Machine]{
@@ -41,6 +45,13 @@ func (p *Provisioner) ProvisionSteps() []provision.Step[*resources.Machine] {
 			machineTask, err := safe.ReaderGetByID[*resources.MachineTask](ctx, p.state, pctx.GetRequestID())
 			if err != nil && !state.IsNotFoundError(err) {
 				return fmt.Errorf("failed to get the machine task: %w", err)
+			}
+
+			var pd providerData
+
+			err = pctx.UnmarshalProviderData(&pd)
+			if err != nil {
+				return fmt.Errorf("failed to unmarshal provider data: %w", err)
 			}
 
 			// the machine is already provisioned, so no need to do anything, just return the current machine state
@@ -81,6 +92,7 @@ func (p *Provisioner) ProvisionSteps() []provision.Step[*resources.Machine] {
 				Schematic:      ms.Schematic,
 				TalosVersion:   ms.TalosVersion,
 				ConnectionArgs: pctx.ConnectionParams.KernelArgs,
+				SecureBoot:     pd.SecureBoot,
 			}
 
 			pctx.SetMachineUUID(machineTask.TypedSpec().Value.Uuid)

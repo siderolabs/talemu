@@ -124,7 +124,7 @@ func (m *Machine) Run(ctx context.Context, siderolinkParams *SideroLinkParams, s
 	processorInfo.TypedSpec().ThreadCount = 2
 
 	securityState := runtime.NewSecurityStateSpec(runtime.NamespaceName)
-	securityState.TypedSpec().SecureBoot = false
+	securityState.TypedSpec().SecureBoot = opts.secureBoot
 
 	trustdEndpoint := k8s.NewEndpoint(k8s.ControlPlaneNamespaceName, "omniTrustd")
 

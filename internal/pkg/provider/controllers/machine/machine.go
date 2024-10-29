@@ -56,5 +56,6 @@ func (s TaskSpec) RunTask(ctx context.Context, logger *zap.Logger, _ any) error 
 		machine.WithTalosVersion(s.Machine.TypedSpec().Value.TalosVersion),
 		machine.WithSchematic(s.Machine.TypedSpec().Value.Schematic),
 		machine.WithNetworkClient(s.NC),
+		machine.WithSecureBoot(s.Machine.TypedSpec().Value.SecureBoot),
 	)
 }

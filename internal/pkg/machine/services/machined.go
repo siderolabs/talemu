@@ -57,6 +57,10 @@ func (c *machineService) ApplyConfiguration(ctx context.Context, request *machin
 
 	cfg := config.NewMachineConfig(cfgProvider)
 
+	if err = c.validateInstaller(ctx, cfg.Config().Machine().Install().Image()); err != nil {
+		return nil, err
+	}
+
 	mode := machine.ApplyConfigurationRequest_REBOOT
 
 	if err = c.state.Create(ctx, cfg); err != nil {
@@ -285,6 +289,10 @@ func (c *machineService) Version(ctx context.Context, _ *emptypb.Empty) (*machin
 
 // Upgrade implements machine.MachineServiceServer.
 func (c *machineService) Upgrade(ctx context.Context, req *machine.UpgradeRequest) (*machine.UpgradeResponse, error) {
+	if err := c.validateInstaller(ctx, req.Image); err != nil {
+		return nil, err
+	}
+
 	parts := strings.Split(req.Image, "/")
 
 	var schematic string
@@ -736,6 +744,23 @@ func (c *machineService) MetaDelete(ctx context.Context, req *machine.MetaDelete
 	c.logger.Info("deleted meta", zap.Uint32("key", req.Key))
 
 	return &machine.MetaDeleteResponse{}, nil
+}
+
+func (c *machineService) validateInstaller(ctx context.Context, image string) error {
+	securityState, err := safe.ReaderGetByID[*runtime.SecurityState](ctx, c.state, runtime.SecurityStateID)
+	if err != nil {
+		return err
+	}
+
+	if !securityState.TypedSpec().SecureBoot {
+		return nil
+	}
+
+	if !strings.Contains(image, "-secureboot") {
+		return status.Errorf(codes.InvalidArgument, "tried to use non-secureboot image for the secureboot mode")
+	}
+
+	return nil
 }
 
 func destroyResourceByID[T generic.ResourceWithRD](ctx context.Context, st state.State, id resource.ID) error {
