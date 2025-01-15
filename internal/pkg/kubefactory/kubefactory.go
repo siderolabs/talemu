@@ -99,7 +99,7 @@ func (k *Kubernetes) RunAPIService(ctx context.Context, address, iface, machineI
 	s.Etcd.StorageConfig.Prefix = clusterPrefix(clusterID)
 
 	// set default options
-	completedOptions, err := s.Complete()
+	completedOptions, err := s.Complete(ctx)
 
 	k.mu.Unlock()
 

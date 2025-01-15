@@ -1,22 +1,22 @@
-# syntax = docker/dockerfile-upstream:1.9.0-labs
+# syntax = docker/dockerfile-upstream:1.12.1-labs
 
 # THIS FILE WAS AUTOMATICALLY GENERATED, PLEASE DO NOT EDIT.
 #
-# Generated on 2024-09-02T11:17:15Z by kres b5ca957.
+# Generated on 2025-01-15T13:14:24Z by kres 3b3f992.
 
 ARG TOOLCHAIN
 
-FROM ghcr.io/siderolabs/ca-certificates:v1.7.0 AS image-ca-certificates
+FROM ghcr.io/siderolabs/ca-certificates:v1.9.0 AS image-ca-certificates
 
-FROM ghcr.io/siderolabs/fhs:v1.7.0 AS image-fhs
+FROM ghcr.io/siderolabs/fhs:v1.9.0 AS image-fhs
 
 # runs markdownlint
-FROM docker.io/oven/bun:1.1.26-alpine AS lint-markdown
+FROM docker.io/oven/bun:1.1.43-alpine AS lint-markdown
 WORKDIR /src
-RUN bun i markdownlint-cli@0.41.0 sentences-per-line@0.2.1
+RUN bun i markdownlint-cli@0.43.0 sentences-per-line@0.3.0
 COPY .markdownlint.json .
 COPY ./README.md ./README.md
-RUN bunx markdownlint --ignore "CHANGELOG.md" --ignore "**/node_modules/**" --ignore '**/hack/chglog/**' --rules node_modules/sentences-per-line/index.js .
+RUN bunx markdownlint --ignore "CHANGELOG.md" --ignore "**/node_modules/**" --ignore '**/hack/chglog/**' --rules sentences-per-line .
 
 # collects proto specs
 FROM scratch AS proto-specs

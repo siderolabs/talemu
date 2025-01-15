@@ -244,7 +244,7 @@ func (a *APID) BuildError(streaming bool, err error) ([]byte, error) {
 	if !streaming {
 		resp = &common.EmptyResponse{ //nolint:forcetypeassert
 			Messages: []*common.Empty{
-				resp.(*common.Empty),
+				resp.(*common.Empty), //nolint:errcheck
 			},
 		}
 	}

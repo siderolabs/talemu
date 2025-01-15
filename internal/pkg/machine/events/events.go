@@ -266,7 +266,7 @@ func generateEvents[T resource.Resource](ctx context.Context, h *Handler, res T,
 			switch event.Type() {
 			case state.Errored:
 				return event.Error()
-			case state.Bootstrapped, state.Destroyed:
+			case state.Bootstrapped, state.Destroyed, state.Noop:
 			case state.Created, state.Updated:
 				if _, err = safe.StateUpdateWithConflicts(ctx, h.state, talos.NewEventSinkState(talos.NamespaceName, talos.EventSinkStateID).Metadata(),
 					func(st *talos.EventSinkState) error {

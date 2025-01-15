@@ -13,7 +13,6 @@ import (
 	"github.com/cosi-project/runtime/pkg/safe"
 	"github.com/cosi-project/runtime/pkg/state"
 	"github.com/siderolabs/gen/optional"
-	"github.com/siderolabs/go-blockdevice/blockdevice/util/disk"
 	"github.com/siderolabs/talos/pkg/machinery/config/types/v1alpha1"
 	"github.com/siderolabs/talos/pkg/machinery/resources/config"
 	"github.com/siderolabs/talos/pkg/machinery/resources/runtime"
@@ -196,28 +195,8 @@ func (ctrl *MachineStatusController) reconcile(ctx context.Context, r controller
 			installed = true
 		}
 
-		switch {
-		case installConfig.InstallDisk != "" && installConfig.InstallDisk == r.TypedSpec().Value.DeviceName:
+		if installConfig.InstallDisk != "" && installConfig.InstallDisk == r.TypedSpec().Value.DeviceName {
 			installDisk = r
-		case installDisk == nil && installConfig.InstallDiskSelector != nil:
-			matchers := installConfig.DiskMatchers()
-
-			if disk.Match(&disk.Disk{
-				Size:       r.TypedSpec().Value.Size,
-				Model:      r.TypedSpec().Value.Model,
-				BusPath:    r.TypedSpec().Value.BusPath,
-				DeviceName: r.TypedSpec().Value.DeviceName,
-				Serial:     r.TypedSpec().Value.Serial,
-				Name:       r.TypedSpec().Value.Name,
-				WWID:       r.TypedSpec().Value.Wwid,
-				UUID:       r.TypedSpec().Value.Uuid,
-				Type:       disk.Type(r.TypedSpec().Value.Type),
-				SubSystem:  r.TypedSpec().Value.Subsystem,
-				ReadOnly:   r.TypedSpec().Value.Readonly,
-				Modalias:   r.TypedSpec().Value.Modalias,
-			}, matchers...) {
-				installDisk = r
-			}
 		}
 	})
 

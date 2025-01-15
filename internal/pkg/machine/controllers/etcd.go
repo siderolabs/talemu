@@ -83,7 +83,7 @@ outer:
 			switch event.Type {
 			case state.Errored:
 				return event.Error
-			case state.Bootstrapped:
+			case state.Bootstrapped, state.Noop:
 				continue outer
 			case state.Destroyed, state.Created, state.Updated:
 				clusterID = event.Resource.Metadata().ID()

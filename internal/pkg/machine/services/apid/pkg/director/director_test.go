@@ -61,8 +61,8 @@ func (suite *DirectorSuite) TestDirectorAggregate() {
 	mode, backends, err := suite.router.Director(metadata.NewIncomingContext(ctx, md), "/service.Service/method")
 	suite.Assert().Equal(proxy.One2Many, mode)
 	suite.Assert().Len(backends, 2)
-	suite.Assert().Equal("127.0.0.1", backends[0].(*mockBackend).target) //nolint:forcetypeassert
-	suite.Assert().Equal("127.0.0.2", backends[1].(*mockBackend).target) //nolint:forcetypeassert
+	suite.Assert().Equal("127.0.0.1", backends[0].(*mockBackend).target) //nolint:forcetypeassert,errcheck
+	suite.Assert().Equal("127.0.0.2", backends[1].(*mockBackend).target) //nolint:forcetypeassert,errcheck
 	suite.Assert().NoError(err)
 
 	md = metadata.New(nil)
@@ -70,7 +70,7 @@ func (suite *DirectorSuite) TestDirectorAggregate() {
 	mode, backends, err = suite.router.Director(metadata.NewIncomingContext(ctx, md), "/service.Service/method")
 	suite.Assert().Equal(proxy.One2Many, mode)
 	suite.Assert().Len(backends, 1)
-	suite.Assert().Equal("127.0.0.1", backends[0].(*mockBackend).target) //nolint:forcetypeassert
+	suite.Assert().Equal("127.0.0.1", backends[0].(*mockBackend).target) //nolint:forcetypeassert,errcheck
 	suite.Assert().NoError(err)
 }
 
@@ -82,7 +82,7 @@ func (suite *DirectorSuite) TestDirectorSingleNode() {
 	mode, backends, err := suite.router.Director(metadata.NewIncomingContext(ctx, md), "/service.Service/method")
 	suite.Assert().Equal(proxy.One2One, mode)
 	suite.Assert().Len(backends, 1)
-	suite.Assert().Equal("127.0.0.1", backends[0].(*mockBackend).target) //nolint:forcetypeassert
+	suite.Assert().Equal("127.0.0.1", backends[0].(*mockBackend).target) //nolint:forcetypeassert,errcheck
 	suite.Assert().NoError(err)
 
 	md = metadata.New(nil)
