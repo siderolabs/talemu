@@ -313,7 +313,7 @@ func (ctrl *ManagerController) provision(ctx context.Context, r controller.Runti
 		}()
 
 		uniqTokenRes, rdrErr := safe.ReaderGetByID[*runtime.UniqueMachineToken](ctx, r, runtime.UniqueMachineTokenID)
-		if rdrErr != nil {
+		if rdrErr != nil && !state.IsNotFoundError(rdrErr) {
 			return nil, fmt.Errorf("failed to get unique token: %w", rdrErr)
 		}
 
@@ -327,9 +327,12 @@ func (ctrl *ManagerController) provision(ctx context.Context, r controller.Runti
 		request := &pb.ProvisionRequest{
 			NodeUuid:          nodeUUID,
 			NodePublicKey:     ctrl.nodeKey.PublicKey().String(),
-			NodeUniqueToken:   pointer.To(uniqTokenRes.TypedSpec().Token),
 			TalosVersion:      pointer.To(version.Tag),
 			WireguardOverGrpc: wgOverGRPC,
+		}
+
+		if uniqTokenRes != nil {
+			request.NodeUniqueToken = pointer.To(uniqTokenRes.TypedSpec().Token)
 		}
 
 		token := cfg.TypedSpec().JoinToken

@@ -94,7 +94,7 @@ func (m *Machine) Run(ctx context.Context, siderolinkParams *SideroLinkParams, s
 
 	m.runtime = rt
 
-	resources := make([]resource.Resource, 0, 12)
+	resources := make([]resource.Resource, 0, 11)
 
 	// populate the initial machine state
 	hardwareInformation := hardware.NewSystemInformation(hardware.SystemInformationID)
@@ -108,9 +108,6 @@ func (m *Machine) Run(ctx context.Context, siderolinkParams *SideroLinkParams, s
 	siderolinkConfig.TypedSpec().Host = siderolinkParams.Host
 	siderolinkConfig.TypedSpec().Insecure = siderolinkParams.Insecure
 	siderolinkConfig.TypedSpec().Tunnel = siderolinkParams.TunnelMode
-
-	uniqueMachineToken := runtime.NewUniqueMachineToken()
-	uniqueMachineToken.TypedSpec().Token = m.uuid
 
 	platformMetadata := runtime.NewPlatformMetadataSpec(runtime.NamespaceName, runtime.PlatformMetadataID)
 	platformMetadata.TypedSpec().Platform = "metal"
@@ -161,7 +158,6 @@ func (m *Machine) Run(ctx context.Context, siderolinkParams *SideroLinkParams, s
 	resources = append(resources,
 		hardwareInformation,
 		siderolinkConfig,
-		uniqueMachineToken,
 		platformMetadata,
 		processorInfo,
 		securityState,

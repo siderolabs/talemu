@@ -703,6 +703,12 @@ func (c *machineService) MetaWrite(ctx context.Context, req *machine.MetaWriteRe
 
 	metaKey.TypedSpec().Value = string(req.Value)
 
+	if req.Key == 16 {
+		if err := c.createOrUpdateUniqueToken(ctx, req); err != nil {
+			return nil, err
+		}
+	}
+
 	if err := c.state.Create(ctx, metaKey); err != nil {
 		if !state.IsConflictError(err) {
 			return nil, err
@@ -729,9 +735,7 @@ func (c *machineService) MetaWrite(ctx context.Context, req *machine.MetaWriteRe
 
 // MetaDelete implements machine.MachineServiceServer.
 func (c *machineService) MetaDelete(ctx context.Context, req *machine.MetaDeleteRequest) (*machine.MetaDeleteResponse, error) {
-	metaKey := runtime.NewMetaKey(runtime.NamespaceName, runtime.MetaKeyTagToID(uint8(req.Key)))
-
-	if err := c.state.Destroy(ctx, metaKey.Metadata()); err != nil {
+	if err := destroyResourceByID[*runtime.MetaKey](ctx, c.state, runtime.MetaKeyTagToID(uint8(req.Key))); err != nil {
 		if !state.IsNotFoundError(err) {
 			return nil, err
 		}
@@ -783,4 +787,25 @@ func destroyResourceByID[T generic.ResourceWithRD](ctx context.Context, st state
 	}
 
 	return nil
+}
+
+func (c *machineService) createOrUpdateUniqueToken(ctx context.Context, req *machine.MetaWriteRequest) error {
+	uniqueMachineToken := runtime.NewUniqueMachineToken()
+	uniqueMachineToken.TypedSpec().Token = string(req.Value)
+
+	if _, err := c.state.Get(ctx, uniqueMachineToken.Metadata()); err != nil {
+		if !state.IsNotFoundError(err) {
+			return err
+		}
+
+		return c.state.Create(ctx, uniqueMachineToken)
+	}
+
+	_, err := safe.StateUpdateWithConflicts(ctx, c.state, uniqueMachineToken.Metadata(), func(r *runtime.UniqueMachineToken) error {
+		r.TypedSpec().Token = string(req.Value)
+
+		return nil
+	})
+
+	return err
 }

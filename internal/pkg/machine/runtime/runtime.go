@@ -63,6 +63,7 @@ func NewRuntime(ctx context.Context, logger *zap.Logger, slot int, id string, gl
 
 	qcontrollers := []controller.QController{
 		controllers.NewRebootStatusController(),
+		controllers.NewUniqueMachineTokenController(),
 	}
 
 	controllers := []controller.Controller{
