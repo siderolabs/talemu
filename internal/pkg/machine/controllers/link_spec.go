@@ -344,7 +344,7 @@ func (ctrl *LinkSpecController) syncLink(ctx context.Context, r controller.Runti
 
 // WireguardSpec adapter provides encoding/decoding to netlink structures.
 //
-//nolint:revive,golint
+//nolint:nolintlint,revive,golint
 func WireguardSpec(r *network.WireguardSpec) wireguardSpec {
 	return wireguardSpec{
 		WireguardSpec: r,

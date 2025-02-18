@@ -15,6 +15,8 @@ import (
 	"github.com/siderolabs/talos/pkg/machinery/config/machine"
 	"github.com/siderolabs/talos/pkg/machinery/resources/config"
 	"go.uber.org/zap"
+
+	"github.com/siderolabs/talemu/internal/pkg/machine/machineconfig"
 )
 
 // MachineTypeController manages config.MachineType based on configuration.
@@ -58,7 +60,7 @@ func (ctrl *MachineTypeController) Run(ctx context.Context, r controller.Runtime
 
 		var machineType machine.Type
 
-		cfg, err := safe.ReaderGetByID[*config.MachineConfig](ctx, r, config.V1Alpha1ID)
+		cfg, err := machineconfig.GetComplete(ctx, r)
 		if err != nil {
 			if !state.IsNotFoundError(err) {
 				return fmt.Errorf("error getting config: %w", err)

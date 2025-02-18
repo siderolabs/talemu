@@ -151,6 +151,10 @@ func NewRootOSController() *RootOSController {
 				cfgProvider := cfg.Config()
 				osSecrets := res.TypedSpec()
 
+				if cfgProvider.Machine() == nil {
+					return xerrors.NewTaggedf[transform.SkipReconcileTag]("machine has only partial configuration")
+				}
+
 				osSecrets.IssuingCA = cfgProvider.Machine().Security().IssuingCA()
 				osSecrets.AcceptedCAs = cfgProvider.Machine().Security().AcceptedCAs()
 

@@ -19,7 +19,6 @@ import (
 	"github.com/cosi-project/runtime/pkg/state"
 	"github.com/jsimonetti/rtnetlink"
 	"github.com/mdlayher/ethtool"
-	ethtoolioctl "github.com/safchain/ethtool"
 	"github.com/siderolabs/talos/pkg/machinery/constants"
 	"github.com/siderolabs/talos/pkg/machinery/nethelpers"
 	"github.com/siderolabs/talos/pkg/machinery/resources/network"
@@ -87,7 +86,7 @@ func (ctrl *LinkStatusController) reconcile(
 	logger *zap.Logger,
 	conn *rtnetlink.Conn,
 	ethClient *ethtool.Client,
-	ethtoolIoctlClient *ethtoolioctl.Ethtool,
+	ethtoolIoctlClient machinenetwork.EthToolIoctlClient,
 	wgClient *wgctrl.Client,
 ) error {
 	// list the existing LinkStatus resources and mark them all to be deleted, as the actual link is discovered via netlink, resource ID is removed from the list
@@ -140,7 +139,7 @@ func (ctrl *LinkStatusController) reconcile(
 			ethState      *ethtool.LinkState
 			ethInfo       *ethtool.LinkInfo
 			ethMode       *ethtool.LinkMode
-			driverInfo    ethtoolioctl.DrvInfo
+			driverInfo    machinenetwork.DriverInfo
 			permanentAddr net.HardwareAddr
 		)
 

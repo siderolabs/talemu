@@ -17,6 +17,8 @@ import (
 	"github.com/siderolabs/talos/pkg/machinery/resources/k8s"
 	"github.com/siderolabs/talos/pkg/machinery/resources/network"
 	"go.uber.org/zap"
+
+	"github.com/siderolabs/talemu/internal/pkg/machine/machineconfig"
 )
 
 // NodenameController renders manifests based on templates and config/secrets.
@@ -64,19 +66,13 @@ func (ctrl *NodenameController) Run(ctx context.Context, r controller.Runtime, _
 		case <-r.EventCh():
 		}
 
-		cfg, err := safe.ReaderGetByID[*config.MachineConfig](ctx, r, config.V1Alpha1ID)
+		cfg, err := machineconfig.GetComplete(ctx, r)
 		if err != nil {
 			if state.IsNotFoundError(err) {
 				continue
 			}
 
 			return fmt.Errorf("error getting config: %w", err)
-		}
-
-		cfgProvider := cfg.Config()
-
-		if cfgProvider.Machine() == nil {
-			continue
 		}
 
 		hostnameStatus, err := safe.ReaderGetByID[*network.HostnameStatus](ctx, r, network.HostnameID)
@@ -95,7 +91,7 @@ func (ctrl *NodenameController) Run(ctx context.Context, r controller.Runtime, _
 			func(res *k8s.Nodename) error {
 				var hostname string
 
-				if cfgProvider.Machine().Kubelet().RegisterWithFQDN() {
+				if cfg.Config().Machine().Kubelet().RegisterWithFQDN() {
 					hostname = hostnameStatus.TypedSpec().FQDN()
 				} else {
 					hostname = hostnameStatus.TypedSpec().Hostname
@@ -107,7 +103,7 @@ func (ctrl *NodenameController) Run(ctx context.Context, r controller.Runtime, _
 				}
 
 				res.TypedSpec().HostnameVersion = hostnameStatus.Metadata().Version().String()
-				res.TypedSpec().SkipNodeRegistration = cfgProvider.Machine().Kubelet().SkipNodeRegistration()
+				res.TypedSpec().SkipNodeRegistration = cfg.Config().Machine().Kubelet().SkipNodeRegistration()
 
 				return nil
 			},

@@ -21,6 +21,7 @@ import (
 	"go.uber.org/zap"
 
 	emuconst "github.com/siderolabs/talemu/internal/pkg/constants"
+	"github.com/siderolabs/talemu/internal/pkg/machine/machineconfig"
 	"github.com/siderolabs/talemu/internal/pkg/machine/runtime/resources/talos"
 	"github.com/siderolabs/talemu/internal/pkg/machine/services"
 )
@@ -143,12 +144,12 @@ func (ctrl *APIDController) reconcile(ctx context.Context, r controller.Runtime,
 		return err
 	}
 
-	config, err := safe.ReaderGetByID[*config.MachineConfig](ctx, r, config.V1Alpha1ID)
+	config, err := machineconfig.GetComplete(ctx, r)
 	if err != nil && !state.IsNotFoundError(err) {
 		return err
 	}
 
-	insecure := (apiCerts == nil)
+	insecure := apiCerts == nil
 
 	running = true
 	healthy = true

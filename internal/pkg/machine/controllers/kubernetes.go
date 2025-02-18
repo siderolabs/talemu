@@ -23,6 +23,7 @@ import (
 
 	emuconst "github.com/siderolabs/talemu/internal/pkg/constants"
 	"github.com/siderolabs/talemu/internal/pkg/kubefactory"
+	"github.com/siderolabs/talemu/internal/pkg/machine/machineconfig"
 )
 
 // KubernetesController interacts with SideroLink API and brings up the SideroLink Wireguard interface.
@@ -117,7 +118,7 @@ func (ctrl *KubernetesController) Run(ctx context.Context, r controller.Runtime,
 				return err
 			}
 
-			config, err := safe.ReaderGetByID[*config.MachineConfig](ctx, r, config.V1Alpha1ID)
+			config, err := machineconfig.GetComplete(ctx, r)
 			if err != nil && !state.IsNotFoundError(err) {
 				return err
 			}

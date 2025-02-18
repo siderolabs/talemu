@@ -5,11 +5,10 @@
 package log_test
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	metadata "google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/metadata"
 
 	"github.com/siderolabs/talemu/internal/pkg/grpc/middleware/log"
 )
@@ -36,7 +35,7 @@ func TestExtractMetadata(t *testing.T) {
 			expected: "foo=bar;token=<hidden>",
 		},
 	} {
-		ctx := context.Background()
+		ctx := t.Context()
 		ctx = metadata.NewIncomingContext(ctx, test.md)
 
 		assert.Equal(t, test.expected, log.ExtractMetadata(ctx), test.name)

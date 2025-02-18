@@ -6,6 +6,8 @@ package emu
 
 import (
 	"context"
+	"errors"
+	"os"
 	"time"
 
 	"github.com/cosi-project/runtime/pkg/controller"
@@ -27,6 +29,10 @@ type Runtime struct {
 
 // NewRuntime creates new runtime.
 func NewRuntime(globalState state.State, kubernetes *kubefactory.Kubernetes, logger *zap.Logger) (*Runtime, error) {
+	if os.Getuid() != 0 {
+		return nil, errors.New("emulator needs to run as root")
+	}
+
 	controllers := []controller.Controller{
 		&controllers.ClusterCleanupController{
 			Kubernetes: kubernetes,

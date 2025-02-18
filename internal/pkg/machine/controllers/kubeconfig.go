@@ -15,6 +15,7 @@ import (
 	"github.com/siderolabs/talos/pkg/machinery/resources/secrets"
 	"go.uber.org/zap"
 
+	"github.com/siderolabs/talemu/internal/pkg/machine/machineconfig"
 	"github.com/siderolabs/talemu/internal/pkg/machine/runtime/resources/emu"
 )
 
@@ -60,7 +61,7 @@ func (ctrl *KubeconfigController) Run(ctx context.Context, r controller.Runtime,
 		case <-r.EventCh():
 		}
 
-		config, err := safe.ReaderGetByID[*config.MachineConfig](ctx, r, config.V1Alpha1ID)
+		config, err := machineconfig.GetComplete(ctx, r)
 		if err != nil {
 			if state.IsNotFoundError(err) {
 				continue

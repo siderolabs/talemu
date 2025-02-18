@@ -30,6 +30,7 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 
 	"github.com/siderolabs/talemu/internal/pkg/constants"
+	"github.com/siderolabs/talemu/internal/pkg/machine/machineconfig"
 )
 
 // StaticPodController renders fake static pod states.
@@ -108,7 +109,7 @@ func (ctrl *StaticPodController) reconcile(ctx context.Context, r controller.Run
 	ctx, cancel := context.WithTimeout(ctx, time.Second*5)
 	defer cancel()
 
-	cfg, err := safe.ReaderGetByID[*config.MachineConfig](ctx, r, config.V1Alpha1ID)
+	cfg, err := machineconfig.GetComplete(ctx, r)
 	if err != nil {
 		if state.IsNotFoundError(err) {
 			return nil

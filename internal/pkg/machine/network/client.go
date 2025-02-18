@@ -10,19 +10,34 @@ import (
 
 	"github.com/jsimonetti/rtnetlink"
 	"github.com/mdlayher/ethtool"
-	ethtoolioctl "github.com/safchain/ethtool"
-	"golang.org/x/sys/unix"
 	"golang.zx2c4.com/wireguard/wgctrl"
 
 	"github.com/siderolabs/talemu/internal/pkg/machine/network/watch"
 )
+
+// DriverInfo contains information about the driver.
+//
+// It is a wrapper around ethtool.DrvInfo of "github.com/safchain/ethtool".
+type DriverInfo struct {
+	Driver    string
+	Version   string
+	FwVersion string
+	BusInfo   string
+}
+
+// EthToolIoctlClient is an interface for the ethtool.Ethtool of "github.com/safchain/ethtool".
+type EthToolIoctlClient interface {
+	Close()
+	DriverInfo(iface string) (DriverInfo, error)
+	PermAddr(iface string) (string, error)
+}
 
 // Client defines a shared network client for all machines.
 type Client struct {
 	rtnetlinkWatcher watch.Watcher
 	ethtoolWatcher   watch.Watcher
 	rtnetlinkConn    *rtnetlink.Conn
-	ethIoctlClient   *ethtoolioctl.Ethtool
+	ethIoctlClient   EthToolIoctlClient
 	ethClient        *ethtool.Client
 	wgClient         *wgctrl.Client
 
@@ -60,7 +75,7 @@ func (nc *Client) Run(ctx context.Context) error {
 	// create watch connections to rtnetlink and ethtool via genetlink
 	// these connections are used only to join multicast groups and receive notifications on changes
 	// other connections are used to send requests and receive responses, as we can't mix the notifications and request/responses
-	nc.rtnetlinkWatcher, err = watch.NewRtNetlink(watch.NewDefaultRateLimitedTrigger(ctx, nc), unix.RTMGRP_LINK)
+	nc.rtnetlinkWatcher, err = watch.NewRtNetlink(watch.NewDefaultRateLimitedTrigger(ctx, nc), unixRtmgrpLink)
 	if err != nil {
 		return err
 	}
@@ -80,7 +95,7 @@ func (nc *Client) Run(ctx context.Context) error {
 		return err
 	}
 
-	nc.ethIoctlClient, err = ethtoolioctl.NewEthtool()
+	nc.ethIoctlClient, err = newEthToolIoctlClient()
 	if err != nil {
 		return err
 	}
@@ -116,7 +131,7 @@ func (nc *Client) Conn() *rtnetlink.Conn {
 }
 
 // EthIoCtl client.
-func (nc *Client) EthIoCtl() *ethtoolioctl.Ethtool {
+func (nc *Client) EthIoCtl() EthToolIoctlClient {
 	return nc.ethIoctlClient
 }
 

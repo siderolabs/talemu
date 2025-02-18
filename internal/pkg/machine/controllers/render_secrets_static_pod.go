@@ -24,6 +24,8 @@ import (
 	"github.com/siderolabs/talos/pkg/machinery/resources/k8s"
 	"github.com/siderolabs/talos/pkg/machinery/resources/secrets"
 	"go.uber.org/zap"
+
+	"github.com/siderolabs/talemu/internal/pkg/machine/machineconfig"
 )
 
 // RenderSecretsStaticPodController manages k8s.SecretsReady and renders secrets from secrets.Kubernetes.
@@ -90,17 +92,17 @@ func (ctrl *RenderSecretsStaticPodController) Run(ctx context.Context, r control
 		}
 
 		// wipe certs dir if the machine is not configured
-		config, err := safe.ReaderGetByID[*config.MachineConfig](ctx, r, config.V1Alpha1ID)
-		if err != nil {
-			if state.IsNotFoundError(err) {
-				if err = os.RemoveAll(certsDir); err != nil && !os.IsNotExist(err) {
-					return err
-				}
+		config, err := machineconfig.GetComplete(ctx, r)
+		if err != nil && !state.IsNotFoundError(err) {
+			return err
+		}
 
-				continue
+		if config == nil {
+			if err = os.RemoveAll(certsDir); err != nil && !os.IsNotExist(err) {
+				return err
 			}
 
-			return err
+			continue
 		}
 
 		if !config.Provider().Machine().Type().IsControlPlane() {

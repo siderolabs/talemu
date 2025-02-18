@@ -32,11 +32,13 @@ import (
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"github.com/siderolabs/talemu/internal/pkg/machine/machineconfig"
 	"github.com/siderolabs/talemu/internal/pkg/machine/runtime/resources/emu"
 	"github.com/siderolabs/talemu/internal/pkg/machine/runtime/resources/talos"
 )
 
-type machineService struct {
+// MachineService is a GRPC service emulating the behavior of the Talos machine service.
+type MachineService struct {
 	machine.UnimplementedMachineServiceServer
 	storage.UnimplementedStorageServiceServer
 
@@ -48,27 +50,41 @@ type machineService struct {
 	machineID string
 }
 
+// NewMachineService creates a new MachineService.
+func NewMachineService(machineID string, state, globalState state.State, logger *zap.Logger) *MachineService {
+	return &MachineService{
+		state:       state,
+		globalState: globalState,
+		logger:      logger,
+		machineID:   machineID,
+	}
+}
+
 // ApplyConfiguration implements machine.MachineServiceServer.
-func (c *machineService) ApplyConfiguration(ctx context.Context, request *machine.ApplyConfigurationRequest) (*machine.ApplyConfigurationResponse, error) {
+func (c *MachineService) ApplyConfiguration(ctx context.Context, request *machine.ApplyConfigurationRequest) (*machine.ApplyConfigurationResponse, error) {
 	cfgProvider, err := configloader.NewFromBytes(request.GetData())
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
 
 	cfg := config.NewMachineConfig(cfgProvider)
+	isPartialConfig := cfg.Config().Machine() == nil
 
-	if err = c.validateInstaller(ctx, cfg.Config().Machine().Install().Image()); err != nil {
-		return nil, err
+	if !isPartialConfig {
+		if err = c.validateInstaller(ctx, cfg.Config().Machine().Install().Image()); err != nil {
+			return nil, err
+		}
 	}
 
-	mode := machine.ApplyConfigurationRequest_REBOOT
+	existingCompleteConfig, err := machineconfig.GetComplete(ctx, c.state)
+	if err != nil && !state.IsNotFoundError(err) {
+		return nil, err
+	}
 
 	if err = c.state.Create(ctx, cfg); err != nil {
 		if !state.IsConflictError(err) {
 			return nil, err
 		}
-
-		mode = machine.ApplyConfigurationRequest_NO_REBOOT
 
 		var r resource.Resource
 
@@ -83,6 +99,13 @@ func (c *machineService) ApplyConfiguration(ctx context.Context, request *machin
 		if err = c.state.Update(ctx, cfg); err != nil {
 			return nil, err
 		}
+	}
+
+	allocated := existingCompleteConfig == nil && !isPartialConfig
+	if !allocated {
+		return &machine.ApplyConfigurationResponse{
+			Messages: []*machine.ApplyConfiguration{{Mode: machine.ApplyConfigurationRequest_NO_REBOOT}},
+		}, nil
 	}
 
 	id := cfgProvider.Cluster().ID()
@@ -102,20 +125,18 @@ func (c *machineService) ApplyConfiguration(ctx context.Context, request *machin
 		}
 	}
 
-	if mode == machine.ApplyConfigurationRequest_REBOOT {
-		if _, err = safe.StateUpdateWithConflicts(ctx, c.globalState, clusterStatus.Metadata(), func(r *emu.ClusterStatus) error {
-			if cfgProvider.Machine().Type().IsControlPlane() {
-				r.TypedSpec().Value.ControlPlanes++
-
-				return nil
-			}
-
-			r.TypedSpec().Value.Workers++
+	if _, err = safe.StateUpdateWithConflicts(ctx, c.globalState, clusterStatus.Metadata(), func(r *emu.ClusterStatus) error {
+		if cfgProvider.Machine().Type().IsControlPlane() {
+			r.TypedSpec().Value.ControlPlanes++
 
 			return nil
-		}); err != nil {
-			return nil, err
 		}
+
+		r.TypedSpec().Value.Workers++
+
+		return nil
+	}); err != nil {
+		return nil, err
 	}
 
 	machineStatus := emu.NewMachineStatus(emu.NamespaceName, c.machineID)
@@ -137,15 +158,15 @@ func (c *machineService) ApplyConfiguration(ctx context.Context, request *machin
 	return &machine.ApplyConfigurationResponse{
 		Messages: []*machine.ApplyConfiguration{
 			{
-				Mode: mode,
+				Mode: machine.ApplyConfigurationRequest_REBOOT,
 			},
 		},
 	}, nil
 }
 
 // Bootstrap implements machine.MachineServiceServer.
-func (c *machineService) Bootstrap(ctx context.Context, _ *machine.BootstrapRequest) (*machine.BootstrapResponse, error) {
-	config, err := safe.ReaderGetByID[*config.MachineConfig](ctx, c.state, config.V1Alpha1ID)
+func (c *MachineService) Bootstrap(ctx context.Context, _ *machine.BootstrapRequest) (*machine.BootstrapResponse, error) {
+	config, err := machineconfig.GetComplete(ctx, c.state)
 	if err != nil {
 		if state.IsNotFoundError(err) {
 			return nil, status.Errorf(codes.InvalidArgument, "the machine is not configured")
@@ -181,14 +202,14 @@ func (c *machineService) Bootstrap(ctx context.Context, _ *machine.BootstrapRequ
 }
 
 // Reset implements machine.MachineServiceServer.
-func (c *machineService) Reset(ctx context.Context, request *machine.ResetRequest) (*machine.ResetResponse, error) {
+func (c *MachineService) Reset(ctx context.Context, request *machine.ResetRequest) (*machine.ResetResponse, error) {
 	if slices.IndexFunc(request.SystemPartitionsToWipe, func(s *machine.ResetPartitionSpec) bool {
 		return s.Label == "STATE"
 	}) == -1 {
 		return nil, status.Errorf(codes.Unimplemented, "this reset mode is not supported")
 	}
 
-	cfg, err := safe.ReaderGetByID[*config.MachineConfig](ctx, c.state, config.V1Alpha1ID)
+	cfg, err := machineconfig.GetComplete(ctx, c.state)
 	if err != nil {
 		if state.IsNotFoundError(err) {
 			return nil, status.Errorf(codes.InvalidArgument, "the machine is not configured")
@@ -260,7 +281,7 @@ func (c *machineService) Reset(ctx context.Context, request *machine.ResetReques
 }
 
 // Version implements machine.MachineServiceServer.
-func (c *machineService) Version(ctx context.Context, _ *emptypb.Empty) (*machine.VersionResponse, error) {
+func (c *MachineService) Version(ctx context.Context, _ *emptypb.Empty) (*machine.VersionResponse, error) {
 	version := fmt.Sprintf("v%s", constants.DefaultTalosVersion)
 
 	res, err := safe.ReaderGetByID[*talos.Version](ctx, c.state, talos.VersionID)
@@ -288,7 +309,7 @@ func (c *machineService) Version(ctx context.Context, _ *emptypb.Empty) (*machin
 }
 
 // Upgrade implements machine.MachineServiceServer.
-func (c *machineService) Upgrade(ctx context.Context, req *machine.UpgradeRequest) (*machine.UpgradeResponse, error) {
+func (c *MachineService) Upgrade(ctx context.Context, req *machine.UpgradeRequest) (*machine.UpgradeResponse, error) {
 	if err := c.validateInstaller(ctx, req.Image); err != nil {
 		return nil, err
 	}
@@ -345,7 +366,7 @@ func (c *machineService) Upgrade(ctx context.Context, req *machine.UpgradeReques
 }
 
 // Reboot implements machine.MachineServiceServer.
-func (c *machineService) Reboot(ctx context.Context, _ *machine.RebootRequest) (*machine.RebootResponse, error) {
+func (c *MachineService) Reboot(ctx context.Context, _ *machine.RebootRequest) (*machine.RebootResponse, error) {
 	reboot := talos.NewReboot(talos.NamespaceName, talos.RebootID)
 	reboot.TypedSpec().Value.Downtime = durationpb.New(time.Second * 2)
 
@@ -366,8 +387,8 @@ func (c *machineService) Reboot(ctx context.Context, _ *machine.RebootRequest) (
 }
 
 // EtcdMemberList implements machine.MachineServiceServer.
-func (c *machineService) EtcdMemberList(ctx context.Context, _ *machine.EtcdMemberListRequest) (*machine.EtcdMemberListResponse, error) {
-	config, err := safe.ReaderGetByID[*config.MachineConfig](ctx, c.state, config.V1Alpha1ID)
+func (c *MachineService) EtcdMemberList(ctx context.Context, _ *machine.EtcdMemberListRequest) (*machine.EtcdMemberListResponse, error) {
+	config, err := machineconfig.GetComplete(ctx, c.state)
 	if err != nil {
 		if state.IsNotFoundError(err) {
 			return nil, status.Errorf(codes.InvalidArgument, "the machine is not configured")
@@ -437,8 +458,8 @@ func (c *machineService) EtcdMemberList(ctx context.Context, _ *machine.EtcdMemb
 }
 
 // EtcdRemoveMemberByID implements machine.MachineServiceServer.
-func (c *machineService) EtcdRemoveMemberByID(ctx context.Context, req *machine.EtcdRemoveMemberByIDRequest) (*machine.EtcdRemoveMemberByIDResponse, error) {
-	config, err := safe.ReaderGetByID[*config.MachineConfig](ctx, c.state, config.V1Alpha1ID)
+func (c *MachineService) EtcdRemoveMemberByID(ctx context.Context, req *machine.EtcdRemoveMemberByIDRequest) (*machine.EtcdRemoveMemberByIDResponse, error) {
+	config, err := machineconfig.GetComplete(ctx, c.state)
 	if err != nil {
 		if state.IsNotFoundError(err) {
 			return nil, status.Errorf(codes.InvalidArgument, "the machine is not configured")
@@ -476,8 +497,8 @@ func (c *machineService) EtcdRemoveMemberByID(ctx context.Context, req *machine.
 }
 
 // EtcdLeaveCluster implements machine.MachineServiceServer.
-func (c *machineService) EtcdLeaveCluster(ctx context.Context, _ *machine.EtcdLeaveClusterRequest) (*machine.EtcdLeaveClusterResponse, error) {
-	config, err := safe.ReaderGetByID[*config.MachineConfig](ctx, c.state, config.V1Alpha1ID)
+func (c *MachineService) EtcdLeaveCluster(ctx context.Context, _ *machine.EtcdLeaveClusterRequest) (*machine.EtcdLeaveClusterResponse, error) {
+	config, err := machineconfig.GetComplete(ctx, c.state)
 	if err != nil {
 		if state.IsNotFoundError(err) {
 			return nil, status.Errorf(codes.InvalidArgument, "the machine is not configured")
@@ -525,8 +546,8 @@ func (c *machineService) EtcdLeaveCluster(ctx context.Context, _ *machine.EtcdLe
 	}, nil
 }
 
-// EtcdForfeidLeadership implements machine.MachineServiceServer.
-func (c *machineService) EtcdForfeitLeadership(context.Context, *machine.EtcdForfeitLeadershipRequest) (*machine.EtcdForfeitLeadershipResponse, error) {
+// EtcdForfeitLeadership implements machine.MachineServiceServer.
+func (c *MachineService) EtcdForfeitLeadership(context.Context, *machine.EtcdForfeitLeadershipRequest) (*machine.EtcdForfeitLeadershipResponse, error) {
 	return &machine.EtcdForfeitLeadershipResponse{
 		Messages: []*machine.EtcdForfeitLeadership{
 			{},
@@ -535,7 +556,7 @@ func (c *machineService) EtcdForfeitLeadership(context.Context, *machine.EtcdFor
 }
 
 // List implements machine.MachineServiceServer.
-func (c *machineService) List(req *machine.ListRequest, serv machine.MachineService_ListServer) error {
+func (c *MachineService) List(req *machine.ListRequest, serv machine.MachineService_ListServer) error {
 	if req.Root == "/var/lib/etcd/member" {
 		member, err := safe.ReaderGetByID[*etcd.Member](serv.Context(), c.state, etcd.LocalMemberID)
 		if err != nil && !state.IsNotFoundError(err) {
@@ -556,7 +577,7 @@ func (c *machineService) List(req *machine.ListRequest, serv machine.MachineServ
 }
 
 // ServiceList implements machine.MachineServiceServer.
-func (c *machineService) ServiceList(ctx context.Context, _ *emptypb.Empty) (*machine.ServiceListResponse, error) {
+func (c *MachineService) ServiceList(ctx context.Context, _ *emptypb.Empty) (*machine.ServiceListResponse, error) {
 	res := &machine.ServiceListResponse{}
 
 	services, err := safe.ReaderListAll[*v1alpha1.Service](ctx, c.state)
@@ -604,7 +625,7 @@ func (c *machineService) ServiceList(ctx context.Context, _ *emptypb.Empty) (*ma
 }
 
 // Disks implements storage.StorageServiceServer.
-func (c *machineService) Disks(ctx context.Context, _ *emptypb.Empty) (*storage.DisksResponse, error) {
+func (c *MachineService) Disks(ctx context.Context, _ *emptypb.Empty) (*storage.DisksResponse, error) {
 	disks, err := safe.ReaderListAll[*talos.Disk](ctx, c.state)
 	if err != nil {
 		return nil, err
@@ -623,7 +644,7 @@ func (c *machineService) Disks(ctx context.Context, _ *emptypb.Empty) (*storage.
 }
 
 // Hostname implements machine.MachineServiceServer.
-func (c *machineService) Hostname(ctx context.Context, _ *emptypb.Empty) (*machine.HostnameResponse, error) {
+func (c *MachineService) Hostname(ctx context.Context, _ *emptypb.Empty) (*machine.HostnameResponse, error) {
 	hostname, err := safe.ReaderGetByID[*network.HostnameStatus](ctx, c.state, network.HostnameID)
 	if err != nil {
 		return nil, err
@@ -639,7 +660,7 @@ func (c *machineService) Hostname(ctx context.Context, _ *emptypb.Empty) (*machi
 }
 
 // ImageList implements machine.MachineServiceServer.
-func (c *machineService) ImageList(_ *machine.ImageListRequest, serv machine.MachineService_ImageListServer) error {
+func (c *MachineService) ImageList(_ *machine.ImageListRequest, serv machine.MachineService_ImageListServer) error {
 	images, err := safe.ReaderListAll[*talos.CachedImage](serv.Context(), c.state)
 	if err != nil {
 		return err
@@ -656,7 +677,7 @@ func (c *machineService) ImageList(_ *machine.ImageListRequest, serv machine.Mac
 }
 
 // ImagePull implements machine.MachineServiceServer.
-func (c *machineService) ImagePull(ctx context.Context, req *machine.ImagePullRequest) (*machine.ImagePullResponse, error) {
+func (c *MachineService) ImagePull(ctx context.Context, req *machine.ImagePullRequest) (*machine.ImagePullResponse, error) {
 	if strings.HasSuffix(req.Reference, "-bad") {
 		return nil, fmt.Errorf("emulator is set to fail on images ending with -bad suffix")
 	}
@@ -675,7 +696,7 @@ func (c *machineService) ImagePull(ctx context.Context, req *machine.ImagePullRe
 }
 
 // Dmesg implements machine.MachineServiceServer.
-func (c *machineService) Dmesg(_ *machine.DmesgRequest, serv machine.MachineService_DmesgServer) error {
+func (c *MachineService) Dmesg(_ *machine.DmesgRequest, serv machine.MachineService_DmesgServer) error {
 	return serv.Send(&common.Data{
 		Bytes: []byte(
 			"I wish I was a real Talos...",
@@ -684,7 +705,7 @@ func (c *machineService) Dmesg(_ *machine.DmesgRequest, serv machine.MachineServ
 }
 
 // Logs implements machine.MachineServiceServer.
-func (c *machineService) Logs(req *machine.LogsRequest, serv machine.MachineService_LogsServer) error {
+func (c *MachineService) Logs(req *machine.LogsRequest, serv machine.MachineService_LogsServer) error {
 	return serv.Send(&common.Data{
 		Bytes: []byte(
 			fmt.Sprintf("I will pretend I know something about the service %q", req.Id),
@@ -693,12 +714,12 @@ func (c *machineService) Logs(req *machine.LogsRequest, serv machine.MachineServ
 }
 
 // Containers implements machine.MachineServiceServer.
-func (c *machineService) Containers(context.Context, *machine.ContainersRequest) (*machine.ContainersResponse, error) {
+func (c *MachineService) Containers(context.Context, *machine.ContainersRequest) (*machine.ContainersResponse, error) {
 	return &machine.ContainersResponse{}, nil
 }
 
 // MetaWrite implements machine.MachineServiceServer.
-func (c *machineService) MetaWrite(ctx context.Context, req *machine.MetaWriteRequest) (*machine.MetaWriteResponse, error) {
+func (c *MachineService) MetaWrite(ctx context.Context, req *machine.MetaWriteRequest) (*machine.MetaWriteResponse, error) {
 	metaKey := runtime.NewMetaKey(runtime.NamespaceName, runtime.MetaKeyTagToID(uint8(req.Key)))
 
 	metaKey.TypedSpec().Value = string(req.Value)
@@ -734,7 +755,7 @@ func (c *machineService) MetaWrite(ctx context.Context, req *machine.MetaWriteRe
 }
 
 // MetaDelete implements machine.MachineServiceServer.
-func (c *machineService) MetaDelete(ctx context.Context, req *machine.MetaDeleteRequest) (*machine.MetaDeleteResponse, error) {
+func (c *MachineService) MetaDelete(ctx context.Context, req *machine.MetaDeleteRequest) (*machine.MetaDeleteResponse, error) {
 	if err := destroyResourceByID[*runtime.MetaKey](ctx, c.state, runtime.MetaKeyTagToID(uint8(req.Key))); err != nil {
 		if !state.IsNotFoundError(err) {
 			return nil, err
@@ -750,7 +771,7 @@ func (c *machineService) MetaDelete(ctx context.Context, req *machine.MetaDelete
 	return &machine.MetaDeleteResponse{}, nil
 }
 
-func (c *machineService) validateInstaller(ctx context.Context, image string) error {
+func (c *MachineService) validateInstaller(ctx context.Context, image string) error {
 	securityState, err := safe.ReaderGetByID[*runtime.SecurityState](ctx, c.state, runtime.SecurityStateID)
 	if err != nil {
 		return err
@@ -789,7 +810,7 @@ func destroyResourceByID[T generic.ResourceWithRD](ctx context.Context, st state
 	return nil
 }
 
-func (c *machineService) createOrUpdateUniqueToken(ctx context.Context, req *machine.MetaWriteRequest) error {
+func (c *MachineService) createOrUpdateUniqueToken(ctx context.Context, req *machine.MetaWriteRequest) error {
 	uniqueMachineToken := runtime.NewUniqueMachineToken()
 	uniqueMachineToken.TypedSpec().Token = string(req.Value)
 

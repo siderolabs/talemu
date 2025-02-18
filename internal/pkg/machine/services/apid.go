@@ -21,6 +21,7 @@ import (
 	cosiv1alpha1 "github.com/cosi-project/runtime/api/v1alpha1"
 	"github.com/cosi-project/runtime/pkg/state"
 	"github.com/cosi-project/runtime/pkg/state/protobuf/server"
+	"github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/recovery"
 	"github.com/siderolabs/crypto/tls"
 	"github.com/siderolabs/crypto/x509"
 	"github.com/siderolabs/gen/xslices"
@@ -32,8 +33,10 @@ import (
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/status"
 
 	"github.com/siderolabs/talemu/internal/pkg/machine/network"
 	"github.com/siderolabs/talemu/internal/pkg/machine/services/apid/pkg/backend"
@@ -153,17 +156,20 @@ func (apid *APID) Run(ctx context.Context, endpoint netip.Prefix, logger *zap.Lo
 		serverOptions...,
 	)
 
-	machineSrv := &machineService{
-		state:       apid.state,
-		globalState: apid.globalState,
-		machineID:   apid.machineID,
-		logger:      logger.With(zap.String("component", "machined")),
+	recoveryHandler := func(p any) error {
+		logger.Error("grpc panic", zap.Any("panic", p), zap.Stack("stack"))
+
+		return status.Errorf(codes.Internal, "%v", p)
 	}
 
+	recoveryOption := recovery.WithRecoveryHandler(recoveryHandler)
+	machineSrv := NewMachineService(apid.machineID, apid.state, apid.globalState, logger)
 	localServer := grpc.NewServer(
 		grpc.Creds(insecure.NewCredentials()),
 		grpc.ForceServerCodecV2(proxy.Codec()),
 		grpc.SharedWriteBuffer(true),
+		grpc.ChainUnaryInterceptor(recovery.UnaryServerInterceptor(recoveryOption)),
+		grpc.ChainStreamInterceptor(recovery.StreamServerInterceptor(recoveryOption)),
 	)
 
 	machine.RegisterMachineServiceServer(localServer, machineSrv)

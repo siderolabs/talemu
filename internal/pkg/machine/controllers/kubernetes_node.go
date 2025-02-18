@@ -31,6 +31,7 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 
 	"github.com/siderolabs/talemu/internal/pkg/constants"
+	"github.com/siderolabs/talemu/internal/pkg/machine/machineconfig"
 	"github.com/siderolabs/talemu/internal/pkg/machine/runtime/resources/emu"
 	"github.com/siderolabs/talemu/internal/pkg/machine/runtime/resources/talos"
 )
@@ -136,13 +137,13 @@ func (ctrl *KubernetesNodeController) Run(ctx context.Context, r controller.Runt
 		case <-r.EventCh():
 		}
 
-		config, err := safe.ReaderGetByID[*config.MachineConfig](ctx, r, config.V1Alpha1ID)
-		if err != nil {
-			if state.IsNotFoundError(err) {
-				continue
-			}
-
+		config, err := machineconfig.GetComplete(ctx, r)
+		if err != nil && !state.IsNotFoundError(err) {
 			return err
+		}
+
+		if config == nil {
+			continue
 		}
 
 		nodename, err := safe.ReaderGetByID[*k8s.Nodename](ctx, r, k8s.NodenameID)

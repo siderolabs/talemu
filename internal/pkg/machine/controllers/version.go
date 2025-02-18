@@ -17,6 +17,7 @@ import (
 	"github.com/siderolabs/talos/pkg/machinery/resources/config"
 	"go.uber.org/zap"
 
+	"github.com/siderolabs/talemu/internal/pkg/machine/machineconfig"
 	"github.com/siderolabs/talemu/internal/pkg/machine/runtime/resources/talos"
 )
 
@@ -66,7 +67,7 @@ func (ctrl *VersionController) Run(ctx context.Context, r controller.Runtime, lo
 		case <-r.EventCh():
 		}
 
-		config, err := safe.ReaderGetByID[*config.MachineConfig](ctx, r, config.V1Alpha1ID)
+		config, err := machineconfig.GetComplete(ctx, r)
 		if err != nil && !state.IsNotFoundError(err) {
 			return err
 		}

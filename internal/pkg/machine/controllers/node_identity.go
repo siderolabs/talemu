@@ -18,6 +18,8 @@ import (
 	"github.com/siderolabs/talos/pkg/machinery/resources/cluster"
 	"github.com/siderolabs/talos/pkg/machinery/resources/config"
 	"go.uber.org/zap"
+
+	"github.com/siderolabs/talemu/internal/pkg/machine/machineconfig"
 )
 
 // NodeIdentityController generates node identity.
@@ -59,7 +61,7 @@ func (ctrl *NodeIdentityController) Run(ctx context.Context, r controller.Runtim
 		case <-r.EventCh():
 		}
 
-		_, err := safe.ReaderGetByID[*config.MachineConfig](ctx, r, config.V1Alpha1ID)
+		_, err := machineconfig.GetComplete(ctx, r)
 		if err != nil {
 			if state.IsNotFoundError(err) {
 				err = r.Destroy(ctx, cluster.NewIdentity(cluster.NamespaceName, cluster.LocalIdentity).Metadata())

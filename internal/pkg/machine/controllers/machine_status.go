@@ -22,6 +22,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	emuconst "github.com/siderolabs/talemu/internal/pkg/constants"
+	"github.com/siderolabs/talemu/internal/pkg/machine/machineconfig"
 	"github.com/siderolabs/talemu/internal/pkg/machine/runtime/resources/talos"
 )
 
@@ -94,22 +95,22 @@ func (ctrl *MachineStatusController) Run(ctx context.Context, r controller.Runti
 			return err
 		}
 
-		config, err := safe.ReaderGetByID[*config.MachineConfig](ctx, r, config.V1Alpha1ID)
-		if err != nil {
-			if state.IsNotFoundError(err) {
-				if err = safe.WriterModify(ctx, r, runtime.NewMachineStatus(), func(res *runtime.MachineStatus) error {
-					res.TypedSpec().Stage = runtime.MachineStageMaintenance
-					res.TypedSpec().Status.Ready = true
+		config, err := machineconfig.GetComplete(ctx, r)
+		if err != nil && !state.IsNotFoundError(err) {
+			return err
+		}
 
-					return nil
-				}); err != nil {
-					return err
-				}
+		if config == nil {
+			if err = safe.WriterModify(ctx, r, runtime.NewMachineStatus(), func(res *runtime.MachineStatus) error {
+				res.TypedSpec().Stage = runtime.MachineStageMaintenance
+				res.TypedSpec().Status.Ready = true
 
-				continue
+				return nil
+			}); err != nil {
+				return err
 			}
 
-			return err
+			continue
 		}
 
 		if err = ctrl.reconcile(ctx, r, config); err != nil {

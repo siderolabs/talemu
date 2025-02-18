@@ -21,6 +21,8 @@ import (
 	"github.com/siderolabs/talos/pkg/machinery/resources/config"
 	"github.com/siderolabs/talos/pkg/machinery/resources/network"
 	"go.uber.org/zap"
+
+	"github.com/siderolabs/talemu/internal/pkg/machine/machineconfig"
 )
 
 // HostnameConfigController manages network.HostnameSpec based on machine configuration, kernel cmdline.
@@ -69,7 +71,7 @@ func (ctrl *HostnameConfigController) Outputs() []controller.Output {
 
 // Run implements controller.Controller interface.
 //
-//nolint:gocyclo,cyclop,gocognit
+//nolint:gocognit
 func (ctrl *HostnameConfigController) Run(ctx context.Context, r controller.Runtime, logger *zap.Logger) error {
 	for {
 		select {
@@ -82,12 +84,12 @@ func (ctrl *HostnameConfigController) Run(ctx context.Context, r controller.Runt
 
 		var cfgProvider talosconfig.Config
 
-		cfg, err := safe.ReaderGetByID[*config.MachineConfig](ctx, r, config.V1Alpha1ID)
+		cfg, err := machineconfig.GetComplete(ctx, r)
 		if err != nil {
 			if !state.IsNotFoundError(err) {
 				return fmt.Errorf("error getting config: %w", err)
 			}
-		} else if cfg.Config().Machine() != nil {
+		} else {
 			cfgProvider = cfg.Config()
 		}
 
