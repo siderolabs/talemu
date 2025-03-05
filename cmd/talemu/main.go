@@ -13,6 +13,7 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/siderolabs/omni/client/pkg/constants"
 	"github.com/spf13/cobra"
 	"go.uber.org/multierr"
 	"go.uber.org/zap"
@@ -97,7 +98,7 @@ var rootCmd = &cobra.Command{
 			}
 
 			eg.Go(func() error {
-				return m.Run(ctx, params, i+1000, kubernetes, machine.WithNetworkClient(nc))
+				return m.Run(ctx, params, i+1000, kubernetes, machine.WithNetworkClient(nc), machine.WithTalosVersion(cfg.talosVersion))
 			})
 
 			machines = append(machines, m)
@@ -148,8 +149,8 @@ var rootCmd = &cobra.Command{
 }
 
 var cfg struct {
-	kernelArgs string
-
+	kernelArgs    string
+	talosVersion  string
 	machinesCount int
 }
 
@@ -168,6 +169,7 @@ func app() error {
 
 func init() {
 	rootCmd.Flags().StringVar(&cfg.kernelArgs, "kernel-args", "", "specify the whole configuration using kernel args string")
+	rootCmd.Flags().StringVar(&cfg.talosVersion, "talos-version", constants.DefaultTalosVersion, "specify the Talos version to use")
 
 	rootCmd.Flags().IntVar(&cfg.machinesCount, "machines", 1, "the number of machines to emulate")
 }
