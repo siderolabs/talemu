@@ -7,6 +7,7 @@ package controllers
 import (
 	"context"
 	"fmt"
+	"path/filepath"
 
 	"github.com/cosi-project/runtime/pkg/controller"
 	"github.com/cosi-project/runtime/pkg/resource"
@@ -14,6 +15,7 @@ import (
 	"github.com/cosi-project/runtime/pkg/state"
 	"github.com/siderolabs/gen/optional"
 	"github.com/siderolabs/talos/pkg/machinery/config/types/v1alpha1"
+	"github.com/siderolabs/talos/pkg/machinery/resources/block"
 	"github.com/siderolabs/talos/pkg/machinery/resources/config"
 	"github.com/siderolabs/talos/pkg/machinery/resources/runtime"
 	v1alpha1resource "github.com/siderolabs/talos/pkg/machinery/resources/v1alpha1"
@@ -74,6 +76,10 @@ func (ctrl *MachineStatusController) Outputs() []controller.Output {
 	return []controller.Output{
 		{
 			Type: runtime.MachineStatusType,
+			Kind: controller.OutputExclusive,
+		},
+		{
+			Type: block.SystemDiskType,
 			Kind: controller.OutputExclusive,
 		},
 	}
@@ -176,8 +182,13 @@ func (ctrl *MachineStatusController) Run(ctx context.Context, r controller.Runti
 }
 
 func (ctrl *MachineStatusController) reconcile(ctx context.Context, r controller.Runtime, cfg *config.MachineConfig) error {
-	disks, err := safe.ReaderListAll[*talos.Disk](ctx, ctrl.State)
+	disks, err := safe.ReaderListAll[*block.Disk](ctx, ctrl.State)
 	if err != nil {
+		return err
+	}
+
+	systemDisk, err := safe.ReaderGetByID[*block.SystemDisk](ctx, r, block.SystemDiskID)
+	if err != nil && !state.IsNotFoundError(err) {
 		return err
 	}
 
@@ -188,15 +199,15 @@ func (ctrl *MachineStatusController) reconcile(ctx context.Context, r controller
 
 	var (
 		installed   bool
-		installDisk *talos.Disk
+		installDisk *block.Disk
 	)
 
-	disks.ForEach(func(r *talos.Disk) {
-		if r.TypedSpec().Value.SystemDisk {
+	disks.ForEach(func(r *block.Disk) {
+		if systemDisk != nil && systemDisk.TypedSpec().DiskID == r.Metadata().ID() {
 			installed = true
 		}
 
-		if installConfig.InstallDisk != "" && installConfig.InstallDisk == r.TypedSpec().Value.DeviceName {
+		if installConfig.InstallDisk != "" && installConfig.InstallDisk == filepath.Join("/dev", r.Metadata().ID()) {
 			installDisk = r
 		}
 	})
@@ -218,13 +229,12 @@ func (ctrl *MachineStatusController) reconcile(ctx context.Context, r controller
 		return err
 	}
 
-	_, err = safe.StateUpdateWithConflicts(ctx, ctrl.State, installDisk.Metadata(), func(d *talos.Disk) error {
-		d.TypedSpec().Value.SystemDisk = true
+	return safe.WriterModify(ctx, r, block.NewSystemDisk(block.NamespaceName, block.SystemDiskID), func(r *block.SystemDisk) error {
+		r.TypedSpec().DiskID = installDisk.Metadata().ID()
+		r.TypedSpec().DevPath = filepath.Join("/dev/", installDisk.Metadata().ID())
 
 		return nil
 	})
-
-	return err
 }
 
 func (ctrl *MachineStatusController) checkServicesReady(ctx context.Context, r controller.Runtime, services ...string) ([]runtime.UnmetCondition, error) {

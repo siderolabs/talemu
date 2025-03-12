@@ -18,7 +18,6 @@ const NamespaceName = "emulator"
 
 func init() {
 	mustRegisterResource(CachedImageType, &CachedImage{})
-	mustRegisterResource(DiskType, &Disk{})
 	mustRegisterResource(EventSinkStateType, &EventSinkState{})
 	mustRegisterResource(ImageType, &Image{})
 	mustRegisterResource(VersionType, &Version{})

@@ -11,6 +11,7 @@ import (
 	"github.com/cosi-project/runtime/pkg/resource/meta"
 	"github.com/cosi-project/runtime/pkg/state"
 	"github.com/cosi-project/runtime/pkg/state/registry"
+	"github.com/siderolabs/talos/pkg/machinery/resources/block"
 	"github.com/siderolabs/talos/pkg/machinery/resources/cluster"
 	"github.com/siderolabs/talos/pkg/machinery/resources/config"
 	"github.com/siderolabs/talos/pkg/machinery/resources/cri"
@@ -117,6 +118,12 @@ func Register(ctx context.Context, state state.State) error {
 		&k8s.StaticPodServerStatus{},
 		&k8s.StaticPodStatus{},
 		&k8s.SecretsStatus{},
+		&block.Disk{},
+		&block.SystemDisk{},
+		&block.Device{},
+		&block.DiscoveredVolume{},
+		&block.DiscoveryRefreshRequest{},
+		&block.DiscoveryRefreshStatus{},
 		&kubeaccess.Config{},
 		&kubespan.Config{},
 		&kubespan.Endpoint{},
@@ -180,7 +187,6 @@ func Register(ctx context.Context, state state.State) error {
 		&v1alpha1.Service{},
 
 		&EventSinkState{},
-		&Disk{},
 		&Image{},
 		&Version{},
 		&Reboot{},

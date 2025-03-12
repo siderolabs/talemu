@@ -13,12 +13,12 @@ import (
 	"github.com/cosi-project/runtime/pkg/state"
 	"github.com/siderolabs/gen/optional"
 	"github.com/siderolabs/talos/pkg/machinery/constants"
+	"github.com/siderolabs/talos/pkg/machinery/resources/block"
 	"github.com/siderolabs/talos/pkg/machinery/resources/config"
 	"github.com/siderolabs/talos/pkg/machinery/resources/runtime"
 	"go.uber.org/zap"
 
 	"github.com/siderolabs/talemu/internal/pkg/machine/machineconfig"
-	"github.com/siderolabs/talemu/internal/pkg/machine/runtime/resources/talos"
 )
 
 // MountStatusController generates node fake mounts.
@@ -39,9 +39,15 @@ func (ctrl *MountStatusController) Inputs() []controller.Input {
 			Kind:      controller.InputWeak,
 		},
 		{
-			Namespace: talos.NamespaceName,
-			Type:      talos.DiskType,
+			Namespace: block.NamespaceName,
+			Type:      block.DiskType,
 			Kind:      controller.InputWeak,
+		},
+		{
+			Namespace: block.NamespaceName,
+			Type:      block.SystemDiskType,
+			Kind:      controller.InputWeak,
+			ID:        optional.Some(block.SystemDiskID),
 		},
 	}
 }
@@ -87,17 +93,13 @@ func (ctrl *MountStatusController) Run(ctx context.Context, r controller.Runtime
 			return err
 		}
 
-		disks, err := safe.ReaderListAll[*talos.Disk](ctx, r)
-		if err != nil {
+		systemDisk, err := safe.ReaderGetByID[*block.SystemDisk](ctx, r, block.SystemDiskID)
+		if err != nil && !state.IsNotFoundError(err) {
 			return err
 		}
 
-		disk, hasSystemDisk := disks.Find(func(r *talos.Disk) bool {
-			return r.TypedSpec().Value.SystemDisk
-		})
-
 		for _, status := range statuses {
-			if config == nil || !hasSystemDisk {
+			if config == nil || systemDisk == nil {
 				err = r.Destroy(ctx, runtime.NewMountStatus(runtime.NamespaceName, status.label).Metadata())
 				if err != nil && !state.IsNotFoundError(err) {
 					return err
@@ -110,7 +112,7 @@ func (ctrl *MountStatusController) Run(ctx context.Context, r controller.Runtime
 				encryption := config.Provider().Machine().SystemDiskEncryption().Get(status.label)
 
 				res.TypedSpec().Encrypted = encryption != nil
-				res.TypedSpec().Source = fmt.Sprintf("%s%d", disk.TypedSpec().Value.DeviceName, status.index)
+				res.TypedSpec().Source = fmt.Sprintf("%s%d", systemDisk.TypedSpec().DevPath, status.index)
 				res.TypedSpec().Target = status.target
 				res.TypedSpec().FilesystemType = "xfs"
 

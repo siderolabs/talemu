@@ -7,6 +7,7 @@ package services
 import (
 	"context"
 	"fmt"
+	"path/filepath"
 	"slices"
 	"strings"
 	"time"
@@ -20,6 +21,7 @@ import (
 	"github.com/siderolabs/talos/pkg/machinery/api/machine"
 	"github.com/siderolabs/talos/pkg/machinery/api/storage"
 	"github.com/siderolabs/talos/pkg/machinery/config/configloader"
+	"github.com/siderolabs/talos/pkg/machinery/resources/block"
 	"github.com/siderolabs/talos/pkg/machinery/resources/config"
 	"github.com/siderolabs/talos/pkg/machinery/resources/etcd"
 	"github.com/siderolabs/talos/pkg/machinery/resources/network"
@@ -626,21 +628,57 @@ func (c *MachineService) ServiceList(ctx context.Context, _ *emptypb.Empty) (*ma
 
 // Disks implements storage.StorageServiceServer.
 func (c *MachineService) Disks(ctx context.Context, _ *emptypb.Empty) (*storage.DisksResponse, error) {
-	disks, err := safe.ReaderListAll[*talos.Disk](ctx, c.state)
+	systemDisk, err := safe.StateGetByID[*block.SystemDisk](ctx, c.state, block.SystemDiskID)
+	if err != nil && !state.IsNotFoundError(err) {
+		return nil, err
+	}
+
+	disks, err := safe.StateListAll[*block.Disk](ctx, c.state)
 	if err != nil {
 		return nil, err
 	}
 
-	return &storage.DisksResponse{
+	diskConv := func(d *block.Disk) *storage.Disk {
+		var diskType storage.Disk_DiskType
+
+		switch {
+		case d.TypedSpec().CDROM:
+			diskType = storage.Disk_CD
+		case d.TypedSpec().Transport == "nvme":
+			diskType = storage.Disk_NVME
+		case d.TypedSpec().Transport == "mmc":
+			diskType = storage.Disk_SD
+		case d.TypedSpec().Rotational:
+			diskType = storage.Disk_HDD
+		case d.TypedSpec().Transport != "":
+			diskType = storage.Disk_SSD
+		}
+
+		return &storage.Disk{
+			DeviceName: filepath.Join("/dev", d.Metadata().ID()),
+			Model:      d.TypedSpec().Model,
+			Size:       d.TypedSpec().Size,
+			Serial:     d.TypedSpec().Serial,
+			Modalias:   d.TypedSpec().Modalias,
+			Wwid:       d.TypedSpec().WWID,
+			Uuid:       d.TypedSpec().UUID,
+			Type:       diskType,
+			BusPath:    d.TypedSpec().BusPath,
+			SystemDisk: systemDisk != nil && d.Metadata().ID() == systemDisk.TypedSpec().DiskID,
+			Subsystem:  d.TypedSpec().SubSystem,
+			Readonly:   d.TypedSpec().Readonly,
+		}
+	}
+
+	reply := &storage.DisksResponse{
 		Messages: []*storage.Disks{
 			{
-				Metadata: &common.Metadata{},
-				Disks: safe.ToSlice(disks, func(res *talos.Disk) *storage.Disk {
-					return res.TypedSpec().Value
-				}),
+				Disks: safe.ToSlice(disks, diskConv),
 			},
 		},
-	}, nil
+	}
+
+	return reply, nil
 }
 
 // Hostname implements machine.MachineServiceServer.

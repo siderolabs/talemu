@@ -14,8 +14,8 @@ import (
 	"github.com/cosi-project/runtime/pkg/safe"
 	"github.com/cosi-project/runtime/pkg/state"
 	"github.com/jsimonetti/rtnetlink"
-	"github.com/siderolabs/talos/pkg/machinery/api/storage"
 	"github.com/siderolabs/talos/pkg/machinery/nethelpers"
+	"github.com/siderolabs/talos/pkg/machinery/resources/block"
 	"github.com/siderolabs/talos/pkg/machinery/resources/config"
 	"github.com/siderolabs/talos/pkg/machinery/resources/hardware"
 	"github.com/siderolabs/talos/pkg/machinery/resources/k8s"
@@ -146,14 +146,12 @@ func (m *Machine) Run(ctx context.Context, siderolinkParams *SideroLinkParams, s
 	memory.TypedSpec().Size = 64 * 1024
 	memory.TypedSpec().Manufacturer = "SideroLabs UltraMem"
 
-	disk := talos.NewDisk(talos.NamespaceName, "/dev/vda")
-	disk.TypedSpec().Value = &storage.Disk{
-		Size:       50 * 1024 * 1024 * 1024,
-		DeviceName: "/dev/vda",
-		Model:      "CM5514",
-		Type:       storage.Disk_HDD,
-		BusPath:    "/pci0000:00/0000:00:05.0/0000:01:01.0/virtio2/host2/target2:0:0/2:0:0:0/",
-	}
+	disk := block.NewDisk(block.NamespaceName, "vda")
+	disk.TypedSpec().Size = 50 * 1024 * 1024 * 1024
+	disk.TypedSpec().Model = "CM5514"
+	disk.TypedSpec().Transport = "virtio"
+	disk.TypedSpec().Rotational = true
+	disk.TypedSpec().BusPath = "/pci0000:00/0000:00:05.0/0000:01:01.0/virtio2/host2/target2:0:0/2:0:0:0/"
 
 	resources = append(resources,
 		hardwareInformation,
