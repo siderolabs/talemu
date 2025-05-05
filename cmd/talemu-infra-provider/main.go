@@ -15,12 +15,14 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/cosi-project/runtime/pkg/state"
 	"github.com/siderolabs/go-api-signature/pkg/pgp"
 	"github.com/siderolabs/go-api-signature/pkg/serviceaccount"
 	"github.com/siderolabs/omni/client/api/omni/management"
 	"github.com/siderolabs/omni/client/pkg/access"
 	"github.com/siderolabs/omni/client/pkg/client"
 	"github.com/siderolabs/omni/client/pkg/infra"
+	infrares "github.com/siderolabs/omni/client/pkg/omni/resources/infra"
 	"github.com/siderolabs/omni/client/pkg/panichandler"
 	"github.com/spf13/cobra"
 	"go.uber.org/zap"
@@ -59,7 +61,6 @@ var rootCmd = &cobra.Command{
 		if cfg.createServiceAccount {
 			logger.Info("creating service account")
 			for {
-
 				err = createServiceAccount(cmd.Context())
 				if err == nil {
 					break
@@ -149,6 +150,12 @@ func createServiceAccount(ctx context.Context) error {
 	}
 
 	defer rootClient.Close() //nolint:errcheck
+
+	provider := infrares.NewProvider(meta.ProviderID)
+
+	if err = rootClient.Omni().State().Create(ctx, provider); err != nil && !state.IsConflictError(err) {
+		return err
+	}
 
 	name := access.InfraProviderServiceAccountPrefix + meta.ProviderID
 

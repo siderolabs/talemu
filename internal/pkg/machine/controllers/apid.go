@@ -54,7 +54,7 @@ func (ctrl *APIDController) Inputs() []controller.Input {
 		},
 		{
 			Namespace: config.NamespaceName,
-			ID:        optional.Some(config.V1Alpha1ID),
+			ID:        optional.Some(config.ActiveID),
 			Type:      config.MachineConfigType,
 			Kind:      controller.InputWeak,
 		},

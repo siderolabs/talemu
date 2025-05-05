@@ -111,6 +111,8 @@ func (ctrl *AddressSpecController) Run(ctx context.Context, r controller.Runtime
 		for _, res := range list.Items {
 			address := res.(*network.AddressSpec) //nolint:forcetypeassert,errcheck
 
+			logger.Info("reconcile address", zap.String("address", res.Metadata().ID()), zap.String("link", address.TypedSpec().LinkName))
+
 			if err = ctrl.syncAddress(ctx, r, logger, ctrl.NC.Conn(), links, addrs, address); err != nil {
 				return err
 			}
@@ -194,6 +196,8 @@ func (ctrl *AddressSpecController) syncAddress(ctx context.Context, r controller
 				return fmt.Errorf("error removing finalizer: %w", err)
 			}
 
+			logger.Info("the address can not be updated as the link doesn't exist")
+
 			return nil
 		}
 
@@ -213,6 +217,8 @@ func (ctrl *AddressSpecController) syncAddress(ctx context.Context, r controller
 	case resource.PhaseRunning:
 		if linkIndex == 0 {
 			// address can't be assigned as link doesn't exist (yet), skip it
+			logger.Info("the address can not be assigned as the link doesn't exist yet")
+
 			return nil
 		}
 

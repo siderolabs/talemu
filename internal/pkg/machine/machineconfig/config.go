@@ -25,7 +25,7 @@ func (e notFoundError) NotFoundError() {}
 
 // GetComplete returns the complete (non-partial) MachineConfig. If the config does not exist or is partial, it will return state.ErrNotFound.
 func GetComplete(ctx context.Context, st controller.Reader) (*config.MachineConfig, error) {
-	conf, err := safe.ReaderGetByID[*config.MachineConfig](ctx, st, config.V1Alpha1ID)
+	conf, err := safe.ReaderGetByID[*config.MachineConfig](ctx, st, config.ActiveID)
 	if err != nil {
 		return nil, err
 	}

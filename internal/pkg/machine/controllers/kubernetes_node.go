@@ -63,7 +63,7 @@ func (ctrl *KubernetesNodeController) Inputs() []controller.Input {
 		{
 			Namespace: config.NamespaceName,
 			Type:      config.MachineConfigType,
-			ID:        optional.Some(config.V1Alpha1ID),
+			ID:        optional.Some(config.ActiveID),
 			Kind:      controller.InputStrong,
 		},
 		{

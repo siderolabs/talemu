@@ -27,7 +27,7 @@ func NewClusterConfigController() *ConfigController {
 		transform.Settings[*config.MachineConfig, *cluster.Config]{
 			Name: "cluster.ConfigController",
 			MapMetadataOptionalFunc: func(cfg *config.MachineConfig) optional.Optional[*cluster.Config] {
-				if cfg.Metadata().ID() != config.V1Alpha1ID {
+				if cfg.Metadata().ID() != config.ActiveID {
 					return optional.None[*cluster.Config]()
 				}
 

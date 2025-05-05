@@ -49,7 +49,7 @@ func New(ctx context.Context, dataDir string, logger *zap.Logger) (*Kubernetes, 
 func (k *Kubernetes) DeleteEtcdState(ctx context.Context, clusterID string) error {
 	client := k.etcd.Client()
 
-	resp, err := client.KV.Delete(ctx, clusterPrefix(clusterID), clientv3.WithPrefix())
+	resp, err := client.Delete(ctx, clusterPrefix(clusterID), clientv3.WithPrefix())
 	if err != nil {
 		return err
 	}
