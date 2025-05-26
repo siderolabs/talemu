@@ -47,6 +47,11 @@ func (ctrl *LinkStatusController) Inputs() []controller.Input {
 			Type:      network.LinkSpecType,
 			Kind:      controller.InputStrong,
 		},
+		{
+			Namespace: network.NamespaceName,
+			Type:      network.LinkRefreshType,
+			Kind:      controller.InputWeak,
+		},
 	}
 }
 
