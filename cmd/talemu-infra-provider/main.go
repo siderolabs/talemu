@@ -11,17 +11,17 @@ import (
 	"errors"
 	"os"
 	"os/signal"
-	"slices"
 	"syscall"
 	"time"
 
+	"github.com/cosi-project/runtime/pkg/safe"
 	"github.com/cosi-project/runtime/pkg/state"
 	"github.com/siderolabs/go-api-signature/pkg/pgp"
 	"github.com/siderolabs/go-api-signature/pkg/serviceaccount"
-	"github.com/siderolabs/omni/client/api/omni/management"
 	"github.com/siderolabs/omni/client/pkg/access"
 	"github.com/siderolabs/omni/client/pkg/client"
 	"github.com/siderolabs/omni/client/pkg/infra"
+	"github.com/siderolabs/omni/client/pkg/omni/resources/auth"
 	infrares "github.com/siderolabs/omni/client/pkg/omni/resources/infra"
 	"github.com/siderolabs/omni/client/pkg/panichandler"
 	"github.com/spf13/cobra"
@@ -61,7 +61,7 @@ var rootCmd = &cobra.Command{
 		if cfg.createServiceAccount {
 			logger.Info("creating service account")
 			for {
-				err = createServiceAccount(cmd.Context())
+				err = createServiceAccount(cmd.Context(), logger)
 				if err == nil {
 					break
 				}
@@ -141,7 +141,7 @@ var rootCmd = &cobra.Command{
 	},
 }
 
-func createServiceAccount(ctx context.Context) error {
+func createServiceAccount(ctx context.Context, logger *zap.Logger) error {
 	config := clientconfig.New(cfg.omniAPIEndpoint)
 
 	rootClient, err := config.GetClient()
@@ -176,14 +176,14 @@ func createServiceAccount(ctx context.Context) error {
 		return err
 	}
 
-	accounts, err := rootClient.Management().ListServiceAccounts(ctx)
-	if err != nil {
+	identity, err := safe.ReaderGetByID[*auth.Identity](ctx, rootClient.Omni().State(), sa.FullID())
+	if err != nil && !state.IsNotFoundError(err) {
 		return err
 	}
 
-	if slices.ContainsFunc(accounts, func(acc *management.ListServiceAccountsResponse_ServiceAccount) bool {
-		return acc.Name == name
-	}) {
+	if identity != nil {
+		logger.Info("delete service account")
+
 		err = rootClient.Management().DestroyServiceAccount(ctx, name)
 		if err != nil {
 			return err

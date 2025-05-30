@@ -58,7 +58,7 @@ require (
 	github.com/siderolabs/grpc-proxy v0.5.1
 	github.com/siderolabs/image-factory v0.7.0
 	github.com/siderolabs/net v0.4.0
-	github.com/siderolabs/omni/client v0.48.0-beta.0.0.20250522181037-7c17ed6cf8b0
+	github.com/siderolabs/omni/client v0.48.0-beta.0.0.20250528115630-98466220bf9a
 	github.com/siderolabs/siderolink v0.3.12
 	github.com/siderolabs/talos/pkg/machinery v1.10.1
 	github.com/spf13/cobra v1.9.1
