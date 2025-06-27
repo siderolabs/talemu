@@ -1,6 +1,6 @@
 # THIS FILE WAS AUTOMATICALLY GENERATED, PLEASE DO NOT EDIT.
 #
-# Generated on 2025-05-12T14:54:12Z by kres 5ad3e5f.
+# Generated on 2025-06-27T12:24:10Z by kres bdea6a7.
 
 # common variables
 
@@ -17,21 +17,19 @@ WITH_RACE ?= false
 REGISTRY ?= ghcr.io
 USERNAME ?= siderolabs
 REGISTRY_AND_USERNAME ?= $(REGISTRY)/$(USERNAME)
-PROTOBUF_GO_VERSION ?= 1.36.6
+PROTOBUF_GO_VERSION ?= 1.36.2
 GRPC_GO_VERSION ?= 1.5.1
-GRPC_GATEWAY_VERSION ?= 2.26.3
+GRPC_GATEWAY_VERSION ?= 2.25.1
 VTPROTOBUF_VERSION ?= 0.6.0
-GOIMPORTS_VERSION ?= 0.33.0
-GOMOCK_VERSION ?= 0.5.2
+GOIMPORTS_VERSION ?= 0.29.0
 DEEPCOPY_VERSION ?= v0.5.6
-GOLANGCILINT_VERSION ?= v2.1.6
-GOFUMPT_VERSION ?= v0.8.0
-GO_VERSION ?= 1.24.3
+GOLANGCILINT_VERSION ?= v1.64.4
+GOFUMPT_VERSION ?= v0.7.0
+GO_VERSION ?= 1.24.0
 GO_BUILDFLAGS ?=
 GO_LDFLAGS ?=
 CGO_ENABLED ?= 0
 GOTOOLCHAIN ?= local
-GOEXPERIMENT ?= synctest
 TESTPKGS ?= ./...
 KRES_IMAGE ?= ghcr.io/siderolabs/kres:latest
 CONFORMANCE_IMAGE ?= ghcr.io/siderolabs/conform:latest
@@ -67,7 +65,6 @@ COMMON_ARGS += --build-arg=GRPC_GO_VERSION="$(GRPC_GO_VERSION)"
 COMMON_ARGS += --build-arg=GRPC_GATEWAY_VERSION="$(GRPC_GATEWAY_VERSION)"
 COMMON_ARGS += --build-arg=VTPROTOBUF_VERSION="$(VTPROTOBUF_VERSION)"
 COMMON_ARGS += --build-arg=GOIMPORTS_VERSION="$(GOIMPORTS_VERSION)"
-COMMON_ARGS += --build-arg=GOMOCK_VERSION="$(GOMOCK_VERSION)"
 COMMON_ARGS += --build-arg=DEEPCOPY_VERSION="$(DEEPCOPY_VERSION)"
 COMMON_ARGS += --build-arg=GOLANGCILINT_VERSION="$(GOLANGCILINT_VERSION)"
 COMMON_ARGS += --build-arg=GOFUMPT_VERSION="$(GOFUMPT_VERSION)"
@@ -140,7 +137,7 @@ else
 GO_LDFLAGS += -s
 endif
 
-all: unit-tests talemu image-talemu talemu-infra-provider image-talemu-infra-provider lint
+all: unit-tests talemu image-talemu talemu-infra-provider image-talemu-infra-provider docker-compose-up docker-compose-down docker-compose-provider-up docker-compose-provider-down lint
 
 $(ARTIFACTS):  ## Creates artifacts directory.
 	@mkdir -p $(ARTIFACTS)
@@ -199,6 +196,20 @@ unit-tests:  ## Performs unit tests
 unit-tests-race:  ## Performs unit tests with race detection enabled.
 	@$(MAKE) target-$@
 
+.PHONY: $(ARTIFACTS)/talemu-darwin-amd64
+$(ARTIFACTS)/talemu-darwin-amd64:
+	@$(MAKE) local-talemu-darwin-amd64 DEST=$(ARTIFACTS)
+
+.PHONY: talemu-darwin-amd64
+talemu-darwin-amd64: $(ARTIFACTS)/talemu-darwin-amd64  ## Builds executable for talemu-darwin-amd64.
+
+.PHONY: $(ARTIFACTS)/talemu-darwin-arm64
+$(ARTIFACTS)/talemu-darwin-arm64:
+	@$(MAKE) local-talemu-darwin-arm64 DEST=$(ARTIFACTS)
+
+.PHONY: talemu-darwin-arm64
+talemu-darwin-arm64: $(ARTIFACTS)/talemu-darwin-arm64  ## Builds executable for talemu-darwin-arm64.
+
 .PHONY: $(ARTIFACTS)/talemu-linux-amd64
 $(ARTIFACTS)/talemu-linux-amd64:
 	@$(MAKE) local-talemu-linux-amd64 DEST=$(ARTIFACTS)
@@ -206,8 +217,15 @@ $(ARTIFACTS)/talemu-linux-amd64:
 .PHONY: talemu-linux-amd64
 talemu-linux-amd64: $(ARTIFACTS)/talemu-linux-amd64  ## Builds executable for talemu-linux-amd64.
 
+.PHONY: $(ARTIFACTS)/talemu-linux-arm64
+$(ARTIFACTS)/talemu-linux-arm64:
+	@$(MAKE) local-talemu-linux-arm64 DEST=$(ARTIFACTS)
+
+.PHONY: talemu-linux-arm64
+talemu-linux-arm64: $(ARTIFACTS)/talemu-linux-arm64  ## Builds executable for talemu-linux-arm64.
+
 .PHONY: talemu
-talemu: talemu-linux-amd64  ## Builds executables for talemu.
+talemu: talemu-darwin-amd64 talemu-darwin-arm64 talemu-linux-amd64 talemu-linux-arm64  ## Builds executables for talemu.
 
 .PHONY: lint-markdown
 lint-markdown:  ## Runs markdownlint.

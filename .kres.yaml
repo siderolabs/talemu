@@ -6,6 +6,7 @@ spec:
     - "hack/compose/docker-compose-provider.override.yml"
 ---
 kind: golang.Build
+name: talemu
 spec:
   outputs:
     linux-amd64:
