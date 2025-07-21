@@ -557,6 +557,32 @@ func (c *MachineService) EtcdForfeitLeadership(context.Context, *machine.EtcdFor
 	}, nil
 }
 
+func (c *MachineService) EtcdStatus(ctx context.Context, _ *emptypb.Empty) (*machine.EtcdStatusResponse, error) {
+	member, err := safe.ReaderGetByID[*etcd.Member](ctx, c.state, etcd.LocalMemberID)
+	if err != nil {
+		if state.IsNotFoundError(err) {
+			return nil, status.Errorf(codes.InvalidArgument, "the machine doesn't have etcd member")
+		}
+
+		return nil, fmt.Errorf("failed to get etcd member %w", err)
+	}
+
+	id, err := etcd.ParseMemberID(member.TypedSpec().MemberID)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to parse etcd member id %s", err.Error())
+	}
+
+	return &machine.EtcdStatusResponse{
+		Messages: []*machine.EtcdStatus{
+			{
+				MemberStatus: &machine.EtcdMemberStatus{
+					MemberId: id,
+				},
+			},
+		},
+	}, nil
+}
+
 // List implements machine.MachineServiceServer.
 func (c *MachineService) List(req *machine.ListRequest, serv machine.MachineService_ListServer) error {
 	if req.Root == "/var/lib/etcd/member" {

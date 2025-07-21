@@ -54,6 +54,7 @@ func (l *Local) GetConnection(ctx context.Context, _ string) (context.Context, *
 	}
 
 	var err error
+
 	l.conn, err = grpc.NewClient(
 		l.transport.Address(),
 		grpc.WithContextDialer(func(ctx context.Context, _ string) (net.Conn, error) {

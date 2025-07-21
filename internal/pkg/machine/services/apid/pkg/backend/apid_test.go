@@ -46,6 +46,7 @@ func (suite *APIDSuite) SetupSuite() {
 	}
 
 	var err error
+
 	suite.b, err = backend.NewAPID("127.0.0.1", tlsConfigProvider)
 	suite.Require().NoError(err)
 }
@@ -122,6 +123,7 @@ func (suite *APIDSuite) TestAppendInfoUnary() {
 	suite.Require().NoError(err)
 
 	var newReply common.DataResponse
+
 	err = proto.Unmarshal(newResp, &newReply)
 	suite.Require().NoError(err)
 
@@ -142,6 +144,7 @@ func (suite *APIDSuite) TestAppendInfoStreaming() {
 	suite.Require().NoError(err)
 
 	var newResponse common.Data
+
 	err = proto.Unmarshal(newResp, &newResponse)
 	suite.Require().NoError(err)
 
@@ -166,6 +169,7 @@ func (suite *APIDSuite) TestAppendInfoStreamingMetadata() {
 	suite.Require().NoError(err)
 
 	var newResponse common.Data
+
 	err = proto.Unmarshal(newResp, &newResponse)
 	suite.Require().NoError(err)
 
@@ -179,6 +183,7 @@ func (suite *APIDSuite) TestBuildErrorUnary() {
 	suite.Require().NoError(err)
 
 	var reply common.DataResponse
+
 	err = proto.Unmarshal(resp, &reply)
 	suite.Require().NoError(err)
 
@@ -192,6 +197,7 @@ func (suite *APIDSuite) TestBuildErrorStreaming() {
 	suite.Require().NoError(err)
 
 	var response common.Data
+
 	err = proto.Unmarshal(resp, &response)
 	suite.Require().NoError(err)
 

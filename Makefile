@@ -1,6 +1,6 @@
 # THIS FILE WAS AUTOMATICALLY GENERATED, PLEASE DO NOT EDIT.
 #
-# Generated on 2025-06-27T12:24:10Z by kres bdea6a7.
+# Generated on 2025-07-21T13:56:47Z by kres b869533.
 
 # common variables
 
@@ -17,19 +17,21 @@ WITH_RACE ?= false
 REGISTRY ?= ghcr.io
 USERNAME ?= siderolabs
 REGISTRY_AND_USERNAME ?= $(REGISTRY)/$(USERNAME)
-PROTOBUF_GO_VERSION ?= 1.36.2
+PROTOBUF_GO_VERSION ?= 1.36.6
 GRPC_GO_VERSION ?= 1.5.1
-GRPC_GATEWAY_VERSION ?= 2.25.1
+GRPC_GATEWAY_VERSION ?= 2.27.1
 VTPROTOBUF_VERSION ?= 0.6.0
-GOIMPORTS_VERSION ?= 0.29.0
+GOIMPORTS_VERSION ?= 0.34.0
+GOMOCK_VERSION ?= 0.5.2
 DEEPCOPY_VERSION ?= v0.5.6
-GOLANGCILINT_VERSION ?= v1.64.4
-GOFUMPT_VERSION ?= v0.7.0
-GO_VERSION ?= 1.24.0
+GOLANGCILINT_VERSION ?= v2.2.2
+GOFUMPT_VERSION ?= v0.8.0
+GO_VERSION ?= 1.24.5
 GO_BUILDFLAGS ?=
 GO_LDFLAGS ?=
 CGO_ENABLED ?= 0
 GOTOOLCHAIN ?= local
+GOEXPERIMENT ?= synctest
 TESTPKGS ?= ./...
 KRES_IMAGE ?= ghcr.io/siderolabs/kres:latest
 CONFORMANCE_IMAGE ?= ghcr.io/siderolabs/conform:latest
@@ -65,6 +67,7 @@ COMMON_ARGS += --build-arg=GRPC_GO_VERSION="$(GRPC_GO_VERSION)"
 COMMON_ARGS += --build-arg=GRPC_GATEWAY_VERSION="$(GRPC_GATEWAY_VERSION)"
 COMMON_ARGS += --build-arg=VTPROTOBUF_VERSION="$(VTPROTOBUF_VERSION)"
 COMMON_ARGS += --build-arg=GOIMPORTS_VERSION="$(GOIMPORTS_VERSION)"
+COMMON_ARGS += --build-arg=GOMOCK_VERSION="$(GOMOCK_VERSION)"
 COMMON_ARGS += --build-arg=DEEPCOPY_VERSION="$(DEEPCOPY_VERSION)"
 COMMON_ARGS += --build-arg=GOLANGCILINT_VERSION="$(GOLANGCILINT_VERSION)"
 COMMON_ARGS += --build-arg=GOFUMPT_VERSION="$(GOFUMPT_VERSION)"
@@ -137,7 +140,7 @@ else
 GO_LDFLAGS += -s
 endif
 
-all: unit-tests talemu image-talemu talemu-infra-provider image-talemu-infra-provider docker-compose-up docker-compose-down docker-compose-provider-up docker-compose-provider-down lint
+all: unit-tests talemu image-talemu talemu-infra-provider image-talemu-infra-provider lint
 
 $(ARTIFACTS):  ## Creates artifacts directory.
 	@mkdir -p $(ARTIFACTS)

@@ -79,7 +79,6 @@ func (rt *Runtime) Run(ctx context.Context) error {
 
 	for {
 		err := rt.runtime.Run(ctx)
-
 		if err == nil {
 			return nil
 		}
