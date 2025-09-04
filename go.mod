@@ -4,7 +4,7 @@ go 1.25.0
 
 // forked go-yaml that introduces RawYAML interface, which can be used to populate YAML fields using bytes
 // which are then encoded as a valid YAML blocks with proper indentation
-replace gopkg.in/yaml.v3 => github.com/unix4ever/yaml v0.0.0-20220527175918-f17b0f05cf2c
+replace gopkg.in/yaml.v3 => github.com/unix4ever/yaml/v2 v2.4.0
 
 replace (
 	k8s.io/api => k8s.io/api v0.34.0
@@ -33,19 +33,19 @@ require (
 	github.com/cosi-project/runtime v1.11.0
 	github.com/grpc-ecosystem/go-grpc-middleware/v2 v2.3.2
 	github.com/hashicorp/go-multierror v1.1.1
-	github.com/jsimonetti/rtnetlink v1.4.2
+	github.com/jsimonetti/rtnetlink/v2 v2.0.5
 	github.com/jxskiss/base62 v1.1.0
 	github.com/martinlindhe/base36 v1.1.1
 	github.com/mdlayher/arp v0.0.0-20220512170110-6706a2966875
-	github.com/mdlayher/ethtool v0.4.0
+	github.com/mdlayher/ethtool v0.4.1
 	github.com/mdlayher/genetlink v1.3.2
-	github.com/mdlayher/netlink v1.7.3-0.20250113171957-fbb4dce95f42
-	github.com/planetscale/vtprotobuf v0.6.1-0.20241121165744-79df5c4772f2
+	github.com/mdlayher/netlink v1.8.0
+	github.com/planetscale/vtprotobuf ba97887b0a25
 	github.com/rs/xid v1.6.0
-	github.com/safchain/ethtool v0.6.1
+	github.com/safchain/ethtool v0.6.2
 	github.com/siderolabs/crypto v0.6.3
 	github.com/siderolabs/discovery-api v0.1.6
-	github.com/siderolabs/discovery-client v0.1.12
+	github.com/siderolabs/discovery-client v0.1.13
 	github.com/siderolabs/gen v0.8.5
 	github.com/siderolabs/go-api-signature v0.3.7
 	github.com/siderolabs/go-circular v0.2.3
@@ -55,10 +55,10 @@ require (
 	github.com/siderolabs/grpc-proxy v0.5.1
 	github.com/siderolabs/image-factory v0.8.3
 	github.com/siderolabs/net v0.4.0
-	github.com/siderolabs/omni/client v0.51.0-beta.1.0.20250903122553-faf5432552c3
+	github.com/siderolabs/omni/client v1.1.2
 	github.com/siderolabs/siderolink v0.3.15
 	github.com/siderolabs/talos/pkg/machinery v1.11.0
-	github.com/spf13/cobra v1.9.1
+	github.com/spf13/cobra v1.10.1
 	github.com/stretchr/testify v1.11.1
 	go.etcd.io/bbolt v1.4.3
 	go.etcd.io/etcd/client/v3 v3.6.4
@@ -75,7 +75,7 @@ require (
 	k8s.io/api v0.35.0-alpha.0
 	k8s.io/apimachinery v0.35.0-alpha.0
 	k8s.io/apiserver v0.34.0
-	k8s.io/client-go v0.35.0-alpha.0
+	k8s.io/client-go v11.0.0+incompatible
 	k8s.io/kubernetes v1.34.0
 )
 
