@@ -11,7 +11,6 @@ import (
 
 	"github.com/cosi-project/runtime/pkg/controller"
 	"github.com/cosi-project/runtime/pkg/safe"
-	"github.com/cosi-project/runtime/pkg/state"
 	"github.com/siderolabs/gen/optional"
 	"github.com/siderolabs/image-factory/pkg/constants"
 	"github.com/siderolabs/talos/pkg/machinery/extensions"
@@ -19,59 +18,15 @@ import (
 	"github.com/siderolabs/talos/pkg/machinery/resources/runtime"
 	"go.uber.org/zap"
 
-	"github.com/siderolabs/talemu/internal/pkg/machine/machineconfig"
+	emuconst "github.com/siderolabs/talemu/internal/pkg/constants"
 	"github.com/siderolabs/talemu/internal/pkg/machine/runtime/resources/talos"
+	"github.com/siderolabs/talemu/internal/pkg/schematic"
 )
-
-const (
-	author = "none"
-	desc   = "fake description"
-)
-
-var knownSchematics = map[string]struct {
-	extensions []extensions.Metadata
-}{
-	"088171816e905ec439337da75b1bafb81de8c652ee41c099f2b9ef7d90847648": {
-		extensions: []extensions.Metadata{
-			{
-				Name:        "hello-world-service",
-				Version:     "1.0.0",
-				Author:      author,
-				Description: desc,
-			},
-			{
-				Name:        "qemu-guest-agent",
-				Version:     "1.0.0",
-				Author:      author,
-				Description: desc,
-			},
-		},
-	},
-	"cf9b7aab9ed7c365d5384509b4d31c02fdaa06d2b3ac6cc0bc806f28130eff1f": {
-		extensions: []extensions.Metadata{
-			{
-				Name:        "hello-world-service",
-				Version:     "1.0.0",
-				Author:      author,
-				Description: desc,
-			},
-		},
-	},
-	"5e0ac9d7e10ff9034bc4db865bf0337d40eeaec20683e27804939e1a88b7b654": {
-		extensions: []extensions.Metadata{
-			{
-				Name:        "hello-world-service",
-				Version:     "1.0.0",
-				Author:      author,
-				Description: desc,
-			},
-		},
-	},
-}
 
 // ExtensionStatusController computes extensions list from the configuration.
-// Updates machine status resource.
-type ExtensionStatusController struct{}
+type ExtensionStatusController struct {
+	SchematicService *schematic.Service
+}
 
 // Name implements controller.Controller interface.
 func (ctrl *ExtensionStatusController) Name() string {
@@ -117,50 +72,33 @@ func (ctrl *ExtensionStatusController) Run(ctx context.Context, r controller.Run
 		case <-r.EventCh():
 		}
 
-		config, err := machineconfig.GetComplete(ctx, r)
-		if err != nil && !state.IsNotFoundError(err) {
-			return err
+		schematicID, err := readCurrentSchematicID(ctx, r)
+		if err != nil {
+			return fmt.Errorf("failed to read current schematic ID: %w", err)
 		}
 
-		image, err := safe.ReaderGetByID[*talos.Image](ctx, r, talos.ImageID)
-		if err != nil && !state.IsNotFoundError(err) {
-			return err
-		}
-
-		schematic := "5e0ac9d7e10ff9034bc4db865bf0337d40eeaec20683e27804939e1a88b7b654"
-
-		switch {
-		case image != nil:
-			schematic = image.TypedSpec().Value.Schematic
-		case config != nil:
-			var found bool
-
-			installImage := config.Container().RawV1Alpha1().Machine().Install().Image()
-
-			if !strings.HasPrefix(installImage, "factory.talos.dev") {
-				continue
-			}
-
-			parts := strings.Split(installImage, "/")
-
-			schematic, _, found = strings.Cut(parts[len(parts)-1], ":")
-			if !found {
-				return fmt.Errorf("failed to parse schematic id from the install image")
-			}
-		}
-
-		if schematic == "" {
+		if schematicID == "" {
 			continue
+		}
+
+		sch, err := ctrl.SchematicService.GetByID(ctx, schematicID)
+		if err != nil {
+			return fmt.Errorf("failed to get schematic by ID %q: %w", schematicID, err)
 		}
 
 		touched := map[string]interface{}{}
 
 		extensionStatus := runtime.NewExtensionStatus(runtime.NamespaceName, constants.SchematicIDExtensionName)
 
+		data, err := sch.Marshal()
+		if err != nil {
+			return err
+		}
+
 		if err = safe.WriterModify(ctx, r, extensionStatus, func(res *runtime.ExtensionStatus) error {
 			res.TypedSpec().Metadata.Name = constants.SchematicIDExtensionName
-			res.TypedSpec().Metadata.Version = schematic
-			// TODO: we might need to populate extra data here too
+			res.TypedSpec().Metadata.Version = schematicID
+			res.TypedSpec().Metadata.ExtraInfo = string(data)
 
 			touched[res.Metadata().ID()] = struct{}{}
 
@@ -169,19 +107,24 @@ func (ctrl *ExtensionStatusController) Run(ctx context.Context, r controller.Run
 			return err
 		}
 
-		if config, ok := knownSchematics[schematic]; ok {
-			for _, extension := range config.extensions {
-				extensionStatus = runtime.NewExtensionStatus(runtime.NamespaceName, extension.Name)
+		for _, extension := range sch.Customization.SystemExtensions.OfficialExtensions {
+			nameWithoutPrefix := strings.TrimPrefix(extension, emuconst.OfficialExtensionPrefix)
 
-				touched[extensionStatus.Metadata().ID()] = struct{}{}
+			extensionStatus = runtime.NewExtensionStatus(runtime.NamespaceName, nameWithoutPrefix)
 
-				if err = safe.WriterModify(ctx, r, extensionStatus, func(res *runtime.ExtensionStatus) error {
-					res.TypedSpec().Metadata = extension
+			touched[extensionStatus.Metadata().ID()] = struct{}{}
 
-					return nil
-				}); err != nil {
-					return err
+			if err = safe.WriterModify(ctx, r, extensionStatus, func(res *runtime.ExtensionStatus) error {
+				res.TypedSpec().Metadata = extensions.Metadata{
+					Name:        nameWithoutPrefix,
+					Version:     "1.0.0",
+					Author:      "none",
+					Description: "fake description",
 				}
+
+				return nil
+			}); err != nil {
+				return err
 			}
 		}
 

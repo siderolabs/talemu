@@ -34,24 +34,27 @@ import (
 	machinenetwork "github.com/siderolabs/talemu/internal/pkg/machine/network"
 	truntime "github.com/siderolabs/talemu/internal/pkg/machine/runtime"
 	"github.com/siderolabs/talemu/internal/pkg/machine/runtime/resources/talos"
+	"github.com/siderolabs/talemu/internal/pkg/schematic"
 )
 
 // Machine is a single Talos machine.
 type Machine struct {
-	globalState state.State
-	runtime     *truntime.Runtime
-	logger      *zap.Logger
-	shutdown    chan struct{}
-	uuid        string
+	globalState      state.State
+	runtime          *truntime.Runtime
+	logger           *zap.Logger
+	shutdown         chan struct{}
+	schematicService *schematic.Service
+	uuid             string
 }
 
 // NewMachine creates a Machine.
-func NewMachine(uuid string, logger *zap.Logger, globalState state.State) (*Machine, error) {
+func NewMachine(uuid string, logger *zap.Logger, globalState state.State, schematicService *schematic.Service) (*Machine, error) {
 	return &Machine{
-		uuid:        uuid,
-		logger:      logger,
-		globalState: globalState,
-		shutdown:    make(chan struct{}, 1),
+		uuid:             uuid,
+		logger:           logger,
+		globalState:      globalState,
+		schematicService: schematicService,
+		shutdown:         make(chan struct{}, 1),
 	}, nil
 }
 
@@ -87,7 +90,7 @@ func (m *Machine) Run(ctx context.Context, siderolinkParams *SideroLinkParams, s
 
 	m.logger = zap.New(core).With(zap.String("machine", m.uuid))
 
-	rt, err := truntime.NewRuntime(ctx, m.logger, slot, m.uuid, m.globalState, kubernetes, opts.nc, logSink)
+	rt, err := truntime.NewRuntime(ctx, m.logger, slot, m.uuid, m.globalState, kubernetes, opts.nc, logSink, siderolinkParams.RawKernelArgs, m.schematicService)
 	if err != nil {
 		return fmt.Errorf("COSI runtime creation failed: %w", err)
 	}
@@ -122,6 +125,10 @@ func (m *Machine) Run(ctx context.Context, siderolinkParams *SideroLinkParams, s
 
 	securityState := runtime.NewSecurityStateSpec(runtime.NamespaceName)
 	securityState.TypedSpec().SecureBoot = opts.secureBoot
+
+	// if the machine is using secure boot, we know that it is booted with UKI
+	// todo: we can pass this as a boolean flag to talemu for non-secureboot UKI testing if we need it in the future.
+	securityState.TypedSpec().BootedWithUKI = opts.secureBoot
 
 	trustdEndpoint := k8s.NewEndpoint(k8s.ControlPlaneNamespaceName, "omniTrustd")
 

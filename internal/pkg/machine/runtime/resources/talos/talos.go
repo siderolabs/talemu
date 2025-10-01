@@ -156,6 +156,7 @@ func Register(ctx context.Context, state state.State) error {
 		&runtime.DevicesStatus{},
 		&runtime.EventSinkConfig{},
 		&runtime.ExtensionStatus{},
+		&runtime.KernelCmdline{},
 		&runtime.KernelModuleSpec{},
 		&runtime.KernelParamSpec{},
 		&runtime.KernelParamDefaultSpec{},

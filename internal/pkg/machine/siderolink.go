@@ -19,6 +19,7 @@ type SideroLinkParams struct {
 	LogsEndpoint   string
 	EventsEndpoint string
 	Host           string
+	RawKernelArgs  string
 	Insecure       bool
 	TunnelMode     bool
 }
@@ -67,6 +68,7 @@ func ParseKernelArgs(kernelArgs string) (*SideroLinkParams, error) {
 		EventsEndpoint: eventsEndpoint,
 		LogsEndpoint:   logsEndpoint,
 		TunnelMode:     tunnelMode,
+		RawKernelArgs:  kernelArgs,
 	}, nil
 }
 

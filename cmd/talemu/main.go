@@ -11,8 +11,10 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 
+	"github.com/siderolabs/image-factory/pkg/schematic"
 	"github.com/siderolabs/omni/client/pkg/constants"
 	"github.com/spf13/cobra"
 	"go.uber.org/multierr"
@@ -20,12 +22,14 @@ import (
 	"go.uber.org/zap/zapcore"
 	"golang.org/x/sync/errgroup"
 
+	emuconst "github.com/siderolabs/talemu/internal/pkg/constants"
 	emuruntime "github.com/siderolabs/talemu/internal/pkg/emu"
 	"github.com/siderolabs/talemu/internal/pkg/kubefactory"
 	"github.com/siderolabs/talemu/internal/pkg/machine"
 	"github.com/siderolabs/talemu/internal/pkg/machine/network"
 	"github.com/siderolabs/talemu/internal/pkg/machine/runtime"
 	"github.com/siderolabs/talemu/internal/pkg/machine/runtime/resources/emu"
+	schematicsvc "github.com/siderolabs/talemu/internal/pkg/schematic"
 )
 
 // rootCmd represents the base command when called without any subcommands.
@@ -91,14 +95,24 @@ var rootCmd = &cobra.Command{
 
 		defer nc.Close() //nolint:errcheck
 
+		schematicService, err := schematicsvc.NewService(cfg.schematicCacheDir, cfg.useImageInitramfsSource, logger.With(zap.String("component", "schematic_service")))
+		if err != nil {
+			return err
+		}
+
+		initialSchematicID, err := buildInitialSchematicID()
+		if err != nil {
+			return err
+		}
+
 		for i := range cfg.machinesCount {
-			m, err := machine.NewMachine(fmt.Sprintf("%04d1802-c798-4da7-a410-f09abb48c8d8", i+1000), logger, emulatorState)
+			m, err := machine.NewMachine(fmt.Sprintf("%04d1802-c798-4da7-a410-f09abb48c8d8", i+1000), logger, emulatorState, schematicService)
 			if err != nil {
 				return err
 			}
 
 			eg.Go(func() error {
-				return m.Run(ctx, params, i+1000, kubernetes, machine.WithNetworkClient(nc), machine.WithTalosVersion(cfg.talosVersion))
+				return m.Run(ctx, params, i+1000, kubernetes, machine.WithNetworkClient(nc), machine.WithTalosVersion(cfg.talosVersion), machine.WithSchematic(initialSchematicID))
 			})
 
 			machines = append(machines, m)
@@ -148,10 +162,26 @@ var rootCmd = &cobra.Command{
 	},
 }
 
+func buildInitialSchematicID() (string, error) {
+	initialSchematic := schematic.Schematic{
+		Customization: schematic.Customization{
+			ExtraKernelArgs: strings.Fields(cfg.kernelArgs),
+			SystemExtensions: schematic.SystemExtensions{
+				OfficialExtensions: cfg.extensions,
+			},
+		},
+	}
+
+	return initialSchematic.ID()
+}
+
 var cfg struct {
-	kernelArgs    string
-	talosVersion  string
-	machinesCount int
+	kernelArgs              string
+	talosVersion            string
+	schematicCacheDir       string
+	extensions              []string
+	machinesCount           int
+	useImageInitramfsSource bool
 }
 
 func main() {
@@ -168,8 +198,12 @@ func app() error {
 }
 
 func init() {
+	rootCmd.Flags().StringSliceVar(&cfg.extensions, "extensions", []string{emuconst.OfficialExtensionPrefix + "hello-world-service"}, "list of extensions to enable")
 	rootCmd.Flags().StringVar(&cfg.kernelArgs, "kernel-args", "", "specify the whole configuration using kernel args string")
 	rootCmd.Flags().StringVar(&cfg.talosVersion, "talos-version", constants.DefaultTalosVersion, "specify the Talos version to use")
+	rootCmd.Flags().StringVar(&cfg.schematicCacheDir, "schematic-cache-dir", "/tmp/talemu-schematics", "the directory to use for caching schematics")
+	rootCmd.Flags().BoolVar(&cfg.useImageInitramfsSource, "use-image-initramfs-source", true, "when extracting the schematic (extensions, kernel args etc.) from a schematic ID, "+
+		"fetch the initramfs by pulling the installer image from the image factory. when false, it will be fetched via HTTP instead")
 
 	rootCmd.Flags().IntVar(&cfg.machinesCount, "machines", 1, "the number of machines to emulate")
 }

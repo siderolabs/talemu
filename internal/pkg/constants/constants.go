@@ -16,3 +16,11 @@ const ETCDService = "etcd"
 
 // KubeletService name.
 const KubeletService = "kubelet"
+
+// ImageFactoryHost is the host for the Talos image factory.
+//
+// TODO: ideally, this should be fetched from the Omni resource "FeaturesConfig".
+const ImageFactoryHost = "factory.talos.dev"
+
+// OfficialExtensionPrefix is the prefix for official extensions.
+const OfficialExtensionPrefix = "siderolabs/"

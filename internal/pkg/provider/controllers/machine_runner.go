@@ -24,23 +24,26 @@ import (
 	"github.com/siderolabs/talemu/internal/pkg/machine/runtime/resources/emu"
 	machinetask "github.com/siderolabs/talemu/internal/pkg/provider/controllers/machine"
 	"github.com/siderolabs/talemu/internal/pkg/provider/resources"
+	"github.com/siderolabs/talemu/internal/pkg/schematic"
 )
 
 // MachineController runs a machine for each machine request.
 type MachineController struct {
-	runner      *task.Runner[any, machinetask.TaskSpec]
-	kubernetes  *kubefactory.Kubernetes
-	nc          *network.Client
-	globalState state.State
+	runner           *task.Runner[any, machinetask.TaskSpec]
+	kubernetes       *kubefactory.Kubernetes
+	nc               *network.Client
+	globalState      state.State
+	schematicService *schematic.Service
 }
 
 // NewMachineController creates new machine controller.
-func NewMachineController(globalState state.State, kubernetes *kubefactory.Kubernetes, nc *network.Client) *MachineController {
+func NewMachineController(globalState state.State, kubernetes *kubefactory.Kubernetes, nc *network.Client, schematicService *schematic.Service) *MachineController {
 	return &MachineController{
-		runner:      task.NewEqualRunner[machinetask.TaskSpec](),
-		globalState: globalState,
-		kubernetes:  kubernetes,
-		nc:          nc,
+		runner:           task.NewEqualRunner[machinetask.TaskSpec](),
+		globalState:      globalState,
+		kubernetes:       kubernetes,
+		nc:               nc,
+		schematicService: schematicService,
 	}
 }
 
@@ -110,11 +113,12 @@ func (ctrl *MachineController) Run(ctx context.Context, r controller.Runtime, lo
 			}
 
 			ctrl.runner.StartTask(ctx, logger, m.Metadata().ID(), machinetask.TaskSpec{
-				Machine:     m,
-				GlobalState: ctrl.globalState,
-				Kubernetes:  ctrl.kubernetes,
-				Params:      params,
-				NC:          ctrl.nc,
+				Machine:          m,
+				GlobalState:      ctrl.globalState,
+				SchematicService: ctrl.schematicService,
+				Kubernetes:       ctrl.kubernetes,
+				Params:           params,
+				NC:               ctrl.nc,
 			}, nil)
 
 			touchedIDs[m.Metadata().ID()] = struct{}{}

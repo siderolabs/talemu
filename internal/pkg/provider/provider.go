@@ -12,12 +12,13 @@ import (
 	"github.com/siderolabs/talemu/internal/pkg/kubefactory"
 	"github.com/siderolabs/talemu/internal/pkg/machine/network"
 	"github.com/siderolabs/talemu/internal/pkg/provider/controllers"
+	"github.com/siderolabs/talemu/internal/pkg/schematic"
 )
 
 // RegisterControllers registers additional controllers required for the infra provider.
-func RegisterControllers(runtime *emu.Runtime, kubernetes *kubefactory.Kubernetes, nc *network.Client) error {
+func RegisterControllers(runtime *emu.Runtime, kubernetes *kubefactory.Kubernetes, nc *network.Client, schematicService *schematic.Service) error {
 	controllers := []controller.Controller{
-		controllers.NewMachineController(runtime.State(), kubernetes, nc),
+		controllers.NewMachineController(runtime.State(), kubernetes, nc, schematicService),
 	}
 
 	for _, ctrl := range controllers {

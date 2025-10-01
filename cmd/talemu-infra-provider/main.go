@@ -36,6 +36,7 @@ import (
 	"github.com/siderolabs/talemu/internal/pkg/provider"
 	"github.com/siderolabs/talemu/internal/pkg/provider/clientconfig"
 	"github.com/siderolabs/talemu/internal/pkg/provider/meta"
+	"github.com/siderolabs/talemu/internal/pkg/schematic"
 )
 
 //go:embed data/schema.json
@@ -120,7 +121,12 @@ var rootCmd = &cobra.Command{
 			return err
 		}
 
-		if err = provider.RegisterControllers(runtime, kubernetes, nc); err != nil {
+		schematicService, err := schematic.NewService(cfg.schematicCacheDir, cfg.useImageInitramfsSource, logger.With(zap.String("component", "schematic_service")))
+		if err != nil {
+			return err
+		}
+
+		if err = provider.RegisterControllers(runtime, kubernetes, nc, schematicService); err != nil {
 			return err
 		}
 
@@ -197,10 +203,12 @@ func createServiceAccount(ctx context.Context, logger *zap.Logger) error {
 }
 
 var cfg struct {
-	omniAPIEndpoint      string
-	serviceAccountKey    string
-	kernelArgs           string
-	createServiceAccount bool
+	omniAPIEndpoint         string
+	serviceAccountKey       string
+	kernelArgs              string
+	schematicCacheDir       string
+	createServiceAccount    bool
+	useImageInitramfsSource bool
 }
 
 func main() {
@@ -221,6 +229,9 @@ func init() {
 		"the endpoint of the Omni API, if not set, defaults to OMNI_ENDPOINT env var.")
 	rootCmd.Flags().StringVar(&meta.ProviderID, "id", meta.ProviderID, "the id of the infra provider, it is used to match the resources with the infra provider label.")
 	rootCmd.Flags().StringVar(&cfg.serviceAccountKey, "key", os.Getenv("OMNI_SERVICE_ACCOUNT_KEY"), "Omni service account key, if not set, defaults to OMNI_SERVICE_ACCOUNT_KEY.")
+	rootCmd.Flags().StringVar(&cfg.schematicCacheDir, "schematic-cache-dir", "/tmp/talemu-schematics", "the directory to use for caching schematics")
 	rootCmd.Flags().BoolVar(&cfg.createServiceAccount, "create-service-account", false,
 		"try creating service account for itself (works only if Omni is running in debug mode)")
+	rootCmd.Flags().BoolVar(&cfg.useImageInitramfsSource, "use-image-initramfs-source", true, "when extracting the schematic (extensions, kernel args etc.) from a schematic ID, "+
+		"fetch the initramfs by pulling the installer image from the image factory. when false, it will be fetched via HTTP instead")
 }

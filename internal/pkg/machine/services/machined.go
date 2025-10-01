@@ -34,6 +34,7 @@ import (
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	emuconst "github.com/siderolabs/talemu/internal/pkg/constants"
 	"github.com/siderolabs/talemu/internal/pkg/machine/machineconfig"
 	"github.com/siderolabs/talemu/internal/pkg/machine/runtime/resources/emu"
 	"github.com/siderolabs/talemu/internal/pkg/machine/runtime/resources/talos"
@@ -325,7 +326,7 @@ func (c *MachineService) Upgrade(ctx context.Context, req *machine.UpgradeReques
 		return nil, status.Errorf(codes.InvalidArgument, "failed to parse the image")
 	}
 
-	if parts[0] == "factory.talos.dev" {
+	if parts[0] == emuconst.ImageFactoryHost {
 		schematic = s
 	}
 

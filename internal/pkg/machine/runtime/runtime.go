@@ -25,6 +25,7 @@ import (
 	"github.com/siderolabs/talemu/internal/pkg/machine/runtime/resources/emu"
 	"github.com/siderolabs/talemu/internal/pkg/machine/runtime/resources/talos"
 	"github.com/siderolabs/talemu/internal/pkg/machine/services"
+	"github.com/siderolabs/talemu/internal/pkg/schematic"
 )
 
 // Runtime handles COSI state setup and lifecycle.
@@ -38,7 +39,7 @@ type Runtime struct {
 
 // NewRuntime creates new runtime.
 func NewRuntime(ctx context.Context, logger *zap.Logger, slot int, id string, globalState state.State,
-	kubernetes *kubefactory.Kubernetes, nc *network.Client, logSink *logging.ZapCore,
+	kubernetes *kubefactory.Kubernetes, nc *network.Client, logSink *logging.ZapCore, baseKernelArgs string, schematicService *schematic.Service,
 ) (*Runtime, error) {
 	stateDir := GetStateDir(id)
 
@@ -99,7 +100,13 @@ func NewRuntime(ctx context.Context, logger *zap.Logger, slot int, id string, gl
 		},
 		&controllers.APICertSANsController{},
 		controllers.NewRootOSController(),
-		&controllers.ExtensionStatusController{},
+		&controllers.ExtensionStatusController{
+			SchematicService: schematicService,
+		},
+		&controllers.KernelCmdlineController{
+			BaseKernelArgs:   baseKernelArgs,
+			SchematicService: schematicService,
+		},
 		&controllers.MachineStatusController{State: st},
 		&controllers.VersionController{},
 		&controllers.NodeIdentityController{},

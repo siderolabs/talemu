@@ -16,17 +16,19 @@ import (
 	"github.com/siderolabs/talemu/internal/pkg/machine"
 	"github.com/siderolabs/talemu/internal/pkg/machine/network"
 	"github.com/siderolabs/talemu/internal/pkg/provider/resources"
+	"github.com/siderolabs/talemu/internal/pkg/schematic"
 )
 
 // TaskSpec runs fake machine.
 type TaskSpec struct {
 	_ [0]func() // make uncomparable
 
-	Machine     *resources.MachineTask
-	GlobalState state.State
-	Params      *machine.SideroLinkParams
-	Kubernetes  *kubefactory.Kubernetes
-	NC          *network.Client
+	Machine          *resources.MachineTask
+	GlobalState      state.State
+	SchematicService *schematic.Service
+	Params           *machine.SideroLinkParams
+	Kubernetes       *kubefactory.Kubernetes
+	NC               *network.Client
 }
 
 // ID implements task.TaskSpec.
@@ -41,7 +43,7 @@ func (s TaskSpec) Equal(other TaskSpec) bool {
 
 // RunTask implements task.TaskSpec.
 func (s TaskSpec) RunTask(ctx context.Context, logger *zap.Logger, _ any) error {
-	m, err := machine.NewMachine(s.Machine.TypedSpec().Value.Uuid, logger, s.GlobalState)
+	m, err := machine.NewMachine(s.Machine.TypedSpec().Value.Uuid, logger, s.GlobalState, s.SchematicService)
 	if err != nil {
 		return err
 	}
