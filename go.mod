@@ -4,34 +4,34 @@ go 1.25.0
 
 // forked go-yaml that introduces RawYAML interface, which can be used to populate YAML fields using bytes
 // which are then encoded as a valid YAML blocks with proper indentation
-replace gopkg.in/yaml.v3 => github.com/unix4ever/yaml v0.0.0-20220527175918-f17b0f05cf2c
+replace gopkg.in/yaml.v3 => github.com/unix4ever/yaml/v2 v2.4.0
 
 replace (
-	k8s.io/api => k8s.io/api v0.34.0
-	k8s.io/apiextensions-apiserver => k8s.io/apiextensions-apiserver v0.34.0
-	k8s.io/apimachinery => k8s.io/apimachinery v0.34.0
-	k8s.io/cli-runtime => k8s.io/cli-runtime v0.34.0
-	k8s.io/client-go => k8s.io/client-go v0.34.0
-	k8s.io/cloud-provider => k8s.io/cloud-provider v0.34.0
-	k8s.io/cluster-bootstrap => k8s.io/cluster-bootstrap v0.34.0
-	k8s.io/component-helpers => k8s.io/component-helpers v0.34.0
-	k8s.io/controller-manager => k8s.io/controller-manager v0.34.0
-	k8s.io/cri-api => k8s.io/cri-api v0.34.0
-	k8s.io/cri-client => k8s.io/cri-client v0.34.0
-	k8s.io/csi-translation-lib => k8s.io/csi-translation-lib v0.34.0
-	k8s.io/dynamic-resource-allocation => k8s.io/dynamic-resource-allocation v0.34.0
-	k8s.io/endpointslice => k8s.io/endpointslice v0.34.0
-	k8s.io/externaljwt => k8s.io/externaljwt v0.34.0
-	k8s.io/kube-aggregator => k8s.io/kube-aggregator v0.34.0
-	k8s.io/kube-controller-manager => k8s.io/kube-controller-manager v0.34.0
-	k8s.io/kube-proxy => k8s.io/kube-proxy v0.34.0
-	k8s.io/kube-scheduler => k8s.io/kube-scheduler v0.34.0
-	k8s.io/kubectl => k8s.io/kubectl v0.34.0
-	k8s.io/kubelet => k8s.io/kubelet v0.34.0
-	k8s.io/metrics => k8s.io/metrics v0.34.0
-	k8s.io/mount-utils => k8s.io/mount-utils v0.34.0
-	k8s.io/pod-security-admission => k8s.io/pod-security-admission v0.34.0
-	k8s.io/sample-apiserver => k8s.io/sample-apiserver v0.34.0
+	k8s.io/api => k8s.io/api v0.34.1
+	k8s.io/apiextensions-apiserver => k8s.io/apiextensions-apiserver v0.34.1
+	k8s.io/apimachinery => k8s.io/apimachinery v0.34.1
+	k8s.io/cli-runtime => k8s.io/cli-runtime v0.34.1
+	k8s.io/client-go => k8s.io/client-go v0.34.1
+	k8s.io/cloud-provider => k8s.io/cloud-provider v0.34.1
+	k8s.io/cluster-bootstrap => k8s.io/cluster-bootstrap v0.34.1
+	k8s.io/component-helpers => k8s.io/component-helpers v0.34.1
+	k8s.io/controller-manager => k8s.io/controller-manager v0.34.1
+	k8s.io/cri-api => k8s.io/cri-api v0.34.1
+	k8s.io/cri-client => k8s.io/cri-client v0.34.1
+	k8s.io/csi-translation-lib => k8s.io/csi-translation-lib v0.34.1
+	k8s.io/dynamic-resource-allocation => k8s.io/dynamic-resource-allocation v0.34.1
+	k8s.io/endpointslice => k8s.io/endpointslice v0.34.1
+	k8s.io/externaljwt => k8s.io/externaljwt v0.34.1
+	k8s.io/kube-aggregator => k8s.io/kube-aggregator v0.34.1
+	k8s.io/kube-controller-manager => k8s.io/kube-controller-manager v0.34.1
+	k8s.io/kube-proxy => k8s.io/kube-proxy v0.34.1
+	k8s.io/kube-scheduler => k8s.io/kube-scheduler v0.34.1
+	k8s.io/kubectl => k8s.io/kubectl v0.34.1
+	k8s.io/kubelet => k8s.io/kubelet v0.34.1
+	k8s.io/metrics => k8s.io/metrics v0.34.1
+	k8s.io/mount-utils => k8s.io/mount-utils v0.34.1
+	k8s.io/pod-security-admission => k8s.io/pod-security-admission v0.34.1
+	k8s.io/sample-apiserver => k8s.io/sample-apiserver v0.34.1
 )
 
 require (
@@ -41,7 +41,7 @@ require (
 	github.com/google/go-containerregistry v0.20.6
 	github.com/grpc-ecosystem/go-grpc-middleware/v2 v2.3.2
 	github.com/hashicorp/go-multierror v1.1.1
-	github.com/jsimonetti/rtnetlink v1.4.2
+	github.com/jsimonetti/rtnetlink/v2 v2.0.5
 	github.com/jxskiss/base62 v1.1.0
 	github.com/klauspost/compress v1.18.0
 	github.com/martinlindhe/base36 v1.1.1
@@ -49,14 +49,14 @@ require (
 	github.com/mdlayher/ethtool v0.5.0
 	github.com/mdlayher/genetlink v1.3.2
 	github.com/mdlayher/netlink v1.8.0
-	github.com/planetscale/vtprotobuf v0.6.1-0.20241121165744-79df5c4772f2
+	github.com/planetscale/vtprotobuf ba97887b0a25
 	github.com/rs/xid v1.6.0
 	github.com/safchain/ethtool v0.6.2
 	github.com/siderolabs/crypto v0.6.4
 	github.com/siderolabs/discovery-api v0.1.6
 	github.com/siderolabs/discovery-client v0.1.13
 	github.com/siderolabs/gen v0.8.5
-	github.com/siderolabs/go-api-signature v0.3.7
+	github.com/siderolabs/go-api-signature v0.3.9
 	github.com/siderolabs/go-circular v0.2.3
 	github.com/siderolabs/go-pointer v1.0.1
 	github.com/siderolabs/go-procfs v0.1.2
@@ -64,9 +64,9 @@ require (
 	github.com/siderolabs/grpc-proxy v0.5.1
 	github.com/siderolabs/image-factory v0.8.4
 	github.com/siderolabs/net v0.4.0
-	github.com/siderolabs/omni/client v0.51.0-beta.1.0.20250903122553-faf5432552c3
+	github.com/siderolabs/omni/client v1.2.1
 	github.com/siderolabs/siderolink v0.3.15
-	github.com/siderolabs/talos/pkg/machinery v1.11.2
+	github.com/siderolabs/talos/pkg/machinery v1.11.3
 	github.com/spf13/cobra v1.10.1
 	github.com/stretchr/testify v1.11.1
 	github.com/u-root/u-root v0.15.0
@@ -78,17 +78,17 @@ require (
 	go.uber.org/zap v1.27.0
 	go4.org/netipx v0.0.0-20231129151722-fdeea329fbba
 	golang.org/x/sync v0.17.0
-	golang.org/x/sys v0.36.0
-	golang.org/x/time v0.13.0
+	golang.org/x/sys v0.37.0
+	golang.org/x/time v0.14.0
 	golang.zx2c4.com/wireguard/wgctrl v0.0.0-20241231184526-a9ab2273dd10
-	google.golang.org/grpc v1.75.1
+	google.golang.org/grpc v1.76.0
 	google.golang.org/protobuf v1.36.10
 	gopkg.in/yaml.v3 v3.0.3
-	k8s.io/api v0.35.0-alpha.0
-	k8s.io/apimachinery v0.35.0-alpha.0
-	k8s.io/apiserver v0.34.0
-	k8s.io/client-go v0.35.0-alpha.0
-	k8s.io/kubernetes v1.34.0
+	k8s.io/api v0.35.0-alpha.1
+	k8s.io/apimachinery v0.35.0-alpha.1
+	k8s.io/apiserver v0.34.1
+	k8s.io/client-go v11.0.0+incompatible
+	k8s.io/kubernetes v1.34.1
 )
 
 require (
