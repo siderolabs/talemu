@@ -1,17 +1,17 @@
-# syntax = docker/dockerfile-upstream:1.17.1-labs
+# syntax = docker/dockerfile-upstream:1.19.0-labs
 
 # THIS FILE WAS AUTOMATICALLY GENERATED, PLEASE DO NOT EDIT.
 #
-# Generated on 2025-09-03T17:04:54Z by kres 784fa1f.
+# Generated on 2025-11-21T11:35:07Z by kres e1d6dac.
 
-ARG TOOLCHAIN
+ARG TOOLCHAIN=scratch
 
 FROM ghcr.io/siderolabs/ca-certificates:v1.11.0 AS image-ca-certificates
 
 FROM ghcr.io/siderolabs/fhs:v1.11.0 AS image-fhs
 
 # runs markdownlint
-FROM docker.io/oven/bun:1.2.20-alpine AS lint-markdown
+FROM docker.io/oven/bun:1.3.1-alpine AS lint-markdown
 WORKDIR /src
 RUN bun i markdownlint-cli@0.45.0 sentences-per-line@0.3.0
 COPY .markdownlint.json .
@@ -151,13 +151,37 @@ ARG GO_BUILDFLAGS
 ARG GO_LDFLAGS
 RUN --mount=type=cache,target=/root/.cache/go-build,id=talemu/root/.cache/go-build --mount=type=cache,target=/go/pkg,id=talemu/go/pkg GOARCH=arm64 GOOS=darwin go build ${GO_BUILDFLAGS} -ldflags "${GO_LDFLAGS}" -o /talemu-darwin-arm64
 
+# builds talemu-infra-provider-darwin-amd64
+FROM base AS talemu-infra-provider-darwin-amd64-build
+COPY --from=generate / /
+WORKDIR /src/cmd/talemu-infra-provider
+ARG GO_BUILDFLAGS
+ARG GO_LDFLAGS
+RUN --mount=type=cache,target=/root/.cache/go-build,id=talemu/root/.cache/go-build --mount=type=cache,target=/go/pkg,id=talemu/go/pkg GOARCH=amd64 GOOS=darwin go build ${GO_BUILDFLAGS} -ldflags "${GO_LDFLAGS}" -o /talemu-infra-provider-darwin-amd64
+
+# builds talemu-infra-provider-darwin-arm64
+FROM base AS talemu-infra-provider-darwin-arm64-build
+COPY --from=generate / /
+WORKDIR /src/cmd/talemu-infra-provider
+ARG GO_BUILDFLAGS
+ARG GO_LDFLAGS
+RUN --mount=type=cache,target=/root/.cache/go-build,id=talemu/root/.cache/go-build --mount=type=cache,target=/go/pkg,id=talemu/go/pkg GOARCH=arm64 GOOS=darwin go build ${GO_BUILDFLAGS} -ldflags "${GO_LDFLAGS}" -o /talemu-infra-provider-darwin-arm64
+
 # builds talemu-infra-provider-linux-amd64
 FROM base AS talemu-infra-provider-linux-amd64-build
 COPY --from=generate / /
 WORKDIR /src/cmd/talemu-infra-provider
 ARG GO_BUILDFLAGS
 ARG GO_LDFLAGS
-RUN --mount=type=cache,target=/root/.cache/go-build,id=talemu/root/.cache/go-build --mount=type=cache,target=/go/pkg,id=talemu/go/pkg go build ${GO_BUILDFLAGS} -ldflags "${GO_LDFLAGS}" -o /talemu-infra-provider-linux-amd64
+RUN --mount=type=cache,target=/root/.cache/go-build,id=talemu/root/.cache/go-build --mount=type=cache,target=/go/pkg,id=talemu/go/pkg GOARCH=amd64 GOOS=linux go build ${GO_BUILDFLAGS} -ldflags "${GO_LDFLAGS}" -o /talemu-infra-provider-linux-amd64
+
+# builds talemu-infra-provider-linux-arm64
+FROM base AS talemu-infra-provider-linux-arm64-build
+COPY --from=generate / /
+WORKDIR /src/cmd/talemu-infra-provider
+ARG GO_BUILDFLAGS
+ARG GO_LDFLAGS
+RUN --mount=type=cache,target=/root/.cache/go-build,id=talemu/root/.cache/go-build --mount=type=cache,target=/go/pkg,id=talemu/go/pkg GOARCH=arm64 GOOS=linux go build ${GO_BUILDFLAGS} -ldflags "${GO_LDFLAGS}" -o /talemu-infra-provider-linux-arm64
 
 # builds talemu-linux-amd64
 FROM base AS talemu-linux-amd64-build
@@ -181,8 +205,17 @@ COPY --from=talemu-darwin-amd64-build /talemu-darwin-amd64 /talemu-darwin-amd64
 FROM scratch AS talemu-darwin-arm64
 COPY --from=talemu-darwin-arm64-build /talemu-darwin-arm64 /talemu-darwin-arm64
 
+FROM scratch AS talemu-infra-provider-darwin-amd64
+COPY --from=talemu-infra-provider-darwin-amd64-build /talemu-infra-provider-darwin-amd64 /talemu-infra-provider-darwin-amd64
+
+FROM scratch AS talemu-infra-provider-darwin-arm64
+COPY --from=talemu-infra-provider-darwin-arm64-build /talemu-infra-provider-darwin-arm64 /talemu-infra-provider-darwin-arm64
+
 FROM scratch AS talemu-infra-provider-linux-amd64
 COPY --from=talemu-infra-provider-linux-amd64-build /talemu-infra-provider-linux-amd64 /talemu-infra-provider-linux-amd64
+
+FROM scratch AS talemu-infra-provider-linux-arm64
+COPY --from=talemu-infra-provider-linux-arm64-build /talemu-infra-provider-linux-arm64 /talemu-infra-provider-linux-arm64
 
 FROM scratch AS talemu-linux-amd64
 COPY --from=talemu-linux-amd64-build /talemu-linux-amd64 /talemu-linux-amd64
@@ -193,7 +226,10 @@ COPY --from=talemu-linux-arm64-build /talemu-linux-arm64 /talemu-linux-arm64
 FROM talemu-infra-provider-linux-${TARGETARCH} AS talemu-infra-provider
 
 FROM scratch AS talemu-infra-provider-all
+COPY --from=talemu-infra-provider-darwin-amd64 / /
+COPY --from=talemu-infra-provider-darwin-arm64 / /
 COPY --from=talemu-infra-provider-linux-amd64 / /
+COPY --from=talemu-infra-provider-linux-arm64 / /
 
 FROM talemu-linux-${TARGETARCH} AS talemu
 

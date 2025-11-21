@@ -27,6 +27,8 @@ This will spawn one hundred fake Talos nodes.
 
 ## Infra Provider Mode
 
+### Running as executable
+
 Run:
 
 ```bash
@@ -38,6 +40,23 @@ Then run:
 ```bash
 sudo -E _out/talemu-infra-provider-linux-amd64 --create-service-account --omni-api-endpoint=https://localhost:8099
 ```
+
+### Running in docker
+
+Create `hack/compose/docker-compose-provider.override.yml` and add the following:
+
+```yml
+services:
+  talemu-infra-provider:
+    command: >-
+      args:
+        --omni-api-endpoint=https://localhost:8099
+        --create-service-account
+```
+
+Run `make docker-compose-provider-up` command.
+
+### Creating requests
 
 Create a machine request using `omnictl`:
 

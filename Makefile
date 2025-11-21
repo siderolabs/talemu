@@ -1,6 +1,6 @@
 # THIS FILE WAS AUTOMATICALLY GENERATED, PLEASE DO NOT EDIT.
 #
-# Generated on 2025-09-11T13:56:21Z by kres 953994c.
+# Generated on 2025-11-21T11:35:07Z by kres e1d6dac.
 
 # common variables
 
@@ -17,16 +17,16 @@ WITH_RACE ?= false
 REGISTRY ?= ghcr.io
 USERNAME ?= siderolabs
 REGISTRY_AND_USERNAME ?= $(REGISTRY)/$(USERNAME)
-PROTOBUF_GO_VERSION ?= 1.36.7
+PROTOBUF_GO_VERSION ?= 1.36.10
 GRPC_GO_VERSION ?= 1.5.1
-GRPC_GATEWAY_VERSION ?= 2.27.1
+GRPC_GATEWAY_VERSION ?= 2.27.3
 VTPROTOBUF_VERSION ?= 0.6.0
-GOIMPORTS_VERSION ?= 0.36.0
+GOIMPORTS_VERSION ?= 0.38.0
 GOMOCK_VERSION ?= 0.6.0
 DEEPCOPY_VERSION ?= v0.5.8
-GOLANGCILINT_VERSION ?= v2.4.0
-GOFUMPT_VERSION ?= v0.8.0
-GO_VERSION ?= 1.25.0
+GOLANGCILINT_VERSION ?= v2.6.1
+GOFUMPT_VERSION ?= v0.9.2
+GO_VERSION ?= 1.25.4
 GO_BUILDFLAGS ?=
 GO_LDFLAGS ?=
 CGO_ENABLED ?= 0
@@ -247,6 +247,20 @@ lint-fmt: lint-golangci-lint-fmt  ## Run all linter formatters and fix up the so
 image-talemu:  ## Builds image for talemu.
 	@$(MAKE) registry-$@ IMAGE_NAME="talemu"
 
+.PHONY: $(ARTIFACTS)/talemu-infra-provider-darwin-amd64
+$(ARTIFACTS)/talemu-infra-provider-darwin-amd64:
+	@$(MAKE) local-talemu-infra-provider-darwin-amd64 DEST=$(ARTIFACTS)
+
+.PHONY: talemu-infra-provider-darwin-amd64
+talemu-infra-provider-darwin-amd64: $(ARTIFACTS)/talemu-infra-provider-darwin-amd64  ## Builds executable for talemu-infra-provider-darwin-amd64.
+
+.PHONY: $(ARTIFACTS)/talemu-infra-provider-darwin-arm64
+$(ARTIFACTS)/talemu-infra-provider-darwin-arm64:
+	@$(MAKE) local-talemu-infra-provider-darwin-arm64 DEST=$(ARTIFACTS)
+
+.PHONY: talemu-infra-provider-darwin-arm64
+talemu-infra-provider-darwin-arm64: $(ARTIFACTS)/talemu-infra-provider-darwin-arm64  ## Builds executable for talemu-infra-provider-darwin-arm64.
+
 .PHONY: $(ARTIFACTS)/talemu-infra-provider-linux-amd64
 $(ARTIFACTS)/talemu-infra-provider-linux-amd64:
 	@$(MAKE) local-talemu-infra-provider-linux-amd64 DEST=$(ARTIFACTS)
@@ -254,8 +268,15 @@ $(ARTIFACTS)/talemu-infra-provider-linux-amd64:
 .PHONY: talemu-infra-provider-linux-amd64
 talemu-infra-provider-linux-amd64: $(ARTIFACTS)/talemu-infra-provider-linux-amd64  ## Builds executable for talemu-infra-provider-linux-amd64.
 
+.PHONY: $(ARTIFACTS)/talemu-infra-provider-linux-arm64
+$(ARTIFACTS)/talemu-infra-provider-linux-arm64:
+	@$(MAKE) local-talemu-infra-provider-linux-arm64 DEST=$(ARTIFACTS)
+
+.PHONY: talemu-infra-provider-linux-arm64
+talemu-infra-provider-linux-arm64: $(ARTIFACTS)/talemu-infra-provider-linux-arm64  ## Builds executable for talemu-infra-provider-linux-arm64.
+
 .PHONY: talemu-infra-provider
-talemu-infra-provider: talemu-infra-provider-linux-amd64  ## Builds executables for talemu-infra-provider.
+talemu-infra-provider: talemu-infra-provider-darwin-amd64 talemu-infra-provider-darwin-arm64 talemu-infra-provider-linux-amd64 talemu-infra-provider-linux-arm64  ## Builds executables for talemu-infra-provider.
 
 .PHONY: image-talemu-infra-provider
 image-talemu-infra-provider:  ## Builds image for talemu-infra-provider.
