@@ -17,6 +17,7 @@ import (
 	"github.com/martinlindhe/base36"
 	"github.com/siderolabs/gen/optional"
 	talosconfig "github.com/siderolabs/talos/pkg/machinery/config"
+	"github.com/siderolabs/talos/pkg/machinery/nethelpers"
 	"github.com/siderolabs/talos/pkg/machinery/resources/cluster"
 	"github.com/siderolabs/talos/pkg/machinery/resources/config"
 	"github.com/siderolabs/talos/pkg/machinery/resources/network"
@@ -71,7 +72,7 @@ func (ctrl *HostnameConfigController) Outputs() []controller.Output {
 
 // Run implements controller.Controller interface.
 //
-//nolint:gocognit
+//nolint:gocognit,gocyclo,cyclop
 func (ctrl *HostnameConfigController) Run(ctx context.Context, r controller.Runtime, logger *zap.Logger) error {
 	for {
 		select {
@@ -93,7 +94,17 @@ func (ctrl *HostnameConfigController) Run(ctx context.Context, r controller.Runt
 			cfgProvider = cfg.Config()
 		}
 
-		var specs []network.HostnameSpecSpec
+		var (
+			specs                 []network.HostnameSpecSpec
+			stableHostnameEnabled bool
+		)
+
+		if cfgProvider != nil {
+			hostnameConfig := cfgProvider.NetworkHostnameConfig()
+			if hostnameConfig != nil && hostnameConfig.AutoHostname() == nethelpers.AutoHostnameKindStable {
+				stableHostnameEnabled = true
+			}
+		}
 
 		// defaults
 		var defaultAddr *network.NodeAddress
@@ -115,7 +126,7 @@ func (ctrl *HostnameConfigController) Run(ctx context.Context, r controller.Runt
 				specs = append(specs, configHostname)
 			}
 
-			if cfgProvider.Machine().Features().StableHostnameEnabled() {
+			if stableHostnameEnabled {
 				var identity *cluster.Identity
 
 				identity, err = safe.ReaderGetByID[*cluster.Identity](ctx, r, cluster.LocalIdentity)
@@ -224,7 +235,12 @@ func (ctrl *HostnameConfigController) getDefault(defaultAddr *network.NodeAddres
 }
 
 func (ctrl *HostnameConfigController) parseMachineConfiguration(logger *zap.Logger, cfgProvider talosconfig.Config) (spec network.HostnameSpecSpec) {
-	hostname := cfgProvider.Machine().Network().Hostname()
+	hostnameConfig := cfgProvider.NetworkHostnameConfig()
+	if hostnameConfig == nil {
+		return
+	}
+
+	hostname := hostnameConfig.Hostname()
 
 	if hostname == "" {
 		return
