@@ -204,10 +204,7 @@ func (h *Handler) runWithRetries(ctx context.Context, logger *zap.Logger, cb fun
 			default:
 			}
 
-			backoff = backoff*2 + time.Second*time.Duration(rand.Intn(10))
-			if backoff > time.Second*30 {
-				backoff = time.Second * 30
-			}
+			backoff = min(backoff*2+time.Second*time.Duration(rand.Intn(10)), time.Second*30)
 
 			continue
 		}

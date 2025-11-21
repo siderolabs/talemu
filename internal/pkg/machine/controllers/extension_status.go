@@ -86,7 +86,7 @@ func (ctrl *ExtensionStatusController) Run(ctx context.Context, r controller.Run
 			return fmt.Errorf("failed to get schematic by ID %q: %w", schematicID, err)
 		}
 
-		touched := map[string]interface{}{}
+		touched := map[string]any{}
 
 		extensionStatus := runtime.NewExtensionStatus(runtime.NamespaceName, constants.SchematicIDExtensionName)
 

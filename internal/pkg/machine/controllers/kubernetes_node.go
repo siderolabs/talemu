@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"maps"
 	"strings"
 	"time"
 
@@ -380,9 +381,7 @@ func (ctrl *KubernetesNodeController) computeNodeLabels(config *config.MachineCo
 	labels["kubernetes.io/os"] = osLinux
 	labels["beta.kubernetes.io/os"] = osLinux
 
-	for key, value := range config.Config().Machine().NodeLabels() {
-		labels[key] = value
-	}
+	maps.Copy(labels, config.Config().Machine().NodeLabels())
 
 	if config.Config().Machine().Type().IsControlPlane() {
 		labels["node-role.kubernetes.io/control-plane"] = ""
@@ -390,7 +389,7 @@ func (ctrl *KubernetesNodeController) computeNodeLabels(config *config.MachineCo
 
 	kubeletArgs := config.Config().Machine().Kubelet().ExtraArgs()
 	if kubeleteLabels, ok := kubeletArgs["node-labels"]; ok {
-		for _, pair := range strings.Split(kubeleteLabels, ",") {
+		for pair := range strings.SplitSeq(kubeleteLabels, ",") {
 			key, value, found := strings.Cut(pair, "=")
 			if !found {
 				continue

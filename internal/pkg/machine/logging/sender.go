@@ -8,6 +8,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"net"
 	"net/netip"
 	"net/url"
@@ -67,10 +68,8 @@ func (j *LogSender) tryLock(ctx context.Context) (unlock func()) {
 }
 
 func (j *LogSender) marshalJSON(e *LogEvent) ([]byte, error) {
-	m := make(map[string]interface{}, len(e.Fields)+3)
-	for k, v := range e.Fields {
-		m[k] = v
-	}
+	m := make(map[string]any, len(e.Fields)+3)
+	maps.Copy(m, e.Fields)
 
 	m["msg"] = e.Msg
 	m["talos-time"] = e.Time.Format(time.RFC3339Nano)

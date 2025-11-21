@@ -21,7 +21,7 @@ import (
 
 // LogEvent represents a log message to be send.
 type LogEvent struct {
-	Fields map[string]interface{}
+	Fields map[string]any
 	Time   time.Time
 	Msg    string
 	Level  zapcore.Level

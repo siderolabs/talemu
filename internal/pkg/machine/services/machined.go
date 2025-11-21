@@ -617,6 +617,7 @@ func (c *MachineService) ServiceList(ctx context.Context, _ *emptypb.Empty) (*ma
 	list := &machine.ServiceList{
 		Services: safe.ToSlice(services, func(s *v1alpha1.Service) *machine.ServiceInfo {
 			state := "Stopped"
+
 			switch {
 			case s.TypedSpec().Running && s.TypedSpec().Healthy:
 				state = "Running"
@@ -772,9 +773,7 @@ func (c *MachineService) Dmesg(_ *machine.DmesgRequest, serv machine.MachineServ
 // Logs implements machine.MachineServiceServer.
 func (c *MachineService) Logs(req *machine.LogsRequest, serv machine.MachineService_LogsServer) error {
 	return serv.Send(&common.Data{
-		Bytes: []byte(
-			fmt.Sprintf("I will pretend I know something about the service %q", req.Id),
-		),
+		Bytes: fmt.Appendf(nil, "I will pretend I know something about the service %q", req.Id),
 	})
 }
 
