@@ -11,6 +11,7 @@ import (
 	"errors"
 	"os"
 	"os/signal"
+	"path"
 	"syscall"
 	"time"
 
@@ -77,11 +78,13 @@ var rootCmd = &cobra.Command{
 			}
 		}
 
-		if err = os.MkdirAll("_out/state", 0o755); err != nil && !errors.Is(err, os.ErrExist) {
+		if err = os.MkdirAll(cfg.stateDir, 0o755); err != nil && !errors.Is(err, os.ErrExist) {
 			return err
 		}
 
-		emulatorState, backingStore, err := runtime.NewState("_out/state/emulator.db", logger)
+		stateDbPath := path.Join(cfg.stateDir, "emulator.db")
+
+		emulatorState, backingStore, err := runtime.NewState(stateDbPath, logger)
 		if err != nil {
 			return err
 		}
@@ -92,7 +95,7 @@ var rootCmd = &cobra.Command{
 			return err
 		}
 
-		kubernetes, err := kubefactory.New(cmd.Context(), "_out/state", logger)
+		kubernetes, err := kubefactory.New(cmd.Context(), cfg.stateDir, logger)
 		if err != nil {
 			return err
 		}
@@ -207,6 +210,7 @@ var cfg struct {
 	serviceAccountKey       string
 	kernelArgs              string
 	schematicCacheDir       string
+	stateDir                string
 	createServiceAccount    bool
 	useImageInitramfsSource bool
 }
@@ -230,6 +234,7 @@ func init() {
 	rootCmd.Flags().StringVar(&meta.ProviderID, "id", meta.ProviderID, "the id of the infra provider, it is used to match the resources with the infra provider label.")
 	rootCmd.Flags().StringVar(&cfg.serviceAccountKey, "key", os.Getenv("OMNI_SERVICE_ACCOUNT_KEY"), "Omni service account key, if not set, defaults to OMNI_SERVICE_ACCOUNT_KEY.")
 	rootCmd.Flags().StringVar(&cfg.schematicCacheDir, "schematic-cache-dir", "/tmp/talemu-schematics", "the directory to use for caching schematics")
+	rootCmd.Flags().StringVar(&cfg.stateDir, "state-dir", "/_out/state", "the directory to use for state")
 	rootCmd.Flags().BoolVar(&cfg.createServiceAccount, "create-service-account", false,
 		"try creating service account for itself (works only if Omni is running in debug mode)")
 	rootCmd.Flags().BoolVar(&cfg.useImageInitramfsSource, "use-image-initramfs-source", true, "when extracting the schematic (extensions, kernel args etc.) from a schematic ID, "+
