@@ -9,6 +9,9 @@ import (
 	"context"
 	_ "embed"
 	"errors"
+	"net"
+	"net/http"
+	"net/http/pprof"
 	"os"
 	"os/signal"
 	"syscall"
@@ -133,10 +136,38 @@ var rootCmd = &cobra.Command{
 		eg, ctx := panichandler.ErrGroupWithContext(cmd.Context())
 
 		eg.Go(func() error {
-			return ip.Run(ctx, logger, infra.WithOmniEndpoint(cfg.omniAPIEndpoint), infra.WithClientOptions(
-				client.WithServiceAccount(cfg.serviceAccountKey),
-				client.WithInsecureSkipTLSVerify(true),
-			))
+			return ip.Run(ctx, logger, infra.WithOmniEndpoint(cfg.omniAPIEndpoint),
+				infra.WithClientOptions(
+					client.WithServiceAccount(cfg.serviceAccountKey),
+					client.WithInsecureSkipTLSVerify(true),
+				),
+			)
+		})
+
+		pprofAddr := "0.0.0.0:2135"
+
+		pprofServer := http.Server{
+			Addr:    pprofAddr,
+			Handler: cratePprofMux(),
+		}
+
+		eg.Go(func() error {
+			ln, err := net.Listen("tcp", pprofAddr)
+			if err != nil {
+				return err
+			}
+
+			defer ln.Close() //nolint:errcheck
+
+			logger.Info("starting pprof server", zap.String("address", pprofAddr))
+
+			return pprofServer.Serve(ln)
+		})
+
+		eg.Go(func() error {
+			<-ctx.Done()
+
+			return pprofServer.Close()
 		})
 
 		eg.Go(func() error {
@@ -145,6 +176,18 @@ var rootCmd = &cobra.Command{
 
 		return eg.Wait()
 	},
+}
+
+func cratePprofMux() http.Handler {
+	mux := &http.ServeMux{}
+
+	mux.HandleFunc("/debug/pprof/", pprof.Index)
+	mux.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
+	mux.HandleFunc("/debug/pprof/profile", pprof.Profile)
+	mux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
+	mux.HandleFunc("/debug/pprof/trace", pprof.Trace)
+
+	return mux
 }
 
 func createServiceAccount(ctx context.Context, logger *zap.Logger) error {
