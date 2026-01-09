@@ -73,6 +73,10 @@ func (svc *Service) GetByID(ctx context.Context, id string) (*schematic.Schemati
 }
 
 func (svc *Service) getByID(ctx context.Context, id string) (*schematic.Schematic, error) {
+	if err := os.MkdirAll(svc.cacheDir, 0o755); err != nil {
+		return nil, err
+	}
+
 	baseURL := "https://" + emuconst.ImageFactoryHost
 
 	svc.logger.Info("get schematic", zap.String("id", id))
