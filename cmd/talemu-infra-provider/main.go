@@ -121,7 +121,7 @@ var rootCmd = &cobra.Command{
 			return err
 		}
 
-		schematicService, err := schematic.NewService(cfg.schematicCacheDir, cfg.useImageInitramfsSource, logger.With(zap.String("component", "schematic_service")))
+		schematicService, err := schematic.NewService(cfg.schematicCacheDir, logger.With(zap.String("component", "schematic_service")))
 		if err != nil {
 			return err
 		}
@@ -203,12 +203,11 @@ func createServiceAccount(ctx context.Context, logger *zap.Logger) error {
 }
 
 var cfg struct {
-	omniAPIEndpoint         string
-	serviceAccountKey       string
-	kernelArgs              string
-	schematicCacheDir       string
-	createServiceAccount    bool
-	useImageInitramfsSource bool
+	omniAPIEndpoint      string
+	serviceAccountKey    string
+	kernelArgs           string
+	schematicCacheDir    string
+	createServiceAccount bool
 }
 
 func main() {
@@ -232,6 +231,4 @@ func init() {
 	rootCmd.Flags().StringVar(&cfg.schematicCacheDir, "schematic-cache-dir", "/tmp/talemu-schematics", "the directory to use for caching schematics")
 	rootCmd.Flags().BoolVar(&cfg.createServiceAccount, "create-service-account", false,
 		"try creating service account for itself (works only if Omni is running in debug mode)")
-	rootCmd.Flags().BoolVar(&cfg.useImageInitramfsSource, "use-image-initramfs-source", true, "when extracting the schematic (extensions, kernel args etc.) from a schematic ID, "+
-		"fetch the initramfs by pulling the installer image from the image factory. when false, it will be fetched via HTTP instead")
 }

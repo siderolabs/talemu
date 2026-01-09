@@ -95,7 +95,7 @@ var rootCmd = &cobra.Command{
 
 		defer nc.Close() //nolint:errcheck
 
-		schematicService, err := schematicsvc.NewService(cfg.schematicCacheDir, cfg.useImageInitramfsSource, logger.With(zap.String("component", "schematic_service")))
+		schematicService, err := schematicsvc.NewService(cfg.schematicCacheDir, logger.With(zap.String("component", "schematic_service")))
 		if err != nil {
 			return err
 		}
@@ -176,12 +176,11 @@ func buildInitialSchematicID() (string, error) {
 }
 
 var cfg struct {
-	kernelArgs              string
-	talosVersion            string
-	schematicCacheDir       string
-	extensions              []string
-	machinesCount           int
-	useImageInitramfsSource bool
+	kernelArgs        string
+	talosVersion      string
+	schematicCacheDir string
+	extensions        []string
+	machinesCount     int
 }
 
 func main() {
@@ -202,8 +201,5 @@ func init() {
 	rootCmd.Flags().StringVar(&cfg.kernelArgs, "kernel-args", "", "specify the whole configuration using kernel args string")
 	rootCmd.Flags().StringVar(&cfg.talosVersion, "talos-version", constants.DefaultTalosVersion, "specify the Talos version to use")
 	rootCmd.Flags().StringVar(&cfg.schematicCacheDir, "schematic-cache-dir", "/tmp/talemu-schematics", "the directory to use for caching schematics")
-	rootCmd.Flags().BoolVar(&cfg.useImageInitramfsSource, "use-image-initramfs-source", true, "when extracting the schematic (extensions, kernel args etc.) from a schematic ID, "+
-		"fetch the initramfs by pulling the installer image from the image factory. when false, it will be fetched via HTTP instead")
-
 	rootCmd.Flags().IntVar(&cfg.machinesCount, "machines", 1, "the number of machines to emulate")
 }

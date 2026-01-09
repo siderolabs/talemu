@@ -30,15 +30,7 @@ const (
             - siderolabs/qemu-guest-agent`
 )
 
-func TestGetByIDViaHTTPSource(t *testing.T) {
-	testGetByID(t, false)
-}
-
-func TestGetByIDViaImageSource(t *testing.T) {
-	testGetByID(t, true)
-}
-
-func testGetByID(t *testing.T, useImageInitramfsSource bool) {
+func TestGetByID(t *testing.T) {
 	t.Helper()
 
 	logger := zaptest.NewLogger(t)
@@ -46,7 +38,7 @@ func testGetByID(t *testing.T, useImageInitramfsSource bool) {
 
 	logger.Info("test dir", zap.String("dir", cacheDir))
 
-	schematicService, err := schematicsvc.NewService(cacheDir, useImageInitramfsSource, logger)
+	schematicService, err := schematicsvc.NewService(cacheDir, logger)
 	require.NoError(t, err)
 
 	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Minute)
