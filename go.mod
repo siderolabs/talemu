@@ -4,7 +4,7 @@ go 1.25.5
 
 // forked go-yaml that introduces RawYAML interface, which can be used to populate YAML fields using bytes
 // which are then encoded as a valid YAML blocks with proper indentation
-replace gopkg.in/yaml.v3 => github.com/unix4ever/yaml v0.0.0-20220527175918-f17b0f05cf2c
+replace gopkg.in/yaml.v3 => github.com/unix4ever/yaml/v2 v2.4.0
 
 replace (
 	k8s.io/api => k8s.io/api v0.35.0
@@ -40,14 +40,14 @@ require (
 	github.com/cosi-project/runtime v1.13.0
 	github.com/grpc-ecosystem/go-grpc-middleware/v2 v2.3.3
 	github.com/hashicorp/go-multierror v1.1.1
-	github.com/jsimonetti/rtnetlink v1.4.2
+	github.com/jsimonetti/rtnetlink/v2 v2.1.0
 	github.com/jxskiss/base62 v1.1.0
 	github.com/martinlindhe/base36 v1.1.1
 	github.com/mdlayher/arp v0.0.0-20220512170110-6706a2966875
 	github.com/mdlayher/ethtool v0.5.0
 	github.com/mdlayher/genetlink v1.3.2
 	github.com/mdlayher/netlink v1.8.0
-	github.com/planetscale/vtprotobuf v0.6.1-0.20241121165744-79df5c4772f2
+	github.com/planetscale/vtprotobuf ba97887b0a25
 	github.com/rs/xid v1.6.0
 	github.com/safchain/ethtool v0.7.0
 	github.com/siderolabs/crypto v0.6.4
@@ -82,7 +82,7 @@ require (
 	k8s.io/api v0.35.0
 	k8s.io/apimachinery v0.35.0
 	k8s.io/apiserver v0.35.0
-	k8s.io/client-go v1.5.2
+	k8s.io/client-go v11.0.0+incompatible
 	k8s.io/kubernetes v1.35.0
 )
 
