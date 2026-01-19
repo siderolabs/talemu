@@ -354,6 +354,8 @@ github.com/siderolabs/go-api-signature v0.3.12 h1:i1X+kPh9fzo+lEjtEplZSbtq1p21vK
 github.com/siderolabs/go-api-signature v0.3.12/go.mod h1:dPLiXohup4qHX7KUgF/wwOE3lRU5uAr3ssEomNxiyxY=
 github.com/siderolabs/go-circular v0.2.3 h1:GKkA1Tw79kEFGtWdl7WTxEUTbwtklITeiRT0V1McHrA=
 github.com/siderolabs/go-circular v0.2.3/go.mod h1:YBN/q9YpQphUYnBtBgPsngauSHj1TEZfgQZWZVjk1WE=
+github.com/siderolabs/go-debug v0.6.1 h1:LAkM2ADz+naL3PA6Mv0SzyXYx7aCxYlKdO2dSiZmhRc=
+github.com/siderolabs/go-debug v0.6.1/go.mod h1:qKGKnrkHXdgj+gPaGujFs3L/hc87FXYTp1/l6kN/1s0=
 github.com/siderolabs/go-pointer v1.0.1 h1:f7Yi4IK1jptS8yrT9GEbwhmGcVxvPQgBUG/weH3V3DM=
 github.com/siderolabs/go-pointer v1.0.1/go.mod h1:C8Q/3pNHT4RE9e4rYR9PHeS6KPMlStRBgYrJQJNy/vA=
 github.com/siderolabs/go-procfs v0.1.2 h1:bDs9hHyYGE2HO1frpmUsD60yg80VIEDrx31fkbi4C8M=

@@ -18,6 +18,7 @@ import (
 	"github.com/cosi-project/runtime/pkg/state"
 	"github.com/siderolabs/go-api-signature/pkg/pgp"
 	"github.com/siderolabs/go-api-signature/pkg/serviceaccount"
+	"github.com/siderolabs/go-debug"
 	"github.com/siderolabs/omni/client/pkg/access"
 	"github.com/siderolabs/omni/client/pkg/client"
 	"github.com/siderolabs/omni/client/pkg/infra"
@@ -141,6 +142,12 @@ var rootCmd = &cobra.Command{
 
 		eg.Go(func() error {
 			return runtime.Run(ctx)
+		})
+
+		eg.Go(func() error {
+			return debug.ListenAndServe(ctx, ":2135", func(msg string) {
+				logger.Info(msg)
+			})
 		})
 
 		return eg.Wait()
