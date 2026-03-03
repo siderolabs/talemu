@@ -252,7 +252,7 @@ func (ctrl *StaticPodController) reconcile(ctx context.Context, r controller.Run
 				v1.ContainerStatus{
 					Name:    container.Name,
 					Image:   container.Image,
-					Started: pointer.To(true),
+					Started: new(true),
 					Ready:   true,
 					State: v1.ContainerState{
 						Running: &v1.ContainerStateRunning{},

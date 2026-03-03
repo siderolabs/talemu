@@ -236,7 +236,7 @@ func (ctrl *GRPCTLSController) reconcile(ctx context.Context, r controller.Runti
 				endpointAddrs = endpointAddrs.Merge(endpoint)
 			})
 
-			if len(endpointAddrs) == 0 {
+			if len(endpointAddrs.Strings()) == 0 {
 				continue
 			}
 

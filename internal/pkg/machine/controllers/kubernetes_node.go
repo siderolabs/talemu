@@ -267,17 +267,16 @@ func (ctrl *KubernetesNodeController) computeNodeStatus(ctx context.Context, r c
 	hostname *network.HostnameStatus, version *talos.Version,
 ) (*v1.NodeStatus, error) {
 	var (
-		conditions []v1.NodeCondition
-		nodeInfo   v1.NodeSystemInfo
-		addresses  []v1.NodeAddress
+		nodeInfo  v1.NodeSystemInfo
+		addresses []v1.NodeAddress //nolint:prealloc
 	)
 
-	conditions = append(conditions, v1.NodeCondition{
+	conditions := []v1.NodeCondition{{
 		Type:    v1.NodeReady,
 		Reason:  "KubeletReady",
 		Status:  v1.ConditionTrue,
 		Message: "kubelet is posting ready status",
-	})
+	}}
 
 	systemInformation, err := safe.ReaderGetByID[*hardware.SystemInformation](ctx, r, hardware.SystemInformationID)
 	if err != nil && !state.IsNotFoundError(err) {
@@ -389,7 +388,7 @@ func (ctrl *KubernetesNodeController) computeNodeLabels(config *config.MachineCo
 
 	kubeletArgs := config.Config().Machine().Kubelet().ExtraArgs()
 	if kubeleteLabels, ok := kubeletArgs["node-labels"]; ok {
-		for pair := range strings.SplitSeq(kubeleteLabels, ",") {
+		for _, pair := range kubeleteLabels {
 			key, value, found := strings.Cut(pair, "=")
 			if !found {
 				continue

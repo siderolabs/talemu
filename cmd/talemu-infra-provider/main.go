@@ -62,6 +62,7 @@ var rootCmd = &cobra.Command{
 
 		if cfg.createServiceAccount {
 			logger.Info("creating service account")
+
 			for {
 				err = createServiceAccount(cmd.Context(), logger)
 				if err == nil {
