@@ -184,27 +184,47 @@ func (ctrl *KubernetesController) Run(ctx context.Context, r controller.Runtime,
 
 				stopCh = make(chan struct{}, 1)
 
+				// Each RunAPIService call runs in its own inner goroutine to make
+				// the restart loop resilient to runtime.Goexit from klog.Fatal.
+				//
+				// The primary crash scenario is PostStartHook timeouts during machine
+				// teardown. These hooks run in their own goroutines (go runPostStartHook
+				// in hooks.go), so Goexit only kills the hook goroutine — app.Run and
+				// the restart loop are unaffected in that case.
+				//
+				// However, klog.Fatal can also be called directly in the app.Run call
+				// chain (same goroutine as RunAPIService). Without isolation, Goexit
+				// would kill the entire restart loop goroutine, leaving ctrl.address
+				// set and preventing the controller from ever restarting the apiserver.
+				// The inner goroutine + done channel ensures the outer loop survives
+				// and can retry.
 				panichandler.Go(func() {
-					for {
-						defer func() {
-							select {
-							case stopCh <- struct{}{}:
-							default:
-							}
-						}()
-
-						if err = ctrl.Kubernetes.RunAPIService(serverCtx, address, iface, ctrl.MachineID, config.Provider().Cluster().ID()); err != nil {
-							logger.Error("kubernetes api server crashed", zap.Error(err))
+					defer func() {
+						select {
+						case stopCh <- struct{}{}:
+						default:
 						}
+					}()
 
-						time.Sleep(time.Second)
+					for {
+						done := make(chan struct{})
+
+						panichandler.Go(func() {
+							defer close(done)
+
+							if runErr := ctrl.Kubernetes.RunAPIService(serverCtx, address, iface, ctrl.MachineID, config.Provider().Cluster().ID()); runErr != nil {
+								logger.Error("kubernetes api server crashed", zap.Error(runErr))
+							}
+						}, logger)
+
+						<-done
 
 						select {
 						case <-serverCtx.Done():
 							return
 						case <-ctx.Done():
 							return
-						default:
+						case <-time.After(time.Second):
 						}
 					}
 				}, logger)

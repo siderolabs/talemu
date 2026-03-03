@@ -38,6 +38,7 @@ require (
 	github.com/adrg/xdg v0.5.3
 	github.com/akutz/memconn v0.1.0
 	github.com/cosi-project/runtime v1.14.0
+	github.com/go-logr/zapr v1.3.0
 	github.com/grpc-ecosystem/go-grpc-middleware/v2 v2.3.3
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/jsimonetti/rtnetlink v1.4.2

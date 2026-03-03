@@ -10,17 +10,33 @@ import (
 	"fmt"
 	"net"
 	"path/filepath"
+	"runtime"
 	"sync"
 
+	"github.com/go-logr/zapr"
 	clientv3 "go.etcd.io/etcd/client/v3"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 	"k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apiserver/pkg/server"
+	"k8s.io/klog/v2"
 	"k8s.io/kubernetes/cmd/kube-apiserver/app"
 	"k8s.io/kubernetes/cmd/kube-apiserver/app/options"
 
 	"github.com/siderolabs/talemu/internal/pkg/machine/network"
 )
+
+func init() {
+	// Override klog's OsExit to prevent a single embedded kube-apiserver's
+	// Fatal log from killing the entire talemu process. This can happen when
+	// a kube-apiserver's PostStartHook (e.g., bootstrap-system-priority-classes)
+	// times out after the server has been shut down during machine teardown.
+	// Using runtime.Goexit terminates only the calling goroutine, not the process.
+	klog.OsExit = func(int) {
+		klog.Info("klog.OsExit called, exiting current goroutine but keeping process alive")
+		runtime.Goexit()
+	}
+}
 
 // Kubernetes is a mini fake kubelet.
 type Kubernetes struct {
@@ -32,7 +48,12 @@ type Kubernetes struct {
 }
 
 // New creates a kubernetes simulator.
-func New(ctx context.Context, dataDir string, logger *zap.Logger) (*Kubernetes, error) {
+func New(ctx context.Context, dataDir string, logger *zap.Logger) (*Kubernetes, error) { //nolint:contextcheck
+	klog.SetLogger(zapr.NewLogger(
+		logger.WithOptions(zap.IncreaseLevel(zapcore.WarnLevel)).
+			With(zap.String("component", "kubernetes")),
+	))
+
 	etcd, err := NewEmbeddedEtcd(ctx, filepath.Join(dataDir, "etcd.db"), logger)
 	if err != nil {
 		return nil, err
