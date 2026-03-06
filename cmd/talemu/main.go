@@ -112,7 +112,8 @@ var rootCmd = &cobra.Command{
 			}
 
 			eg.Go(func() error {
-				return m.Run(ctx, params, i+1000, kubernetes, machine.WithNetworkClient(nc), machine.WithTalosVersion(cfg.talosVersion), machine.WithSchematic(initialSchematicID))
+				return m.Run(ctx, params, i+1000, kubernetes, machine.WithNetworkClient(nc), machine.WithTalosVersion(cfg.talosVersion),
+					machine.WithSchematic(initialSchematicID), machine.WithNodeProxyingDisabled(cfg.nodeProxyingDisabled))
 			})
 
 			machines = append(machines, m)
@@ -176,11 +177,12 @@ func buildInitialSchematicID() (string, error) {
 }
 
 var cfg struct {
-	kernelArgs        string
-	talosVersion      string
-	schematicCacheDir string
-	extensions        []string
-	machinesCount     int
+	kernelArgs           string
+	talosVersion         string
+	schematicCacheDir    string
+	extensions           []string
+	machinesCount        int
+	nodeProxyingDisabled bool
 }
 
 func main() {
@@ -202,4 +204,6 @@ func init() {
 	rootCmd.Flags().StringVar(&cfg.talosVersion, "talos-version", constants.DefaultTalosVersion, "specify the Talos version to use")
 	rootCmd.Flags().StringVar(&cfg.schematicCacheDir, "schematic-cache-dir", "/tmp/talemu-schematics", "the directory to use for caching schematics")
 	rootCmd.Flags().IntVar(&cfg.machinesCount, "machines", 1, "the number of machines to emulate")
+	rootCmd.Flags().BoolVar(&cfg.nodeProxyingDisabled, "disable-node-proxying", false,
+		"disable node-to-node proxying in apid: rejects the 'node' header, validates that a single-entry 'nodes' header targets this node, multi-node 'nodes' is still proxied")
 }

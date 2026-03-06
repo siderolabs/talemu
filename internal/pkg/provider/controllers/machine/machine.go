@@ -23,12 +23,13 @@ import (
 type TaskSpec struct {
 	_ [0]func() // make uncomparable
 
-	Machine          *resources.MachineTask
-	GlobalState      state.State
-	SchematicService *schematic.Service
-	Params           *machine.SideroLinkParams
-	Kubernetes       *kubefactory.Kubernetes
-	NC               *network.Client
+	Machine              *resources.MachineTask
+	GlobalState          state.State
+	SchematicService     *schematic.Service
+	Params               *machine.SideroLinkParams
+	Kubernetes           *kubefactory.Kubernetes
+	NC                   *network.Client
+	NodeProxyingDisabled bool
 }
 
 // ID implements task.TaskSpec.
@@ -59,5 +60,6 @@ func (s TaskSpec) RunTask(ctx context.Context, logger *zap.Logger, _ any) error 
 		machine.WithSchematic(s.Machine.TypedSpec().Value.Schematic),
 		machine.WithNetworkClient(s.NC),
 		machine.WithSecureBoot(s.Machine.TypedSpec().Value.SecureBoot),
+		machine.WithNodeProxyingDisabled(s.NodeProxyingDisabled),
 	)
 }

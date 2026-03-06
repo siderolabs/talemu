@@ -72,11 +72,18 @@ func (ctrl *NodeAddressController) Run(ctx context.Context, r controller.Runtime
 			return err
 		}
 
+		// Collect all real addresses from AddressSpec resources (includes SideroLink, etc.),
+		// matching real Talos behavior where NodeAddressCurrent contains all current interface addresses.
+		realAddrs := make([]netip.Prefix, 0, addresses.Len())
+
+		addresses.ForEach(func(r *network.AddressSpec) {
+			realAddrs = append(realAddrs, r.TypedSpec().Address)
+		})
+
 		for _, id := range []string{
 			network.NodeAddressCurrentID,
 			network.FilteredNodeAddressID(network.NodeAddressCurrentID, k8s.NodeAddressFilterNoK8s),
 		} {
-			// create fake virtual ipv6 addresses
 			if err = safe.WriterModify(ctx, r, network.NewNodeAddress(network.NamespaceName, id), func(r *network.NodeAddress) error {
 				var addr netip.Prefix
 
@@ -85,7 +92,7 @@ func (ctrl *NodeAddressController) Run(ctx context.Context, r controller.Runtime
 					return err
 				}
 
-				r.TypedSpec().Addresses = []netip.Prefix{addr}
+				r.TypedSpec().Addresses = append([]netip.Prefix{addr}, realAddrs...)
 
 				return nil
 			}); err != nil {

@@ -45,19 +45,23 @@ import (
 
 // APID is the emulated APId Talos service.
 type APID struct {
-	state       state.State
-	globalState state.State
-	shutdown    chan struct{}
-	eg          *errgroup.Group
-	machineID   string
+	state                state.State
+	globalState          state.State
+	localAddressProvider director.LocalAddressProvider
+	shutdown             chan struct{}
+	eg                   *errgroup.Group
+	machineID            string
+	nodeProxyingDisabled bool
 }
 
 // NewAPID creates new APID.
-func NewAPID(machineID string, state state.State, globalState state.State) *APID {
+func NewAPID(machineID string, state state.State, globalState state.State, localAddressProvider director.LocalAddressProvider, nodeProxyingDisabled bool) *APID {
 	return &APID{
-		machineID:   machineID,
-		state:       state,
-		globalState: globalState,
+		machineID:            machineID,
+		state:                state,
+		globalState:          globalState,
+		localAddressProvider: localAddressProvider,
+		nodeProxyingDisabled: nodeProxyingDisabled,
 	}
 }
 
@@ -89,7 +93,7 @@ func (apid *APID) Run(ctx context.Context, endpoint netip.Prefix, logger *zap.Lo
 	}
 
 	provider := NewTLSProvider()
-	if err = provider.Update(net.IP(endpoint.Addr().AsSlice()), apiCerts); err != nil {
+	if err = provider.Update(endpoint.Addr().AsSlice(), apiCerts); err != nil {
 		return err
 	}
 
@@ -105,18 +109,12 @@ func (apid *APID) Run(ctx context.Context, endpoint netip.Prefix, logger *zap.Lo
 	tlsCredentials := credentials.NewTLS(cfg)
 
 	backendFactory := backend.NewAPIDFactory(provider)
-	remoteFactory := backendFactory.Get
-
-	localAddressProvider, err := director.NewLocalAddressProvider(ctx, apid.state)
-	if err != nil {
-		return fmt.Errorf("failed to create local address provider: %w", err)
-	}
 
 	memconn := backend.NewTransport(apid.machineID)
 
 	localBackend := backend.NewLocal("machined", memconn)
 
-	router := director.NewRouter(remoteFactory, localBackend, localAddressProvider)
+	router := director.NewRouter(backendFactory.Get, localBackend, apid.localAddressProvider, apid.nodeProxyingDisabled)
 
 	// all existing streaming methods
 	for _, methodName := range []string{
@@ -384,7 +382,7 @@ func (provider *TLSProvider) ClientConfig() (*stdlibtls.Config, error) {
 
 	if ca == nil || clientCert == nil {
 		return &stdlibtls.Config{
-			InsecureSkipVerify: true,
+			InsecureSkipVerify: true, //nolint:gosec
 		}, nil
 	}
 

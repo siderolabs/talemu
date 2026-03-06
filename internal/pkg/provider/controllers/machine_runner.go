@@ -29,21 +29,23 @@ import (
 
 // MachineController runs a machine for each machine request.
 type MachineController struct {
-	runner           *task.Runner[any, machinetask.TaskSpec]
-	kubernetes       *kubefactory.Kubernetes
-	nc               *network.Client
-	globalState      state.State
-	schematicService *schematic.Service
+	runner               *task.Runner[any, machinetask.TaskSpec]
+	kubernetes           *kubefactory.Kubernetes
+	nc                   *network.Client
+	globalState          state.State
+	schematicService     *schematic.Service
+	nodeProxyingDisabled bool
 }
 
 // NewMachineController creates new machine controller.
-func NewMachineController(globalState state.State, kubernetes *kubefactory.Kubernetes, nc *network.Client, schematicService *schematic.Service) *MachineController {
+func NewMachineController(globalState state.State, kubernetes *kubefactory.Kubernetes, nc *network.Client, schematicService *schematic.Service, nodeProxyingDisabled bool) *MachineController {
 	return &MachineController{
-		runner:           task.NewEqualRunner[machinetask.TaskSpec](),
-		globalState:      globalState,
-		kubernetes:       kubernetes,
-		nc:               nc,
-		schematicService: schematicService,
+		runner:               task.NewEqualRunner[machinetask.TaskSpec](),
+		globalState:          globalState,
+		kubernetes:           kubernetes,
+		nc:                   nc,
+		schematicService:     schematicService,
+		nodeProxyingDisabled: nodeProxyingDisabled,
 	}
 }
 
@@ -113,12 +115,13 @@ func (ctrl *MachineController) Run(ctx context.Context, r controller.Runtime, lo
 			}
 
 			ctrl.runner.StartTask(ctx, logger, m.Metadata().ID(), machinetask.TaskSpec{
-				Machine:          m,
-				GlobalState:      ctrl.globalState,
-				SchematicService: ctrl.schematicService,
-				Kubernetes:       ctrl.kubernetes,
-				Params:           params,
-				NC:               ctrl.nc,
+				Machine:              m,
+				GlobalState:          ctrl.globalState,
+				SchematicService:     ctrl.schematicService,
+				Kubernetes:           ctrl.kubernetes,
+				Params:               params,
+				NC:                   ctrl.nc,
+				NodeProxyingDisabled: ctrl.nodeProxyingDisabled,
 			}, nil)
 
 			touchedIDs[m.Metadata().ID()] = struct{}{}

@@ -17,6 +17,7 @@ import (
 	"github.com/cosi-project/runtime/pkg/controller/runtime"
 	"github.com/cosi-project/runtime/pkg/state"
 	"go.uber.org/zap"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/siderolabs/talemu/internal/pkg/kubefactory"
 	"github.com/siderolabs/talemu/internal/pkg/machine/controllers"
@@ -25,21 +26,24 @@ import (
 	"github.com/siderolabs/talemu/internal/pkg/machine/runtime/resources/emu"
 	"github.com/siderolabs/talemu/internal/pkg/machine/runtime/resources/talos"
 	"github.com/siderolabs/talemu/internal/pkg/machine/services"
+	"github.com/siderolabs/talemu/internal/pkg/machine/services/apid/pkg/director"
 	"github.com/siderolabs/talemu/internal/pkg/schematic"
 )
 
 // Runtime handles COSI state setup and lifecycle.
 type Runtime struct {
-	state        state.State
-	globalState  state.State
-	runtime      *runtime.Runtime
-	backingStore io.Closer
-	id           string
+	state                state.State
+	globalState          state.State
+	backingStore         io.Closer
+	runtime              *runtime.Runtime
+	localAddressProvider *director.LocalAddrProvider
+	id                   string
 }
 
 // NewRuntime creates new runtime.
 func NewRuntime(ctx context.Context, logger *zap.Logger, slot int, id string, globalState state.State,
 	kubernetes *kubefactory.Kubernetes, nc *network.Client, logSink *logging.ZapCore, baseKernelArgs string, schematicService *schematic.Service,
+	nodeProxyingDisabled bool,
 ) (*Runtime, error) {
 	stateDir := GetStateDir(id)
 
@@ -67,6 +71,11 @@ func NewRuntime(ctx context.Context, logger *zap.Logger, slot int, id string, gl
 		controllers.NewUniqueMachineTokenController(),
 	}
 
+	localAddressProvider, err := director.NewLocalAddressProvider(st)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create local address provider: %w", err)
+	}
+
 	controllers := []controller.Controller{
 		&controllers.ManagerController{
 			Slot: slot,
@@ -79,7 +88,7 @@ func NewRuntime(ctx context.Context, logger *zap.Logger, slot int, id string, gl
 			NC: nc,
 		},
 		&controllers.APIDController{
-			APID: services.NewAPID(id, st, globalState),
+			APID: services.NewAPID(id, st, globalState, localAddressProvider, nodeProxyingDisabled),
 		},
 		&controllers.AddressSpecController{
 			NC: nc,
@@ -166,11 +175,12 @@ func NewRuntime(ctx context.Context, logger *zap.Logger, slot int, id string, gl
 	}
 
 	return &Runtime{
-		state:        st,
-		globalState:  globalState,
-		runtime:      runtime,
-		backingStore: backingStore,
-		id:           id,
+		state:                st,
+		globalState:          globalState,
+		runtime:              runtime,
+		backingStore:         backingStore,
+		id:                   id,
+		localAddressProvider: localAddressProvider,
 	}, nil
 }
 
@@ -178,11 +188,25 @@ func NewRuntime(ctx context.Context, logger *zap.Logger, slot int, id string, gl
 func (r *Runtime) Run(ctx context.Context) error {
 	defer r.backingStore.Close() //nolint:errcheck
 
-	if err := r.runtime.Run(ctx); err != nil {
-		return err
-	}
+	eg, ctx := errgroup.WithContext(ctx)
 
-	return nil
+	eg.Go(func() error {
+		if err := r.localAddressProvider.Run(ctx); err != nil {
+			return fmt.Errorf("failed to run local address provider: %w", err)
+		}
+
+		return nil
+	})
+
+	eg.Go(func() error {
+		if err := r.runtime.Run(ctx); err != nil {
+			return fmt.Errorf("failed to run runtime: %w", err)
+		}
+
+		return nil
+	})
+
+	return eg.Wait()
 }
 
 // State returns COSI state.

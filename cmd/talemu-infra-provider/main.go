@@ -128,7 +128,7 @@ var rootCmd = &cobra.Command{
 			return err
 		}
 
-		if err = provider.RegisterControllers(runtime, kubernetes, nc, schematicService); err != nil {
+		if err = provider.RegisterControllers(runtime, kubernetes, nc, schematicService, cfg.nodeProxyingDisabled); err != nil {
 			return err
 		}
 
@@ -216,6 +216,7 @@ var cfg struct {
 	kernelArgs           string
 	schematicCacheDir    string
 	createServiceAccount bool
+	nodeProxyingDisabled bool
 }
 
 func main() {
@@ -239,4 +240,6 @@ func init() {
 	rootCmd.Flags().StringVar(&cfg.schematicCacheDir, "schematic-cache-dir", "/tmp/talemu-schematics", "the directory to use for caching schematics")
 	rootCmd.Flags().BoolVar(&cfg.createServiceAccount, "create-service-account", false,
 		"try creating service account for itself (works only if Omni is running in debug mode)")
+	rootCmd.Flags().BoolVar(&cfg.nodeProxyingDisabled, "disable-node-proxying", false,
+		"disable node-to-node proxying in apid: rejects the 'node' header, validates that a single-entry 'nodes' header targets this node, multi-node 'nodes' is still proxied")
 }

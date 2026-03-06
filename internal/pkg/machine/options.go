@@ -12,10 +12,11 @@ import (
 
 // Options is the extra machine options.
 type Options struct {
-	nc           *network.Client
-	talosVersion string
-	schematic    string
-	secureBoot   bool
+	nc                   *network.Client
+	talosVersion         string
+	schematic            string
+	secureBoot           bool
+	nodeProxyingDisabled bool
 }
 
 // Option represents a single extra machine option.
@@ -50,5 +51,14 @@ func WithNetworkClient(nc *network.Client) Option {
 func WithSecureBoot(value bool) Option {
 	return func(o *Options) {
 		o.secureBoot = value
+	}
+}
+
+// WithNodeProxyingDisabled disables node-to-node proxying in apid.
+// When set, apid rejects single-node forwarding via the "node" header
+// and only accepts direct connections from Omni via SideroLink.
+func WithNodeProxyingDisabled(value bool) Option {
+	return func(o *Options) {
+		o.nodeProxyingDisabled = value
 	}
 }

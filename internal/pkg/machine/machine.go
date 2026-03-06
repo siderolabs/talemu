@@ -102,7 +102,7 @@ func (m *Machine) Run(ctx context.Context, siderolinkParams *SideroLinkParams, s
 
 	m.logger = zap.New(core).With(zap.String("machine", m.uuid))
 
-	rt, err := truntime.NewRuntime(ctx, m.logger, slot, m.uuid, m.globalState, kubernetes, opts.nc, logSink, siderolinkParams.RawKernelArgs, m.schematicService)
+	rt, err := truntime.NewRuntime(ctx, m.logger, slot, m.uuid, m.globalState, kubernetes, opts.nc, logSink, siderolinkParams.RawKernelArgs, m.schematicService, opts.nodeProxyingDisabled)
 	if err != nil {
 		return fmt.Errorf("COSI runtime creation failed: %w", err)
 	}
