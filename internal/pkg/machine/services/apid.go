@@ -89,7 +89,7 @@ func (apid *APID) Run(ctx context.Context, endpoint netip.Prefix, logger *zap.Lo
 	}
 
 	provider := NewTLSProvider()
-	if err = provider.Update(net.IP(endpoint.Addr().AsSlice()), apiCerts); err != nil {
+	if err = provider.Update(endpoint.Addr().AsSlice(), apiCerts); err != nil {
 		return err
 	}
 
@@ -104,19 +104,11 @@ func (apid *APID) Run(ctx context.Context, endpoint netip.Prefix, logger *zap.Lo
 
 	tlsCredentials := credentials.NewTLS(cfg)
 
-	backendFactory := backend.NewAPIDFactory(provider)
-	remoteFactory := backendFactory.Get
-
-	localAddressProvider, err := director.NewLocalAddressProvider(ctx, apid.state)
-	if err != nil {
-		return fmt.Errorf("failed to create local address provider: %w", err)
-	}
-
 	memconn := backend.NewTransport(apid.machineID)
 
 	localBackend := backend.NewLocal("machined", memconn)
 
-	router := director.NewRouter(remoteFactory, localBackend, localAddressProvider)
+	router := director.NewRouter(localBackend)
 
 	// all existing streaming methods
 	for _, methodName := range []string{
@@ -250,8 +242,8 @@ func NewTLSProvider() *TLSProvider {
 
 // TLSProvider provides TLS configuration for maintenance service.
 type TLSProvider struct {
-	caCertPool             *stdlibx509.CertPool
-	clientCert, serverCert *stdlibtls.Certificate
+	caCertPool *stdlibx509.CertPool
+	serverCert *stdlibtls.Certificate
 
 	ca []byte
 	mu sync.Mutex
@@ -264,7 +256,6 @@ func (provider *TLSProvider) Update(endpoint net.IP, apiCerts *secrets.API) erro
 
 	var (
 		serverCert *stdlibtls.Certificate
-		clientCert *stdlibtls.Certificate
 		ca         []byte
 		caCertPool *stdlibx509.CertPool
 		err        error
@@ -297,24 +288,10 @@ func (provider *TLSProvider) Update(endpoint net.IP, apiCerts *secrets.API) erro
 		if !caCertPool.AppendCertsFromPEM(ca) {
 			return fmt.Errorf("failed to parse CA certs into a CertPool")
 		}
-
-		if apiCerts.TypedSpec().Client != nil {
-			var clientCrt stdlibtls.Certificate
-
-			clientCrt, err = stdlibtls.X509KeyPair(apiCerts.TypedSpec().Client.Crt, apiCerts.TypedSpec().Client.Key)
-			if err != nil {
-				return fmt.Errorf("failed to parse client cert and key into a TLS Certificate: %w", err)
-			}
-
-			clientCert = &clientCrt
-		} else {
-			clientCert = nil
-		}
 	}
 
 	provider.ca = ca
 	provider.caCertPool = caCertPool
-	provider.clientCert = clientCert
 	provider.serverCert = serverCert
 
 	return nil
@@ -370,37 +347,12 @@ func (provider *TLSProvider) GetCertificate(*stdlibtls.ClientHelloInfo) (*stdlib
 	return provider.serverCert, nil
 }
 
-// ClientConfig implements client config provider interface.
-func (provider *TLSProvider) ClientConfig() (*stdlibtls.Config, error) {
-	ca, err := provider.GetCA()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get root CA: %w", err)
-	}
-
-	clientCert, err := provider.GetClientCertificate(nil)
-	if err != nil {
-		return nil, err
-	}
-
-	if ca == nil || clientCert == nil {
-		return &stdlibtls.Config{
-			InsecureSkipVerify: true,
-		}, nil
-	}
-
-	return tls.New(
-		tls.WithClientAuthType(tls.Mutual),
-		tls.WithCACertPEM(ca),
-		tls.WithClientCertificateProvider(provider),
-	)
-}
-
 // GetClientCertificate implements tls.CertificateProvider interface.
+//
+// This method is required by the interface but should never be called,
+// as talemu does not proxy requests to other nodes.
 func (provider *TLSProvider) GetClientCertificate(*stdlibtls.CertificateRequestInfo) (*stdlibtls.Certificate, error) {
-	provider.mu.Lock()
-	defer provider.mu.Unlock()
-
-	return provider.clientCert, nil
+	return nil, errors.New("client certificate is not available: talemu does not proxy requests to other nodes")
 }
 
 // ServerGracefulStop the server with a timeout.
