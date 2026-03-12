@@ -37,6 +37,18 @@ import (
 	"github.com/siderolabs/talemu/internal/pkg/schematic"
 )
 
+const (
+	diskDevName      = "vda"
+	diskDevPath      = "/dev/vda"
+	diskPartType     = "part"
+	stateDevPath     = "/dev/vda4"
+	ephemeralDevPath = "/dev/vda5"
+
+	diskSize        = 50 * 1024 * 1024 * 1024
+	ephemeralOffset = 304 * 1024 * 1024
+	ephemeralSize   = diskSize - ephemeralOffset
+)
+
 // Machine is a single Talos machine.
 type Machine struct {
 	globalState      state.State
@@ -59,7 +71,7 @@ func NewMachine(uuid string, logger *zap.Logger, globalState state.State, schema
 }
 
 // Run starts the machine.
-func (m *Machine) Run(ctx context.Context, siderolinkParams *SideroLinkParams, slot int, kubernetes *kubefactory.Kubernetes, options ...Option) error {
+func (m *Machine) Run(ctx context.Context, siderolinkParams *SideroLinkParams, slot int, kubernetes *kubefactory.Kubernetes, options ...Option) error { //nolint:maintidx
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
@@ -153,12 +165,123 @@ func (m *Machine) Run(ctx context.Context, siderolinkParams *SideroLinkParams, s
 	memory.TypedSpec().Size = 64 * 1024
 	memory.TypedSpec().Manufacturer = "SideroLabs UltraMem"
 
-	disk := block.NewDisk(block.NamespaceName, "vda")
-	disk.TypedSpec().Size = 50 * 1024 * 1024 * 1024
+	disk := block.NewDisk(block.NamespaceName, diskDevName)
+	disk.TypedSpec().Size = diskSize
 	disk.TypedSpec().Model = "CM5514"
 	disk.TypedSpec().Transport = "virtio"
 	disk.TypedSpec().Rotational = true
 	disk.TypedSpec().BusPath = "/pci0000:00/0000:00:05.0/0000:01:01.0/virtio2/host2/target2:0:0/2:0:0:0/"
+
+	discoveredDisk := block.NewDiscoveredVolume(block.NamespaceName, diskDevName)
+	discoveredDisk.TypedSpec().Type = "disk"
+	discoveredDisk.TypedSpec().DevPath = diskDevPath
+	discoveredDisk.TypedSpec().DevicePath = diskDevPath
+	discoveredDisk.TypedSpec().Name = diskDevName
+	discoveredDisk.TypedSpec().SetSize(diskSize)
+	discoveredDisk.TypedSpec().SectorSize = 512
+	discoveredDisk.TypedSpec().IOSize = 512
+
+	discoveredEfi := block.NewDiscoveredVolume(block.NamespaceName, "vda1")
+	discoveredEfi.TypedSpec().Type = diskPartType
+	discoveredEfi.TypedSpec().DevPath = "/dev/vda1"
+	discoveredEfi.TypedSpec().DevicePath = "/dev/vda1"
+	discoveredEfi.TypedSpec().Parent = diskDevName
+	discoveredEfi.TypedSpec().ParentDevPath = diskDevPath
+	discoveredEfi.TypedSpec().Name = "vda1"
+	discoveredEfi.TypedSpec().PartitionLabel = "EFI"
+	discoveredEfi.TypedSpec().PartitionIndex = 1
+	discoveredEfi.TypedSpec().Offset = 1024 * 1024
+	discoveredEfi.TypedSpec().SetSize(100 * 1024 * 1024)
+
+	discoveredBoot := block.NewDiscoveredVolume(block.NamespaceName, "vda2")
+	discoveredBoot.TypedSpec().Type = diskPartType
+	discoveredBoot.TypedSpec().DevPath = "/dev/vda2"
+	discoveredBoot.TypedSpec().DevicePath = "/dev/vda2"
+	discoveredBoot.TypedSpec().Parent = diskDevName
+	discoveredBoot.TypedSpec().ParentDevPath = diskDevPath
+	discoveredBoot.TypedSpec().Name = "vda2"
+	discoveredBoot.TypedSpec().PartitionLabel = "BOOT"
+	discoveredBoot.TypedSpec().PartitionIndex = 2
+	discoveredBoot.TypedSpec().Offset = 101 * 1024 * 1024
+	discoveredBoot.TypedSpec().SetSize(100 * 1024 * 1024)
+
+	discoveredMeta := block.NewDiscoveredVolume(block.NamespaceName, "vda3")
+	discoveredMeta.TypedSpec().Type = diskPartType
+	discoveredMeta.TypedSpec().DevPath = "/dev/vda3"
+	discoveredMeta.TypedSpec().DevicePath = "/dev/vda3"
+	discoveredMeta.TypedSpec().Parent = diskDevName
+	discoveredMeta.TypedSpec().ParentDevPath = diskDevPath
+	discoveredMeta.TypedSpec().Name = "vda3"
+	discoveredMeta.TypedSpec().PartitionLabel = "META"
+	discoveredMeta.TypedSpec().PartitionIndex = 3
+	discoveredMeta.TypedSpec().Offset = 202 * 1024 * 1024
+	discoveredMeta.TypedSpec().SetSize(2 * 1024 * 1024)
+
+	discoveredState := block.NewDiscoveredVolume(block.NamespaceName, "vda4")
+	discoveredState.TypedSpec().Type = diskPartType
+	discoveredState.TypedSpec().DevPath = stateDevPath
+	discoveredState.TypedSpec().DevicePath = stateDevPath
+	discoveredState.TypedSpec().Parent = diskDevName
+	discoveredState.TypedSpec().ParentDevPath = diskDevPath
+	discoveredState.TypedSpec().Name = "vda4"
+	discoveredState.TypedSpec().PartitionLabel = "STATE"
+	discoveredState.TypedSpec().PartitionIndex = 4
+	discoveredState.TypedSpec().Offset = 204 * 1024 * 1024
+	discoveredState.TypedSpec().SetSize(100 * 1024 * 1024)
+
+	discoveredEphemeral := block.NewDiscoveredVolume(block.NamespaceName, "vda5")
+	discoveredEphemeral.TypedSpec().Type = diskPartType
+	discoveredEphemeral.TypedSpec().DevPath = ephemeralDevPath
+	discoveredEphemeral.TypedSpec().DevicePath = ephemeralDevPath
+	discoveredEphemeral.TypedSpec().Parent = diskDevName
+	discoveredEphemeral.TypedSpec().ParentDevPath = diskDevPath
+	discoveredEphemeral.TypedSpec().Name = "vda5"
+	discoveredEphemeral.TypedSpec().PartitionLabel = "EPHEMERAL"
+	discoveredEphemeral.TypedSpec().PartitionIndex = 5
+	discoveredEphemeral.TypedSpec().Offset = ephemeralOffset
+	discoveredEphemeral.TypedSpec().SetSize(ephemeralSize)
+
+	volumeState := block.NewVolumeStatus(block.NamespaceName, "STATE")
+	volumeState.TypedSpec().Phase = block.VolumePhaseReady
+	volumeState.TypedSpec().Type = block.VolumeTypePartition
+	volumeState.TypedSpec().Location = stateDevPath
+	volumeState.TypedSpec().MountLocation = "/system/state"
+	volumeState.TypedSpec().ParentLocation = diskDevPath
+	volumeState.TypedSpec().PartitionIndex = 4
+	volumeState.TypedSpec().Filesystem = block.FilesystemTypeXFS
+	volumeState.TypedSpec().SetSize(100 * 1024 * 1024)
+
+	volumeEphemeral := block.NewVolumeStatus(block.NamespaceName, "EPHEMERAL")
+	volumeEphemeral.TypedSpec().Phase = block.VolumePhaseReady
+	volumeEphemeral.TypedSpec().Type = block.VolumeTypePartition
+	volumeEphemeral.TypedSpec().Location = ephemeralDevPath
+	volumeEphemeral.TypedSpec().MountLocation = "/var"
+	volumeEphemeral.TypedSpec().ParentLocation = diskDevPath
+	volumeEphemeral.TypedSpec().PartitionIndex = 5
+	volumeEphemeral.TypedSpec().Filesystem = block.FilesystemTypeXFS
+	volumeEphemeral.TypedSpec().SetSize(ephemeralSize)
+
+	pciNet := hardware.NewPCIDeviceInfo("0000:00:01.0")
+	pciNet.TypedSpec().Class = "Network controller"
+	pciNet.TypedSpec().Subclass = "Ethernet controller"
+	pciNet.TypedSpec().Vendor = "Red Hat, Inc."
+	pciNet.TypedSpec().Product = "Virtio network device"
+	pciNet.TypedSpec().ClassID = "0x02"
+	pciNet.TypedSpec().SubclassID = "0x00"
+	pciNet.TypedSpec().VendorID = "0x1af4"
+	pciNet.TypedSpec().ProductID = "0x1000"
+	pciNet.TypedSpec().Driver = "virtio-pci"
+
+	pciDisk := hardware.NewPCIDeviceInfo("0000:00:05.0")
+	pciDisk.TypedSpec().Class = "Mass storage controller"
+	pciDisk.TypedSpec().Subclass = "SCSI storage controller"
+	pciDisk.TypedSpec().Vendor = "Red Hat, Inc."
+	pciDisk.TypedSpec().Product = "Virtio block device"
+	pciDisk.TypedSpec().ClassID = "0x01"
+	pciDisk.TypedSpec().SubclassID = "0x00"
+	pciDisk.TypedSpec().VendorID = "0x1af4"
+	pciDisk.TypedSpec().ProductID = "0x1001"
+	pciDisk.TypedSpec().Driver = "virtio-pci"
 
 	resources = append(resources,
 		hardwareInformation,
@@ -171,6 +294,16 @@ func (m *Machine) Run(ctx context.Context, siderolinkParams *SideroLinkParams, s
 		disk,
 		defaultRoute,
 		memory,
+		discoveredDisk,
+		discoveredEfi,
+		discoveredBoot,
+		discoveredMeta,
+		discoveredState,
+		discoveredEphemeral,
+		volumeState,
+		volumeEphemeral,
+		pciNet,
+		pciDisk,
 	)
 
 	if opts.schematic != "" || opts.talosVersion != "" {

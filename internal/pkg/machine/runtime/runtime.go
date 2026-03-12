@@ -116,6 +116,7 @@ func NewRuntime(ctx context.Context, logger *zap.Logger, slot int, id string, gl
 			MachineID:   id,
 		},
 		&controllers.MountStatusController{},
+		&controllers.PerfStatsController{},
 		&controllers.LocalAffiliateController{},
 		&controllers.MemberController{},
 		controllers.NewClusterConfigController(),

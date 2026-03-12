@@ -48,7 +48,8 @@ type MachineService struct {
 	state       state.State
 	globalState state.State
 
-	logger *zap.Logger
+	logger    *zap.Logger
+	startTime time.Time
 
 	machineID string
 }
@@ -60,6 +61,7 @@ func NewMachineService(machineID string, state, globalState state.State, logger 
 		globalState: globalState,
 		logger:      logger,
 		machineID:   machineID,
+		startTime:   time.Now(),
 	}
 }
 
@@ -893,4 +895,113 @@ func (c *MachineService) createOrUpdateUniqueToken(ctx context.Context, req *mac
 	})
 
 	return err
+}
+
+// SystemStat implements machine.MachineServiceServer.
+//
+// Returns monotonically increasing cumulative CPU jiffies (USER_HZ=100) computed from
+// machine uptime, so consecutive calls produce a stable delta for the Omni monitor chart.
+func (c *MachineService) SystemStat(_ context.Context, _ *emptypb.Empty) (*machine.SystemStatResponse, error) {
+	const (
+		numCores  = 64
+		hz        = 100
+		userPct   = 25.0
+		systemPct = 10.0
+		idlePct   = 65.0
+	)
+
+	elapsed := time.Since(c.startTime).Seconds()
+
+	totalJiffies := elapsed * numCores * hz
+	perCoreJiffies := elapsed * hz
+
+	cpuTotal := &machine.CPUStat{
+		User:   totalJiffies * userPct / 100,   //nolint:mnd
+		System: totalJiffies * systemPct / 100, //nolint:mnd
+		Idle:   totalJiffies * idlePct / 100,   //nolint:mnd
+	}
+
+	perCore := make([]*machine.CPUStat, numCores)
+
+	for i := range numCores {
+		perCore[i] = &machine.CPUStat{
+			User:   perCoreJiffies * userPct / 100,   //nolint:mnd
+			System: perCoreJiffies * systemPct / 100, //nolint:mnd
+			Idle:   perCoreJiffies * idlePct / 100,   //nolint:mnd
+		}
+	}
+
+	contextSwitches := uint64(elapsed * 10000) //nolint:mnd
+	processCreated := uint64(elapsed * 2)      //nolint:mnd
+
+	return &machine.SystemStatResponse{
+		Messages: []*machine.SystemStat{
+			{
+				BootTime:        uint64(c.startTime.Unix()),
+				CpuTotal:        cpuTotal,
+				Cpu:             perCore,
+				ContextSwitches: contextSwitches,
+				ProcessCreated:  processCreated,
+				ProcessRunning:  uint64(len(fakeProcTable)),
+				ProcessBlocked:  0,
+				SoftIrqTotal:    uint64(elapsed * 1000), //nolint:mnd
+			},
+		},
+	}, nil
+}
+
+// Processes implements machine.MachineServiceServer.
+func (c *MachineService) Processes(_ context.Context, _ *emptypb.Empty) (*machine.ProcessesResponse, error) {
+	elapsed := time.Since(c.startTime).Seconds()
+
+	const hz = 100.0
+
+	processes := make([]*machine.ProcessInfo, 0, len(fakeProcTable))
+
+	for _, p := range fakeProcTable {
+		processes = append(processes, &machine.ProcessInfo{
+			Pid:            p.pid,
+			Ppid:           p.ppid,
+			State:          "S",
+			Threads:        p.threads,
+			CpuTime:        elapsed * p.cpuFracOfCore * hz,
+			VirtualMemory:  p.vmBytes,
+			ResidentMemory: p.rssBytes,
+			Command:        p.command,
+			Args:           p.args,
+		})
+	}
+
+	return &machine.ProcessesResponse{
+		Messages: []*machine.Process{
+			{Processes: processes},
+		},
+	}, nil
+}
+
+type fakeProc struct {
+	command       string
+	args          string
+	cpuFracOfCore float64 // fraction of a single core (0.05 = 5% of one core)
+	vmBytes       uint64
+	rssBytes      uint64
+	pid           int32
+	ppid          int32
+	threads       int32
+}
+
+// fakeProcTable is a fixed set of processes that look like a running Talos/Kubernetes node.
+// cpuFracOfCore values are fractions of a single CPU core so the Omni monitor chart
+// shows reasonable per-process CPU percentages.
+var fakeProcTable = []fakeProc{
+	{pid: 1, ppid: 0, command: "init", args: "/sbin/init", threads: 1, cpuFracOfCore: 0.001, vmBytes: 8 * 1024 * 1024, rssBytes: 6 * 1024 * 1024},
+	{pid: 2, ppid: 0, command: "kthreadd", args: "", threads: 1, cpuFracOfCore: 0.001, vmBytes: 0, rssBytes: 0},
+	{pid: 300, ppid: 1, command: "machined", args: "/sbin/machined", threads: 12, cpuFracOfCore: 0.005, vmBytes: 120 * 1024 * 1024, rssBytes: 40 * 1024 * 1024},
+	{pid: 400, ppid: 1, command: "apid", args: "/sbin/apid", threads: 8, cpuFracOfCore: 0.003, vmBytes: 80 * 1024 * 1024, rssBytes: 20 * 1024 * 1024},
+	{pid: 500, ppid: 1, command: "containerd", args: "/bin/containerd", threads: 20, cpuFracOfCore: 0.01, vmBytes: 200 * 1024 * 1024, rssBytes: 80 * 1024 * 1024},
+	{pid: 600, ppid: 500, command: "kubelet", args: "/bin/kubelet --config=/etc/kubernetes/kubelet.yaml", threads: 25, cpuFracOfCore: 0.05, vmBytes: 400 * 1024 * 1024, rssBytes: 150 * 1024 * 1024},
+	{pid: 700, ppid: 500, command: "etcd", args: "etcd --name default --data-dir=/var/lib/etcd", threads: 15, cpuFracOfCore: 0.03, vmBytes: 300 * 1024 * 1024, rssBytes: 100 * 1024 * 1024},
+	{pid: 800, ppid: 500, command: "kube-apiserver", args: "kube-apiserver --advertise-address=127.0.0.1", threads: 20, cpuFracOfCore: 0.08, vmBytes: 600 * 1024 * 1024, rssBytes: 300 * 1024 * 1024},
+	{pid: 900, ppid: 500, command: "kube-controller-manager", args: "kube-controller-manager", threads: 12, cpuFracOfCore: 0.04, vmBytes: 250 * 1024 * 1024, rssBytes: 120 * 1024 * 1024},
+	{pid: 1000, ppid: 500, command: "kube-scheduler", args: "kube-scheduler", threads: 8, cpuFracOfCore: 0.02, vmBytes: 150 * 1024 * 1024, rssBytes: 60 * 1024 * 1024},
 }
