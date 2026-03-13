@@ -7,7 +7,6 @@ package director_test
 import (
 	"context"
 
-	"github.com/siderolabs/grpc-proxy/proxy"
 	"google.golang.org/grpc"
 )
 
@@ -29,18 +28,4 @@ func (m *mockBackend) AppendInfo(_ bool, resp []byte) ([]byte, error) {
 
 func (m *mockBackend) BuildError(bool, error) ([]byte, error) {
 	return nil, nil
-}
-
-func mockBackendFactory(target string) (proxy.Backend, error) {
-	return &mockBackend{target: target}, nil
-}
-
-type mockLocalAddressProvider struct {
-	local map[string]struct{}
-}
-
-func (m *mockLocalAddressProvider) IsLocalTarget(t string) bool {
-	_, ok := m.local[t]
-
-	return ok
 }

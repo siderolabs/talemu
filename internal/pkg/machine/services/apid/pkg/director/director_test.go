@@ -27,15 +27,7 @@ type DirectorSuite struct {
 
 func (suite *DirectorSuite) SetupSuite() {
 	suite.localBackend = &mockBackend{}
-	suite.router = director.NewRouter(
-		mockBackendFactory,
-		suite.localBackend,
-		&mockLocalAddressProvider{
-			local: map[string]struct{}{
-				"localhost": {},
-			},
-		},
-	)
+	suite.router = director.NewRouter(suite.localBackend)
 }
 
 func (suite *DirectorSuite) TestStreamedDetector() {
@@ -53,44 +45,6 @@ func (suite *DirectorSuite) TestStreamedDetector() {
 	suite.Assert().False(suite.router.StreamedDetector("/service.Service/getStreamItem"))
 }
 
-func (suite *DirectorSuite) TestDirectorAggregate() {
-	ctx := context.Background()
-
-	md := metadata.New(nil)
-	md.Set("nodes", "127.0.0.1", "127.0.0.2")
-	mode, backends, err := suite.router.Director(metadata.NewIncomingContext(ctx, md), "/service.Service/method")
-	suite.Assert().Equal(proxy.One2Many, mode)
-	suite.Assert().Len(backends, 2)
-	suite.Assert().Equal("127.0.0.1", backends[0].(*mockBackend).target) //nolint:forcetypeassert,errcheck
-	suite.Assert().Equal("127.0.0.2", backends[1].(*mockBackend).target) //nolint:forcetypeassert,errcheck
-	suite.Assert().NoError(err)
-
-	md = metadata.New(nil)
-	md.Set("nodes", "127.0.0.1")
-	mode, backends, err = suite.router.Director(metadata.NewIncomingContext(ctx, md), "/service.Service/method")
-	suite.Assert().Equal(proxy.One2Many, mode)
-	suite.Assert().Len(backends, 1)
-	suite.Assert().Equal("127.0.0.1", backends[0].(*mockBackend).target) //nolint:forcetypeassert,errcheck
-	suite.Assert().NoError(err)
-}
-
-func (suite *DirectorSuite) TestDirectorSingleNode() {
-	ctx := context.Background()
-
-	md := metadata.New(nil)
-	md.Set("node", "127.0.0.1")
-	mode, backends, err := suite.router.Director(metadata.NewIncomingContext(ctx, md), "/service.Service/method")
-	suite.Assert().Equal(proxy.One2One, mode)
-	suite.Assert().Len(backends, 1)
-	suite.Assert().Equal("127.0.0.1", backends[0].(*mockBackend).target) //nolint:forcetypeassert,errcheck
-	suite.Assert().NoError(err)
-
-	md = metadata.New(nil)
-	md.Set("node", "127.0.0.1", "127.0.0.2")
-	_, _, err = suite.router.Director(metadata.NewIncomingContext(ctx, md), "/service.Service/method")
-	suite.Assert().Equal(codes.InvalidArgument, status.Code(err))
-}
-
 func (suite *DirectorSuite) TestDirectorLocal() {
 	ctx := context.Background()
 
@@ -102,57 +56,32 @@ func (suite *DirectorSuite) TestDirectorLocal() {
 	suite.Assert().NoError(err)
 }
 
-func (suite *DirectorSuite) TestDirectorNoRemoteBackend() {
-	// override the router to have no remote backends
-	router := director.NewRouter(
-		nil,
-		suite.localBackend,
-		&mockLocalAddressProvider{
-			local: map[string]struct{}{
-				"localhost": {},
-			},
-		},
-	)
+func (suite *DirectorSuite) TestDirectorNoMetadata() {
+	mode, backends, err := suite.router.Director(context.Background(), "/service.Service/method")
+	suite.Assert().Equal(proxy.One2One, mode)
+	suite.Assert().Len(backends, 1)
+	suite.Assert().Equal(suite.localBackend, backends[0])
+	suite.Assert().NoError(err)
+}
 
+func (suite *DirectorSuite) TestDirectorNodeHeaderRejected() {
 	ctx := context.Background()
 
-	// request forwarding via node/nodes is disabled
 	md := metadata.New(nil)
 	md.Set("node", "127.0.0.1")
-	_, _, err := router.Director(metadata.NewIncomingContext(ctx, md), "/service.Service/method")
+	_, _, err := suite.router.Director(metadata.NewIncomingContext(ctx, md), "/service.Service/method")
 	suite.Assert().Error(err)
-	suite.Assert().Equal(codes.PermissionDenied, status.Code(err))
+	suite.Assert().Equal(codes.Unimplemented, status.Code(err))
+}
 
-	md = metadata.New(nil)
+func (suite *DirectorSuite) TestDirectorNodesHeaderRejected() {
+	ctx := context.Background()
+
+	md := metadata.New(nil)
 	md.Set("nodes", "127.0.0.1", "127.0.0.2")
-	_, _, err = router.Director(metadata.NewIncomingContext(ctx, md), "/service.Service/method")
+	_, _, err := suite.router.Director(metadata.NewIncomingContext(ctx, md), "/service.Service/method")
 	suite.Assert().Error(err)
-	suite.Assert().Equal(codes.PermissionDenied, status.Code(err))
-
-	// no request forwarding, allowed
-	md = metadata.New(nil)
-	mode, backends, err := router.Director(metadata.NewIncomingContext(ctx, md), "/service.Service/method")
-	suite.Assert().Equal(proxy.One2One, mode)
-	suite.Assert().Len(backends, 1)
-	suite.Assert().Equal(suite.localBackend, backends[0])
-	suite.Assert().NoError(err)
-
-	// request forwarding to local address, allowed
-	md = metadata.New(nil)
-	md.Set("node", "localhost")
-	mode, backends, err = router.Director(metadata.NewIncomingContext(ctx, md), "/service.Service/method")
-	suite.Assert().Equal(proxy.One2One, mode)
-	suite.Assert().Len(backends, 1)
-	suite.Assert().Equal(suite.localBackend, backends[0])
-	suite.Assert().NoError(err)
-
-	md = metadata.New(nil)
-	md.Set("nodes", "localhost")
-	mode, backends, err = router.Director(metadata.NewIncomingContext(ctx, md), "/service.Service/method")
-	suite.Assert().Equal(proxy.One2One, mode)
-	suite.Assert().Len(backends, 1)
-	suite.Assert().Equal(suite.localBackend, backends[0])
-	suite.Assert().NoError(err)
+	suite.Assert().Equal(codes.Unimplemented, status.Code(err))
 }
 
 func TestDirectorSuite(t *testing.T) {
