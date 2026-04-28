@@ -179,7 +179,6 @@ func Register(ctx context.Context, state state.State) error {
 		&secrets.Kubernetes{},
 		&secrets.KubernetesDynamicCerts{},
 		&secrets.KubernetesRoot{},
-		&secrets.MaintenanceServiceCerts{},
 		&secrets.MaintenanceRoot{},
 		&secrets.OSRoot{},
 		&secrets.Trustd{},
