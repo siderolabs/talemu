@@ -4,34 +4,34 @@ go 1.26.2
 
 // forked go-yaml that introduces RawYAML interface, which can be used to populate YAML fields using bytes
 // which are then encoded as a valid YAML blocks with proper indentation
-replace gopkg.in/yaml.v3 => github.com/unix4ever/yaml v0.0.0-20220527175918-f17b0f05cf2c
+replace gopkg.in/yaml.v3 => github.com/unix4ever/yaml/v2 v2.4.0
 
 replace (
-	k8s.io/api => k8s.io/api v0.35.2
-	k8s.io/apiextensions-apiserver => k8s.io/apiextensions-apiserver v0.35.2
-	k8s.io/apimachinery => k8s.io/apimachinery v0.35.2
-	k8s.io/cli-runtime => k8s.io/cli-runtime v0.35.2
-	k8s.io/client-go => k8s.io/client-go v0.35.2
-	k8s.io/cloud-provider => k8s.io/cloud-provider v0.35.2
-	k8s.io/cluster-bootstrap => k8s.io/cluster-bootstrap v0.35.2
-	k8s.io/component-helpers => k8s.io/component-helpers v0.35.2
-	k8s.io/controller-manager => k8s.io/controller-manager v0.35.2
-	k8s.io/cri-api => k8s.io/cri-api v0.35.2
-	k8s.io/cri-client => k8s.io/cri-client v0.35.2
-	k8s.io/csi-translation-lib => k8s.io/csi-translation-lib v0.35.2
-	k8s.io/dynamic-resource-allocation => k8s.io/dynamic-resource-allocation v0.35.2
-	k8s.io/endpointslice => k8s.io/endpointslice v0.35.2
-	k8s.io/externaljwt => k8s.io/externaljwt v0.35.2
-	k8s.io/kube-aggregator => k8s.io/kube-aggregator v0.35.2
-	k8s.io/kube-controller-manager => k8s.io/kube-controller-manager v0.35.2
-	k8s.io/kube-proxy => k8s.io/kube-proxy v0.35.2
-	k8s.io/kube-scheduler => k8s.io/kube-scheduler v0.35.2
-	k8s.io/kubectl => k8s.io/kubectl v0.35.2
-	k8s.io/kubelet => k8s.io/kubelet v0.35.2
-	k8s.io/metrics => k8s.io/metrics v0.35.2
-	k8s.io/mount-utils => k8s.io/mount-utils v0.35.2
-	k8s.io/pod-security-admission => k8s.io/pod-security-admission v0.35.2
-	k8s.io/sample-apiserver => k8s.io/sample-apiserver v0.35.2
+	k8s.io/api => k8s.io/api v0.36.0
+	k8s.io/apiextensions-apiserver => k8s.io/apiextensions-apiserver v0.36.0
+	k8s.io/apimachinery => k8s.io/apimachinery v0.36.0
+	k8s.io/cli-runtime => k8s.io/cli-runtime v0.36.0
+	k8s.io/client-go => k8s.io/client-go v0.36.0
+	k8s.io/cloud-provider => k8s.io/cloud-provider v0.36.0
+	k8s.io/cluster-bootstrap => k8s.io/cluster-bootstrap v0.36.0
+	k8s.io/component-helpers => k8s.io/component-helpers v0.36.0
+	k8s.io/controller-manager => k8s.io/controller-manager v0.36.0
+	k8s.io/cri-api => k8s.io/cri-api v0.36.0
+	k8s.io/cri-client => k8s.io/cri-client v0.36.0
+	k8s.io/csi-translation-lib => k8s.io/csi-translation-lib v0.36.0
+	k8s.io/dynamic-resource-allocation => k8s.io/dynamic-resource-allocation v0.36.0
+	k8s.io/endpointslice => k8s.io/endpointslice v0.36.0
+	k8s.io/externaljwt => k8s.io/externaljwt v0.36.0
+	k8s.io/kube-aggregator => k8s.io/kube-aggregator v0.36.0
+	k8s.io/kube-controller-manager => k8s.io/kube-controller-manager v0.36.0
+	k8s.io/kube-proxy => k8s.io/kube-proxy v0.36.0
+	k8s.io/kube-scheduler => k8s.io/kube-scheduler v0.36.0
+	k8s.io/kubectl => k8s.io/kubectl v0.36.0
+	k8s.io/kubelet => k8s.io/kubelet v0.36.0
+	k8s.io/metrics => k8s.io/metrics v0.36.0
+	k8s.io/mount-utils => k8s.io/mount-utils v0.36.0
+	k8s.io/pod-security-admission => k8s.io/pod-security-admission v0.36.0
+	k8s.io/sample-apiserver => k8s.io/sample-apiserver v0.36.0
 )
 
 require (
@@ -41,13 +41,13 @@ require (
 	github.com/go-logr/zapr v1.3.0
 	github.com/grpc-ecosystem/go-grpc-middleware/v2 v2.3.3
 	github.com/hashicorp/go-multierror v1.1.1
-	github.com/jsimonetti/rtnetlink v1.4.2
+	github.com/jsimonetti/rtnetlink/v2 v2.2.0
 	github.com/jxskiss/base62 v1.1.0
 	github.com/martinlindhe/base36 v1.1.1
 	github.com/mdlayher/arp v0.0.0-20220512170110-6706a2966875
-	github.com/mdlayher/ethtool v0.5.1
-	github.com/mdlayher/genetlink v1.3.2
-	github.com/mdlayher/netlink v1.9.0
+	github.com/mdlayher/ethtool v0.6.0
+	github.com/mdlayher/genetlink v1.4.0
+	github.com/mdlayher/netlink v1.11.1
 	github.com/planetscale/vtprotobuf v0.6.1-0.20250313105119-ba97887b0a25
 	github.com/rs/xid v1.6.0
 	github.com/safchain/ethtool v0.7.0
@@ -70,10 +70,10 @@ require (
 	github.com/spf13/cobra v1.10.2
 	github.com/stretchr/testify v1.11.1
 	go.etcd.io/bbolt v1.4.3
-	go.etcd.io/etcd/client/v3 v3.6.9
-	go.etcd.io/etcd/server/v3 v3.6.9
+	go.etcd.io/etcd/client/v3 v3.6.10
+	go.etcd.io/etcd/server/v3 v3.6.10
 	go.uber.org/multierr v1.11.0
-	go.uber.org/zap v1.27.1
+	go.uber.org/zap v1.28.0
 	go4.org/netipx v0.0.0-20231129151722-fdeea329fbba
 	golang.org/x/sync v0.20.0
 	golang.org/x/sys v0.43.0
@@ -81,12 +81,12 @@ require (
 	golang.zx2c4.com/wireguard/wgctrl v0.0.0-20241231184526-a9ab2273dd10
 	google.golang.org/grpc v1.80.0
 	google.golang.org/protobuf v1.36.12-0.20260120151049-f2248ac996af
-	k8s.io/api v0.35.3
-	k8s.io/apimachinery v0.35.3
-	k8s.io/apiserver v0.35.3
-	k8s.io/client-go v0.35.3
+	k8s.io/api v0.36.0
+	k8s.io/apimachinery v0.36.0
+	k8s.io/apiserver v0.36.0
+	k8s.io/client-go v0.36.0
 	k8s.io/klog/v2 v2.140.0
-	k8s.io/kubernetes v1.35.2
+	k8s.io/kubernetes v1.36.0
 )
 
 require (
