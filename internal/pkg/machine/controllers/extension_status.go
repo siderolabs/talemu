@@ -26,6 +26,7 @@ import (
 // ExtensionStatusController computes extensions list from the configuration.
 type ExtensionStatusController struct {
 	SchematicService *schematic.Service
+	ImageFactoryHost string
 }
 
 // Name implements controller.Controller interface.
@@ -72,7 +73,7 @@ func (ctrl *ExtensionStatusController) Run(ctx context.Context, r controller.Run
 		case <-r.EventCh():
 		}
 
-		schematicID, err := readCurrentSchematicID(ctx, r)
+		schematicID, err := readCurrentSchematicID(ctx, r, ctrl.ImageFactoryHost)
 		if err != nil {
 			return fmt.Errorf("failed to read current schematic ID: %w", err)
 		}

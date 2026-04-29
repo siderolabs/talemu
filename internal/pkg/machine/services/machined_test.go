@@ -31,7 +31,7 @@ url: "tcp://[fdae:41e4:649b:9303::1]:8092"`
 	apidState := state.WrapCore(namespaced.NewState(inmem.Build))
 	globalState := state.WrapCore(namespaced.NewState(inmem.Build))
 	logger := zaptest.NewLogger(t)
-	machineService := services.NewMachineService("test-machine-id", apidState, globalState, logger)
+	machineService := services.NewMachineService("test-machine-id", apidState, globalState, "factory.talos.dev", logger)
 
 	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 	t.Cleanup(cancel)

@@ -34,17 +34,22 @@ type MachineController struct {
 	nc                   *network.Client
 	globalState          state.State
 	schematicService     *schematic.Service
+	imageFactoryHost     string
 	nodeProxyingDisabled bool
 }
 
 // NewMachineController creates new machine controller.
-func NewMachineController(globalState state.State, kubernetes *kubefactory.Kubernetes, nc *network.Client, schematicService *schematic.Service, nodeProxyingDisabled bool) *MachineController {
+func NewMachineController(
+	globalState state.State, kubernetes *kubefactory.Kubernetes, nc *network.Client,
+	schematicService *schematic.Service, imageFactoryHost string, nodeProxyingDisabled bool,
+) *MachineController {
 	return &MachineController{
 		runner:               task.NewEqualRunner[machinetask.TaskSpec](),
 		globalState:          globalState,
 		kubernetes:           kubernetes,
 		nc:                   nc,
 		schematicService:     schematicService,
+		imageFactoryHost:     imageFactoryHost,
 		nodeProxyingDisabled: nodeProxyingDisabled,
 	}
 }
@@ -118,6 +123,7 @@ func (ctrl *MachineController) Run(ctx context.Context, r controller.Runtime, lo
 				Machine:              m,
 				GlobalState:          ctrl.globalState,
 				SchematicService:     ctrl.schematicService,
+				ImageFactoryHost:     ctrl.imageFactoryHost,
 				Kubernetes:           ctrl.kubernetes,
 				Params:               params,
 				NC:                   ctrl.nc,

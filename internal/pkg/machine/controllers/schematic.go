@@ -13,12 +13,11 @@ import (
 	"github.com/cosi-project/runtime/pkg/safe"
 	"github.com/cosi-project/runtime/pkg/state"
 
-	"github.com/siderolabs/talemu/internal/pkg/constants"
 	"github.com/siderolabs/talemu/internal/pkg/machine/machineconfig"
 	"github.com/siderolabs/talemu/internal/pkg/machine/runtime/resources/talos"
 )
 
-func readCurrentSchematicID(ctx context.Context, r controller.Runtime) (string, error) {
+func readCurrentSchematicID(ctx context.Context, r controller.Runtime, imageFactoryHost string) (string, error) {
 	schematicContent, err := machineconfig.GetComplete(ctx, r)
 	if err != nil && !state.IsNotFoundError(err) {
 		return "", err
@@ -38,7 +37,7 @@ func readCurrentSchematicID(ctx context.Context, r controller.Runtime) (string, 
 	}
 
 	installImage := schematicContent.Container().RawV1Alpha1().Machine().Install().Image()
-	if !strings.HasPrefix(installImage, constants.ImageFactoryHost) {
+	if !strings.HasPrefix(installImage, imageFactoryHost) {
 		return "", nil
 	}
 

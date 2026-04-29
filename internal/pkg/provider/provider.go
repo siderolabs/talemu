@@ -16,9 +16,9 @@ import (
 )
 
 // RegisterControllers registers additional controllers required for the infra provider.
-func RegisterControllers(runtime *emu.Runtime, kubernetes *kubefactory.Kubernetes, nc *network.Client, schematicService *schematic.Service, nodeProxyingDisabled bool) error {
+func RegisterControllers(runtime *emu.Runtime, kubernetes *kubefactory.Kubernetes, nc *network.Client, schematicService *schematic.Service, imageFactoryHost string, nodeProxyingDisabled bool) error {
 	controllers := []controller.Controller{
-		controllers.NewMachineController(runtime.State(), kubernetes, nc, schematicService, nodeProxyingDisabled),
+		controllers.NewMachineController(runtime.State(), kubernetes, nc, schematicService, imageFactoryHost, nodeProxyingDisabled),
 	}
 
 	for _, ctrl := range controllers {

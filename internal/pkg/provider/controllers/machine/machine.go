@@ -29,6 +29,7 @@ type TaskSpec struct {
 	Params               *machine.SideroLinkParams
 	Kubernetes           *kubefactory.Kubernetes
 	NC                   *network.Client
+	ImageFactoryHost     string
 	NodeProxyingDisabled bool
 }
 
@@ -44,7 +45,7 @@ func (s TaskSpec) Equal(other TaskSpec) bool {
 
 // RunTask implements task.TaskSpec.
 func (s TaskSpec) RunTask(ctx context.Context, logger *zap.Logger, _ any) error {
-	m, err := machine.NewMachine(s.Machine.TypedSpec().Value.Uuid, logger, s.GlobalState, s.SchematicService)
+	m, err := machine.NewMachine(s.Machine.TypedSpec().Value.Uuid, logger, s.GlobalState, s.SchematicService, s.ImageFactoryHost)
 	if err != nil {
 		return err
 	}

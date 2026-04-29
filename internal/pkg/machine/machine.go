@@ -56,16 +56,18 @@ type Machine struct {
 	logger           *zap.Logger
 	shutdown         chan struct{}
 	schematicService *schematic.Service
+	imageFactoryHost string
 	uuid             string
 }
 
 // NewMachine creates a Machine.
-func NewMachine(uuid string, logger *zap.Logger, globalState state.State, schematicService *schematic.Service) (*Machine, error) {
+func NewMachine(uuid string, logger *zap.Logger, globalState state.State, schematicService *schematic.Service, imageFactoryHost string) (*Machine, error) {
 	return &Machine{
 		uuid:             uuid,
 		logger:           logger,
 		globalState:      globalState,
 		schematicService: schematicService,
+		imageFactoryHost: imageFactoryHost,
 		shutdown:         make(chan struct{}, 1),
 	}, nil
 }
@@ -102,7 +104,11 @@ func (m *Machine) Run(ctx context.Context, siderolinkParams *SideroLinkParams, s
 
 	m.logger = zap.New(core).With(zap.String("machine", m.uuid))
 
-	rt, err := truntime.NewRuntime(ctx, m.logger, slot, m.uuid, m.globalState, kubernetes, opts.nc, logSink, siderolinkParams.RawKernelArgs, m.schematicService, opts.nodeProxyingDisabled)
+	rt, err := truntime.NewRuntime(
+		ctx, m.logger, slot, m.uuid, m.globalState,
+		kubernetes, opts.nc, logSink, siderolinkParams.RawKernelArgs, m.schematicService,
+		m.imageFactoryHost, opts.nodeProxyingDisabled,
+	)
 	if err != nil {
 		return fmt.Errorf("COSI runtime creation failed: %w", err)
 	}

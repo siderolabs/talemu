@@ -34,7 +34,6 @@ import (
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	emuconst "github.com/siderolabs/talemu/internal/pkg/constants"
 	"github.com/siderolabs/talemu/internal/pkg/machine/machineconfig"
 	"github.com/siderolabs/talemu/internal/pkg/machine/runtime/resources/emu"
 	"github.com/siderolabs/talemu/internal/pkg/machine/runtime/resources/talos"
@@ -51,17 +50,19 @@ type MachineService struct {
 	logger    *zap.Logger
 	startTime time.Time
 
-	machineID string
+	machineID        string
+	imageFactoryHost string
 }
 
 // NewMachineService creates a new MachineService.
-func NewMachineService(machineID string, state, globalState state.State, logger *zap.Logger) *MachineService {
+func NewMachineService(machineID string, state, globalState state.State, imageFactoryHost string, logger *zap.Logger) *MachineService {
 	return &MachineService{
-		state:       state,
-		globalState: globalState,
-		logger:      logger,
-		machineID:   machineID,
-		startTime:   time.Now(),
+		state:            state,
+		globalState:      globalState,
+		logger:           logger,
+		machineID:        machineID,
+		imageFactoryHost: imageFactoryHost,
+		startTime:        time.Now(),
 	}
 }
 
@@ -328,7 +329,7 @@ func (c *MachineService) Upgrade(ctx context.Context, req *machine.UpgradeReques
 		return nil, status.Errorf(codes.InvalidArgument, "failed to parse the image")
 	}
 
-	if parts[0] == emuconst.ImageFactoryHost {
+	if parts[0] == c.imageFactoryHost {
 		schematic = s
 	}
 

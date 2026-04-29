@@ -17,17 +17,16 @@ import (
 	"github.com/siderolabs/image-factory/pkg/schematic"
 	"go.uber.org/zap"
 	"golang.org/x/sync/singleflight"
-
-	emuconst "github.com/siderolabs/talemu/internal/pkg/constants"
 )
 
 type Service struct {
-	sf       singleflight.Group
-	logger   *zap.Logger
-	cacheDir string
+	sf                  singleflight.Group
+	logger              *zap.Logger
+	cacheDir            string
+	imageFactoryBaseURL string
 }
 
-func NewService(cacheDir string, logger *zap.Logger) (*Service, error) {
+func NewService(cacheDir, imageFactoryBaseURL string, logger *zap.Logger) (*Service, error) {
 	if cacheDir == "" {
 		userCacheDir, err := os.UserCacheDir()
 		if err != nil {
@@ -42,8 +41,9 @@ func NewService(cacheDir string, logger *zap.Logger) (*Service, error) {
 	}
 
 	return &Service{
-		cacheDir: cacheDir,
-		logger:   logger,
+		cacheDir:            cacheDir,
+		imageFactoryBaseURL: imageFactoryBaseURL,
+		logger:              logger,
 	}, nil
 }
 
@@ -77,8 +77,6 @@ func (svc *Service) getByID(ctx context.Context, id string) (*schematic.Schemati
 		return nil, err
 	}
 
-	baseURL := "https://" + emuconst.ImageFactoryHost
-
 	svc.logger.Info("get schematic", zap.String("id", id))
 
 	filePath := filepath.Join(svc.cacheDir, id+".yaml")
@@ -98,7 +96,7 @@ func (svc *Service) getByID(ctx context.Context, id string) (*schematic.Schemati
 
 	// doesn't exist, get schematic
 
-	factoryClient, err := client.New(baseURL)
+	factoryClient, err := client.New(svc.imageFactoryBaseURL)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create factory client: %w", err)
 	}

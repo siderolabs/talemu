@@ -38,7 +38,7 @@ func TestGetByID(t *testing.T) {
 
 	logger.Info("test dir", zap.String("dir", cacheDir))
 
-	schematicService, err := schematicsvc.NewService(cacheDir, logger)
+	schematicService, err := schematicsvc.NewService(cacheDir, "https://factory.talos.dev", logger)
 	require.NoError(t, err)
 
 	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Minute)
