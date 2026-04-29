@@ -51,15 +51,17 @@ type APID struct {
 	shutdown             chan struct{}
 	eg                   *errgroup.Group
 	machineID            string
+	imageFactoryHost     string
 	nodeProxyingDisabled bool
 }
 
 // NewAPID creates new APID.
-func NewAPID(machineID string, state state.State, globalState state.State, localAddressProvider director.LocalAddressProvider, nodeProxyingDisabled bool) *APID {
+func NewAPID(machineID string, state state.State, globalState state.State, imageFactoryHost string, localAddressProvider director.LocalAddressProvider, nodeProxyingDisabled bool) *APID {
 	return &APID{
 		machineID:            machineID,
 		state:                state,
 		globalState:          globalState,
+		imageFactoryHost:     imageFactoryHost,
 		localAddressProvider: localAddressProvider,
 		nodeProxyingDisabled: nodeProxyingDisabled,
 	}
@@ -161,7 +163,7 @@ func (apid *APID) Run(ctx context.Context, endpoint netip.Prefix, logger *zap.Lo
 	}
 
 	recoveryOption := recovery.WithRecoveryHandler(recoveryHandler)
-	machineSrv := NewMachineService(apid.machineID, apid.state, apid.globalState, logger)
+	machineSrv := NewMachineService(apid.machineID, apid.state, apid.globalState, apid.imageFactoryHost, logger)
 	localServer := grpc.NewServer(
 		grpc.Creds(insecure.NewCredentials()),
 		grpc.ForceServerCodecV2(proxy.Codec()),

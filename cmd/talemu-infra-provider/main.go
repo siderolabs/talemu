@@ -9,6 +9,8 @@ import (
 	"context"
 	_ "embed"
 	"errors"
+	"fmt"
+	"net/url"
 	"os"
 	"os/signal"
 	"syscall"
@@ -24,11 +26,13 @@ import (
 	"github.com/siderolabs/omni/client/pkg/infra"
 	"github.com/siderolabs/omni/client/pkg/omni/resources/auth"
 	infrares "github.com/siderolabs/omni/client/pkg/omni/resources/infra"
+	omniresources "github.com/siderolabs/omni/client/pkg/omni/resources/omni"
 	"github.com/siderolabs/omni/client/pkg/panichandler"
 	"github.com/spf13/cobra"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 
+	emuconst "github.com/siderolabs/talemu/internal/pkg/constants"
 	emuruntime "github.com/siderolabs/talemu/internal/pkg/emu"
 	"github.com/siderolabs/talemu/internal/pkg/kubefactory"
 	"github.com/siderolabs/talemu/internal/pkg/machine/network"
@@ -60,11 +64,19 @@ var rootCmd = &cobra.Command{
 			return err
 		}
 
+		config := clientconfig.New(cfg.omniAPIEndpoint)
+
+		omniClient, err := config.GetClient()
+		if err != nil {
+			return err
+		}
+		defer omniClient.Close() //nolint:errcheck
+
 		if cfg.createServiceAccount {
 			logger.Info("creating service account")
 
 			for {
-				err = createServiceAccount(cmd.Context(), logger)
+				err = createServiceAccount(cmd.Context(), omniClient, logger)
 				if err == nil {
 					break
 				}
@@ -123,12 +135,32 @@ var rootCmd = &cobra.Command{
 			return err
 		}
 
-		schematicService, err := schematic.NewService(cfg.schematicCacheDir, logger.With(zap.String("component", "schematic_service")))
+		featuresConfig, err := safe.ReaderGetByID[*omniresources.FeaturesConfig](cmd.Context(), omniClient.Omni().State(), omniresources.FeaturesConfigID)
 		if err != nil {
 			return err
 		}
 
-		if err = provider.RegisterControllers(runtime, kubernetes, nc, schematicService, cfg.nodeProxyingDisabled); err != nil {
+		imageFactoryBaseURL := featuresConfig.TypedSpec().Value.GetImageFactoryBaseUrl()
+		if imageFactoryBaseURL == "" {
+			imageFactoryBaseURL = emuconst.DefaultImageFactoryBaseURL
+		}
+
+		schematicService, err := schematic.NewService(cfg.schematicCacheDir, imageFactoryBaseURL, logger.With(zap.String("component", "schematic_service")))
+		if err != nil {
+			return err
+		}
+
+		factoryURL, err := url.Parse(imageFactoryBaseURL)
+		if err != nil {
+			return fmt.Errorf("invalid image factory URL %q: %w", imageFactoryBaseURL, err)
+		}
+
+		imageFactoryHost := factoryURL.Host
+		if imageFactoryHost == "" {
+			return fmt.Errorf("image factory URL %q has no host", imageFactoryBaseURL)
+		}
+
+		if err = provider.RegisterControllers(runtime, kubernetes, nc, schematicService, imageFactoryHost, cfg.nodeProxyingDisabled); err != nil {
 			return err
 		}
 
@@ -155,19 +187,10 @@ var rootCmd = &cobra.Command{
 	},
 }
 
-func createServiceAccount(ctx context.Context, logger *zap.Logger) error {
-	config := clientconfig.New(cfg.omniAPIEndpoint)
-
-	rootClient, err := config.GetClient()
-	if err != nil {
-		return err
-	}
-
-	defer rootClient.Close() //nolint:errcheck
-
+func createServiceAccount(ctx context.Context, rootClient *client.Client, logger *zap.Logger) error {
 	provider := infrares.NewProvider(meta.ProviderID)
 
-	if err = rootClient.Omni().State().Create(ctx, provider); err != nil && !state.IsConflictError(err) {
+	if err := rootClient.Omni().State().Create(ctx, provider); err != nil && !state.IsConflictError(err) {
 		return err
 	}
 

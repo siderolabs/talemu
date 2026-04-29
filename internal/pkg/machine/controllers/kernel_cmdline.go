@@ -25,6 +25,7 @@ import (
 // KernelCmdlineController computes kernel args list from the configuration.
 type KernelCmdlineController struct {
 	SchematicService *schematicsvc.Service
+	ImageFactoryHost string
 	BaseKernelArgs   string
 }
 
@@ -70,7 +71,7 @@ func (ctrl *KernelCmdlineController) Run(ctx context.Context, r controller.Runti
 		case <-r.EventCh():
 		}
 
-		schematicID, err := readCurrentSchematicID(ctx, r)
+		schematicID, err := readCurrentSchematicID(ctx, r, ctrl.ImageFactoryHost)
 		if err != nil {
 			return fmt.Errorf("failed to read current schematic ID: %w", err)
 		}

@@ -9,6 +9,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/url"
 	"os"
 	"os/signal"
 	"strings"
@@ -95,9 +96,19 @@ var rootCmd = &cobra.Command{
 
 		defer nc.Close() //nolint:errcheck
 
-		schematicService, err := schematicsvc.NewService(cfg.schematicCacheDir, logger.With(zap.String("component", "schematic_service")))
+		schematicService, err := schematicsvc.NewService(cfg.schematicCacheDir, cfg.imageFactoryBaseURL, logger.With(zap.String("component", "schematic_service")))
 		if err != nil {
 			return err
+		}
+
+		factoryURL, err := url.Parse(cfg.imageFactoryBaseURL)
+		if err != nil {
+			return fmt.Errorf("invalid image factory URL %q: %w", cfg.imageFactoryBaseURL, err)
+		}
+
+		imageFactoryHost := factoryURL.Host
+		if imageFactoryHost == "" {
+			return fmt.Errorf("image factory URL %q has no host", cfg.imageFactoryBaseURL)
 		}
 
 		initialSchematicID, err := buildInitialSchematicID()
@@ -106,7 +117,7 @@ var rootCmd = &cobra.Command{
 		}
 
 		for i := range cfg.machinesCount {
-			m, err := machine.NewMachine(fmt.Sprintf("%04d1802-c798-4da7-a410-f09abb48c8d8", i+1000), logger, emulatorState, schematicService)
+			m, err := machine.NewMachine(fmt.Sprintf("%04d1802-c798-4da7-a410-f09abb48c8d8", i+1000), logger, emulatorState, schematicService, imageFactoryHost)
 			if err != nil {
 				return err
 			}
@@ -180,6 +191,7 @@ var cfg struct {
 	kernelArgs           string
 	talosVersion         string
 	schematicCacheDir    string
+	imageFactoryBaseURL  string
 	extensions           []string
 	machinesCount        int
 	nodeProxyingDisabled bool
@@ -203,6 +215,7 @@ func init() {
 	rootCmd.Flags().StringVar(&cfg.kernelArgs, "kernel-args", "", "specify the whole configuration using kernel args string")
 	rootCmd.Flags().StringVar(&cfg.talosVersion, "talos-version", constants.DefaultTalosVersion, "specify the Talos version to use")
 	rootCmd.Flags().StringVar(&cfg.schematicCacheDir, "schematic-cache-dir", "/tmp/talemu-schematics", "the directory to use for caching schematics")
+	rootCmd.Flags().StringVar(&cfg.imageFactoryBaseURL, "image-factory-base-url", emuconst.DefaultImageFactoryBaseURL, "base URL of the image factory")
 	rootCmd.Flags().IntVar(&cfg.machinesCount, "machines", 1, "the number of machines to emulate")
 	rootCmd.Flags().BoolVar(&cfg.nodeProxyingDisabled, "disable-node-proxying", false,
 		"disable node-to-node proxying in apid: rejects the 'node' header, validates that a single-entry 'nodes' header targets this node, multi-node 'nodes' is still proxied")
