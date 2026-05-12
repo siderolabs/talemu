@@ -66,17 +66,13 @@ var rootCmd = &cobra.Command{
 
 		config := clientconfig.New(cfg.omniAPIEndpoint)
 
-		omniClient, err := config.GetClient()
-		if err != nil {
-			return err
-		}
-		defer omniClient.Close() //nolint:errcheck
+		var omniClient *client.Client
 
 		if cfg.createServiceAccount {
 			logger.Info("creating service account")
 
 			for {
-				err = createServiceAccount(cmd.Context(), omniClient, logger)
+				omniClient, err = createServiceAccount(cmd.Context(), config, logger)
 				if err == nil {
 					break
 				}
@@ -89,7 +85,14 @@ var rootCmd = &cobra.Command{
 				case <-time.After(time.Second * 5):
 				}
 			}
+		} else {
+			omniClient, err = config.GetClient()
+			if err != nil {
+				return err
+			}
 		}
+
+		defer omniClient.Close() //nolint:errcheck
 
 		if err = os.MkdirAll("_out/state", 0o755); err != nil && !errors.Is(err, os.ErrExist) {
 			return err
@@ -187,11 +190,22 @@ var rootCmd = &cobra.Command{
 	},
 }
 
-func createServiceAccount(ctx context.Context, rootClient *client.Client, logger *zap.Logger) error {
+func createServiceAccount(ctx context.Context, config *clientconfig.ClientConfig, logger *zap.Logger) (_ *client.Client, retErr error) {
+	rootClient, err := config.GetClient()
+	if err != nil {
+		return nil, err
+	}
+
+	defer func() {
+		if retErr != nil {
+			rootClient.Close() //nolint:errcheck
+		}
+	}()
+
 	provider := infrares.NewProvider(meta.ProviderID)
 
-	if err := rootClient.Omni().State().Create(ctx, provider); err != nil && !state.IsConflictError(err) {
-		return err
+	if err = rootClient.Omni().State().Create(ctx, provider); err != nil && !state.IsConflictError(err) {
+		return nil, err
 	}
 
 	name := access.InfraProviderServiceAccountPrefix + meta.ProviderID
@@ -200,37 +214,38 @@ func createServiceAccount(ctx context.Context, rootClient *client.Client, logger
 
 	key, err := pgp.GenerateKey(sa.BaseName, "", sa.FullID(), 365*24*time.Hour)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	armoredPublicKey, err := key.ArmorPublic()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	cfg.serviceAccountKey, err = serviceaccount.Encode(name, key)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	identity, err := safe.ReaderGetByID[*auth.Identity](ctx, rootClient.Omni().State(), sa.FullID())
 	if err != nil && !state.IsNotFoundError(err) {
-		return err
+		return nil, err
 	}
 
 	if identity != nil {
 		logger.Info("delete service account")
 
-		err = rootClient.Management().DestroyServiceAccount(ctx, name)
-		if err != nil {
-			return err
+		if err = rootClient.Management().DestroyServiceAccount(ctx, name); err != nil {
+			return nil, err
 		}
 	}
 
 	// create service account with the generated key
-	_, err = rootClient.Management().CreateServiceAccount(ctx, name, armoredPublicKey, "InfraProvider", false)
+	if _, err = rootClient.Management().CreateServiceAccount(ctx, name, armoredPublicKey, "InfraProvider", false); err != nil {
+		return nil, err
+	}
 
-	return err
+	return rootClient, nil
 }
 
 var cfg struct {
