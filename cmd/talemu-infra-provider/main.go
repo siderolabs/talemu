@@ -88,6 +88,14 @@ var rootCmd = &cobra.Command{
 					return err
 				case <-time.After(time.Second * 5):
 				}
+
+				// Close and re-open client to reset the gRPC backoff
+				omniClient.Close() //nolint:errcheck
+
+				omniClient, err = config.GetClient()
+				if err != nil {
+					return err
+				}
 			}
 		}
 
