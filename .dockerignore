@@ -1,6 +1,6 @@
 # THIS FILE WAS AUTOMATICALLY GENERATED, PLEASE DO NOT EDIT.
 #
-# Generated on 2025-09-03T17:04:54Z by kres 784fa1f.
+# Generated on 2026-05-13T11:04:49Z by kres 1762ab2.
 
 *
 !api
@@ -9,6 +9,8 @@
 !go.mod
 !go.sum
 !.golangci.yml
+!.disvulncheck.yaml
 !README.md
 !.markdownlint.json
 !hack/govulncheck.sh
+!.disvulncheck.yaml

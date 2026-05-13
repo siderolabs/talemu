@@ -1,19 +1,19 @@
-# syntax = docker/dockerfile-upstream:1.21.0-labs
+# syntax = docker/dockerfile-upstream:1.23.0-labs
 
 # THIS FILE WAS AUTOMATICALLY GENERATED, PLEASE DO NOT EDIT.
 #
-# Generated on 2026-03-03T10:05:18Z by kres 6458cfd.
+# Generated on 2026-05-13T11:26:43Z by kres 1762ab2.
 
 ARG TOOLCHAIN=scratch
 
-FROM ghcr.io/siderolabs/ca-certificates:v1.12.0 AS image-ca-certificates
+FROM ghcr.io/siderolabs/ca-certificates:v1.13.0 AS image-ca-certificates
 
-FROM ghcr.io/siderolabs/fhs:v1.12.0 AS image-fhs
+FROM ghcr.io/siderolabs/fhs:v1.13.0 AS image-fhs
 
 # runs markdownlint
-FROM docker.io/oven/bun:1.3.9-alpine AS lint-markdown
+FROM docker.io/oven/bun:1.3.13-alpine AS lint-markdown
 WORKDIR /src
-RUN bun i markdownlint-cli@0.47.0 sentences-per-line@0.5.1
+RUN bun i markdownlint-cli@0.48.0 sentences-per-line@0.5.2
 COPY .markdownlint.json .
 COPY ./README.md ./README.md
 RUN bunx markdownlint --ignore "CHANGELOG.md" --ignore "**/node_modules/**" --ignore '**/hack/chglog/**' --rules markdownlint-sentences-per-line .
@@ -62,6 +62,9 @@ RUN --mount=type=cache,target=/root/.cache/go-build,id=talemu/root/.cache/go-bui
 	&& mv /go/bin/golangci-lint /bin/golangci-lint
 RUN --mount=type=cache,target=/root/.cache/go-build,id=talemu/root/.cache/go-build --mount=type=cache,target=/go/pkg,id=talemu/go/pkg go install golang.org/x/vuln/cmd/govulncheck@latest \
 	&& mv /go/bin/govulncheck /bin/govulncheck
+ARG DIS_VULNCHECK_VERSION
+RUN --mount=type=cache,target=/root/.cache/go-build,id=talemu/root/.cache/go-build --mount=type=cache,target=/go/pkg,id=talemu/go/pkg go install github.com/shanduur/dis-vulncheck@${DIS_VULNCHECK_VERSION} \
+	&& mv /go/bin/dis-vulncheck /bin/dis-vulncheck
 ARG GOFUMPT_VERSION
 RUN go install mvdan.cc/gofumpt@${GOFUMPT_VERSION} \
 	&& mv /go/bin/gofumpt /bin/gofumpt
@@ -109,8 +112,8 @@ RUN --mount=type=cache,target=/root/.cache/go-build,id=talemu/root/.cache/go-bui
 # runs govulncheck
 FROM base AS lint-govulncheck
 WORKDIR /src
-COPY --chmod=0755 hack/govulncheck.sh ./hack/govulncheck.sh
-RUN --mount=type=cache,target=/root/.cache/go-build,id=talemu/root/.cache/go-build --mount=type=cache,target=/go/pkg,id=talemu/go/pkg ./hack/govulncheck.sh ./...
+COPY .disvulncheck.yaml .
+RUN --mount=type=cache,target=/root/.cache/go-build,id=talemu/root/.cache/go-build --mount=type=cache,target=/go/pkg,id=talemu/go/pkg dis-vulncheck -tool=false ./...
 
 # runs unit-tests with race detector
 FROM base AS unit-tests-race
