@@ -229,7 +229,8 @@ func (ctrl *ManagerController) Run(ctx context.Context, r controller.Runtime, lo
 				return err
 			}
 
-			if err = safe.WriterModify(ctx, r, siderolink.NewTunnel(),
+			if err = safe.WriterModify(
+				ctx, r, siderolink.NewTunnel(),
 				func(tunnel *siderolink.Tunnel) error {
 					tunnel.TypedSpec().APIEndpoint = ctrl.pd.apiEndpont
 					tunnel.TypedSpec().LinkName = ctrl.interfaceName()

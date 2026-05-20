@@ -289,7 +289,8 @@ func (m *Machine) Run(ctx context.Context, siderolinkParams *SideroLinkParams, s
 	pciDisk.TypedSpec().ProductID = "0x1001"
 	pciDisk.TypedSpec().Driver = "virtio-pci"
 
-	resources = append(resources,
+	resources = append(
+		resources,
 		hardwareInformation,
 		siderolinkConfig,
 		platformMetadata,

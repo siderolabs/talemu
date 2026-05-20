@@ -326,7 +326,8 @@ func getMaintenanceCert(endpoint net.IP) (*stdlibtls.Certificate, error) {
 		return nil, fmt.Errorf("failed to generate self-signed CA: %w", err)
 	}
 
-	server, err := x509.NewKeyPair(ca,
+	server, err := x509.NewKeyPair(
+		ca,
 		x509.IPAddresses([]net.IP{endpoint}),
 		x509.NotAfter(time.Now().Add(x509.DefaultCertificateValidityDuration)),
 		x509.KeyUsage(stdlibx509.KeyUsageDigitalSignature),

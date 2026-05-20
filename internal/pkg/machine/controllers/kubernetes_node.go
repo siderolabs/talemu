@@ -247,7 +247,8 @@ func (ctrl *KubernetesNodeController) Run(ctx context.Context, r controller.Runt
 		}
 
 		query := metav1.ListOptions{
-			LabelSelector: fmt.Sprintf("%s!=%s,%s=%s",
+			LabelSelector: fmt.Sprintf(
+				"%s!=%s,%s=%s",
 				inputVersionLabel, inputVersion,
 				machineIDLabel, ctrl.MachineID,
 			),

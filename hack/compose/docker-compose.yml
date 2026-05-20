@@ -30,6 +30,7 @@ services:
         - VTPROTOBUF_VERSION=${VTPROTOBUF_VERSION:?error}
         - DEEPCOPY_VERSION=${DEEPCOPY_VERSION:?error}
         - TESTPKGS=${TESTPKGS:?error}
+        - DIS_VULNCHECK_VERSION=${DIS_VULNCHECK_VERSION:?error}
         - GO_LDFLAGS=${GO_LDFLAGS}
 
 volumes:

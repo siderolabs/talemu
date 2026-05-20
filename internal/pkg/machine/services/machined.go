@@ -412,7 +412,8 @@ func (c *MachineService) EtcdMemberList(ctx context.Context, _ *machine.EtcdMemb
 		return nil, fmt.Errorf("failed to get cluster status: %w", err)
 	}
 
-	machines, err := safe.ReaderListAll[*emu.MachineStatus](ctx, c.globalState,
+	machines, err := safe.ReaderListAll[*emu.MachineStatus](
+		ctx, c.globalState,
 		state.WithLabelQuery(
 			resource.LabelEqual(emu.LabelCluster, config.Provider().Cluster().ID()),
 			resource.LabelExists(emu.LabelControlPlaneRole),

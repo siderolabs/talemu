@@ -3,7 +3,7 @@ ignore_ttl: 168h # 7 days, each entry must be revalidated after this time, and e
 ignore:
   - id: GO-2025-3521
     reason: No fix available, code not reachable in production.
-    date: 2026-05-13
+    date: 2026-05-21
   - id: GO-2025-3547
     reason: No fix available
-    date: 2026-05-13
+    date: 2026-05-21

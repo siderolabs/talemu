@@ -49,7 +49,8 @@ func (t *ClientConfig) GetClient(publicKeyOpts ...authcli.RegisterPGPPublicKeyOp
 func (t *ClientConfig) GetClientForEmail(email string, publicKeyOpts ...authcli.RegisterPGPPublicKeyOption) (*client.Client, error) {
 	signatureInterceptor := buildSignatureInterceptor(email, publicKeyOpts...)
 
-	return client.New(t.endpoint,
+	return client.New(
+		t.endpoint,
 		client.WithInsecureSkipTLSVerify(true),
 		client.WithGrpcOpts(
 			grpc.WithUnaryInterceptor(signatureInterceptor.Unary()),

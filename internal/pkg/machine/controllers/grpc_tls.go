@@ -267,7 +267,8 @@ func (ctrl *GRPCTLSController) generateControlPlane(ctx context.Context, r contr
 		return fmt.Errorf("failed to parse CA certificate: %w", err)
 	}
 
-	serverCert, err := x509.NewKeyPair(ca,
+	serverCert, err := x509.NewKeyPair(
+		ca,
 		x509.IPAddresses(certSANs.StdIPs()),
 		x509.DNSNames(certSANs.DNSNames),
 		x509.CommonName(certSANs.FQDN),
@@ -281,7 +282,8 @@ func (ctrl *GRPCTLSController) generateControlPlane(ctx context.Context, r contr
 		return fmt.Errorf("failed to generate API server cert: %w", err)
 	}
 
-	clientCert, err := x509.NewKeyPair(ca,
+	clientCert, err := x509.NewKeyPair(
+		ca,
 		x509.CommonName(certSANs.FQDN),
 		x509.Organization(string(role.Impersonator)),
 		x509.NotAfter(time.Now().Add(x509.DefaultCertificateValidityDuration)),
@@ -310,7 +312,8 @@ func (ctrl *GRPCTLSController) generateControlPlane(ctx context.Context, r contr
 	clientFingerprint, _ := x509.SPKIFingerprintFromDER(clientCert.Certificate.Certificate[0]) //nolint:errcheck
 	serverFingerprint, _ := x509.SPKIFingerprintFromDER(serverCert.Certificate.Certificate[0]) //nolint:errcheck
 
-	logger.Debug("generated new certificates",
+	logger.Debug(
+		"generated new certificates",
 		zap.Stringer("client", clientFingerprint),
 		zap.Stringer("server", serverFingerprint),
 	)
@@ -408,7 +411,8 @@ func (ctrl *GRPCTLSController) generateWorker(ctx context.Context, r controller.
 
 	serverFingerprint, _ := x509.SPKIFingerprintFromPEM(serverCert.Crt) //nolint:errcheck
 
-	logger.Debug("generated new certificates",
+	logger.Debug(
+		"generated new certificates",
 		zap.Stringer("server", serverFingerprint),
 	)
 

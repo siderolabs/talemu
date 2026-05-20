@@ -111,7 +111,8 @@ func Generate(in *GenerateInput, out io.Writer) error {
 		return fmt.Errorf("error getting Kubernetes CA: %w", err)
 	}
 
-	clientCert, err := x509.NewKeyPair(k8sCA,
+	clientCert, err := x509.NewKeyPair(
+		k8sCA,
 		x509.CommonName(in.CommonName),
 		x509.Organization(in.Organization),
 		x509.NotBefore(time.Now().Add(-allowedTimeSkew)),

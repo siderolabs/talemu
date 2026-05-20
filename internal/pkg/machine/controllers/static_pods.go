@@ -162,7 +162,8 @@ func (ctrl *StaticPodController) reconcile(ctx context.Context, r controller.Run
 
 	if cfg.Metadata().Phase() == resource.PhaseTearingDown {
 		query := metav1.ListOptions{
-			LabelSelector: fmt.Sprintf("%s=%s",
+			LabelSelector: fmt.Sprintf(
+				"%s=%s",
 				machineIDLabel, ctrl.MachineID,
 			),
 		}
@@ -248,7 +249,8 @@ func (ctrl *StaticPodController) reconcile(ctx context.Context, r controller.Run
 		pod.Status.ContainerStatuses = make([]v1.ContainerStatus, 0, len(pod.Spec.Containers))
 
 		for _, container := range pod.Spec.Containers {
-			pod.Status.ContainerStatuses = append(pod.Status.ContainerStatuses,
+			pod.Status.ContainerStatuses = append(
+				pod.Status.ContainerStatuses,
 				v1.ContainerStatus{
 					Name:    container.Name,
 					Image:   container.Image,
@@ -297,7 +299,8 @@ func (ctrl *StaticPodController) reconcile(ctx context.Context, r controller.Run
 		logger.Info("created static pod", zap.String("name", pod.Name))
 
 		query := metav1.ListOptions{
-			LabelSelector: fmt.Sprintf("%s!=%s,%s=%s",
+			LabelSelector: fmt.Sprintf(
+				"%s!=%s,%s=%s",
 				inputVersionLabel, nodenameVersion,
 				machineIDLabel, ctrl.MachineID,
 			),

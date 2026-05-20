@@ -100,7 +100,8 @@ func (ctrl *HostnameSpecController) Run(ctx context.Context, r controller.Runtim
 					status.TypedSpec().Hostname = spec.TypedSpec().Hostname
 					status.TypedSpec().Domainname = spec.TypedSpec().Domainname
 
-					_, err = safe.StateUpdateWithConflicts(ctx, ctrl.GlobalState, emu.NewMachineStatus(emu.NamespaceName, ctrl.MachineID).Metadata(),
+					_, err = safe.StateUpdateWithConflicts(
+						ctx, ctrl.GlobalState, emu.NewMachineStatus(emu.NamespaceName, ctrl.MachineID).Metadata(),
 						func(res *emu.MachineStatus) error {
 							res.TypedSpec().Value.Hostname = spec.TypedSpec().Hostname
 

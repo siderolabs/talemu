@@ -109,7 +109,8 @@ func (ctrl *NodeAddressController) Run(ctx context.Context, r controller.Runtime
 
 			r.TypedSpec().Addresses = addrs
 
-			_, err = safe.StateUpdateWithConflicts(ctx, ctrl.GlobalState, emu.NewMachineStatus(emu.NamespaceName, ctrl.MachineID).Metadata(),
+			_, err = safe.StateUpdateWithConflicts(
+				ctx, ctrl.GlobalState, emu.NewMachineStatus(emu.NamespaceName, ctrl.MachineID).Metadata(),
 				func(cm *emu.MachineStatus) error {
 					cm.TypedSpec().Value.Addresses = xslices.Map(addrs, func(p netip.Prefix) string {
 						return p.Addr().String()

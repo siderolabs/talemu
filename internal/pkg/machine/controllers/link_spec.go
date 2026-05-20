@@ -178,7 +178,8 @@ func (ctrl *LinkSpecController) syncLink(ctx context.Context, r controller.Runti
 			replace := false
 
 			if existing.Attributes.Info == nil {
-				logger.Warn("requested logical link has no info, skipping sync",
+				logger.Warn(
+					"requested logical link has no info, skipping sync",
 					zap.String("name", existing.Attributes.Name),
 					zap.Stringer("type", nethelpers.LinkType(existing.Type)),
 					zap.Uint32("index", existing.Index),
@@ -189,7 +190,8 @@ func (ctrl *LinkSpecController) syncLink(ctx context.Context, r controller.Runti
 
 			// if type/kind doesn't match, recreate the link to change it
 			if existing.Type != uint16(link.TypedSpec().Type) || existing.Attributes.Info.Kind != link.TypedSpec().Kind {
-				logger.Info("replacing logical link",
+				logger.Info(
+					"replacing logical link",
 					zap.String("old_kind", existing.Attributes.Info.Kind),
 					zap.String("new_kind", link.TypedSpec().Kind),
 					zap.Stringer("old_type", nethelpers.LinkType(existing.Type)),

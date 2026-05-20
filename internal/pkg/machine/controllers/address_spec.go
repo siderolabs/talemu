@@ -233,7 +233,8 @@ func (ctrl *AddressSpecController) syncAddress(ctx context.Context, r controller
 				return nil
 			}
 
-			logger.Debug("replacing address",
+			logger.Debug(
+				"replacing address",
 				zap.Stringer("address", address.TypedSpec().Address),
 				zap.String("link", address.TypedSpec().LinkName),
 				zap.Stringer("old_scope", nethelpers.Scope(existing.Scope)),

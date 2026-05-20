@@ -79,7 +79,8 @@ func (ctrl *KubeconfigController) Run(ctx context.Context, r controller.Runtime,
 			return err
 		}
 
-		_, err = safe.StateUpdateWithConflicts(ctx, ctrl.GlobalState, emu.NewClusterStatus(emu.NamespaceName, config.Provider().Cluster().ID()).Metadata(),
+		_, err = safe.StateUpdateWithConflicts(
+			ctx, ctrl.GlobalState, emu.NewClusterStatus(emu.NamespaceName, config.Provider().Cluster().ID()).Metadata(),
 			func(res *emu.ClusterStatus) error {
 				res.TypedSpec().Value.Kubeconfig = []byte(secrets.TypedSpec().AdminKubeconfig)
 
