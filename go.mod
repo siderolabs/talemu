@@ -4,7 +4,7 @@ go 1.26.2
 
 // forked go-yaml that introduces RawYAML interface, which can be used to populate YAML fields using bytes
 // which are then encoded as a valid YAML blocks with proper indentation
-replace gopkg.in/yaml.v3 => github.com/unix4ever/yaml v0.0.0-20220527175918-f17b0f05cf2c
+replace gopkg.in/yaml.v3 => github.com/unix4ever/yaml/v2 v2.4.0
 
 replace (
 	k8s.io/api => k8s.io/api v0.36.1
@@ -42,13 +42,13 @@ require (
 	github.com/go-logr/zapr v1.3.0
 	github.com/grpc-ecosystem/go-grpc-middleware/v2 v2.3.3
 	github.com/hashicorp/go-multierror v1.1.1
-	github.com/jsimonetti/rtnetlink v1.4.2
+	github.com/jsimonetti/rtnetlink/v2 v2.2.0
 	github.com/jxskiss/base62 v1.1.0
 	github.com/martinlindhe/base36 v1.1.1
-	github.com/mdlayher/arp v0.0.0-20220512170110-6706a2966875
+	github.com/mdlayher/arp v0.0.0-20260520093243-4d6930677ae7
 	github.com/mdlayher/ethtool v0.6.0
 	github.com/mdlayher/genetlink v1.4.0
-	github.com/mdlayher/netlink v1.11.1
+	github.com/mdlayher/netlink v1.11.2
 	github.com/planetscale/vtprotobuf v0.6.1-0.20250313105119-ba97887b0a25
 	github.com/rs/xid v1.6.0
 	github.com/safchain/ethtool v0.7.0
@@ -63,7 +63,7 @@ require (
 	github.com/siderolabs/go-procfs v0.1.2
 	github.com/siderolabs/go-retry v0.3.3
 	github.com/siderolabs/grpc-proxy v0.5.2
-	github.com/siderolabs/image-factory v1.2.0
+	github.com/siderolabs/image-factory v1.3.1
 	github.com/siderolabs/net v0.4.0
 	github.com/siderolabs/omni/client v1.7.3
 	github.com/siderolabs/siderolink v0.3.16
@@ -80,7 +80,7 @@ require (
 	golang.org/x/sys v0.44.0
 	golang.org/x/time v0.15.0
 	golang.zx2c4.com/wireguard/wgctrl v0.0.0-20241231184526-a9ab2273dd10
-	google.golang.org/grpc v1.81.0
+	google.golang.org/grpc v1.81.1
 	google.golang.org/protobuf v1.36.12-0.20260120151049-f2248ac996af
 	k8s.io/api v0.36.1
 	k8s.io/apimachinery v0.36.1
