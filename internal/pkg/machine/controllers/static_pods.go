@@ -354,7 +354,7 @@ func (ctrl *StaticPodController) renderScheduler(machineConfig *config.MachineCo
 	pod.Spec.Containers = []v1.Container{
 		{
 			Name:  "kube-scheduler",
-			Image: machineConfig.Config().Cluster().Scheduler().Image(),
+			Image: machineConfig.Config().K8sSchedulerConfig().Image(),
 			Resources: v1.ResourceRequirements{
 				Limits: v1.ResourceList{
 					v1.ResourceCPU:    kresource.MustParse("50m"),
@@ -379,7 +379,7 @@ func (ctrl *StaticPodController) renderControllerManager(machineConfig *config.M
 	pod.Spec.Containers = []v1.Container{
 		{
 			Name:  "kube-controller-manager",
-			Image: machineConfig.Config().Cluster().ControllerManager().Image(),
+			Image: machineConfig.Config().K8sControllerManagerConfig().Image(),
 			Resources: v1.ResourceRequirements{
 				Limits: v1.ResourceList{
 					v1.ResourceCPU:    kresource.MustParse("50m"),
