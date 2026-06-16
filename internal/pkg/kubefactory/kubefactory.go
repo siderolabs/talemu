@@ -114,7 +114,7 @@ func (k *Kubernetes) RunAPIService(ctx context.Context, address, iface, machineI
 	s.Authentication.ServiceAccounts.KeyFiles = []string{
 		filepath.Join(certsDir, "service-account.pub"),
 	}
-	s.Authentication.ServiceAccounts.Issuers = []string{"api"}
+	s.Authentication.ServiceAccounts.Issuers = []string{"https://api"}
 
 	s.Etcd.StorageConfig.Transport.ServerList = k.etcd.Client().Endpoints()
 	s.Etcd.StorageConfig.Prefix = clusterPrefix(clusterID)
