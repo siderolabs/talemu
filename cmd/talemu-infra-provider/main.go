@@ -178,7 +178,7 @@ var rootCmd = &cobra.Command{
 			return ip.Run(ctx, logger, infra.WithOmniEndpoint(cfg.omniAPIEndpoint), infra.WithClientOptions(
 				client.WithServiceAccount(cfg.serviceAccountKey),
 				client.WithInsecureSkipTLSVerify(true),
-			))
+			), infra.WithEncodeRequestIDsIntoTokens())
 		})
 
 		eg.Go(func() error {

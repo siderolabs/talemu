@@ -9,6 +9,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strconv"
 
 	"github.com/cosi-project/runtime/pkg/resource"
 	"github.com/cosi-project/runtime/pkg/resource/meta"
@@ -137,4 +138,14 @@ func newBoltStateBuilder(path string, options *bbolt.Options, compact bool, logg
 // GetStateDir constructs state directory for the machine.
 func GetStateDir(id string) string {
 	return filepath.Join("_out/state/machines", id)
+}
+
+// MachineID returns the stable unique identifier for the machine occupying the given slot.
+//
+// The slot is used instead of the node UUID because UUIDs can be intentionally duplicated
+// (e.g. when forcing UUID conflicts for testing), while slots are always unique. Keying
+// per-machine state (state directory, machine status resource, certificates, ...) on the slot
+// keeps machines isolated even when several of them share the same UUID.
+func MachineID(slot int) string {
+	return strconv.Itoa(slot)
 }

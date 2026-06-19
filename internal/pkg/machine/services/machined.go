@@ -21,9 +21,11 @@ import (
 	"github.com/siderolabs/talos/pkg/machinery/api/machine"
 	"github.com/siderolabs/talos/pkg/machinery/api/storage"
 	"github.com/siderolabs/talos/pkg/machinery/config/configloader"
+	"github.com/siderolabs/talos/pkg/machinery/meta"
 	"github.com/siderolabs/talos/pkg/machinery/resources/block"
 	"github.com/siderolabs/talos/pkg/machinery/resources/config"
 	"github.com/siderolabs/talos/pkg/machinery/resources/etcd"
+	"github.com/siderolabs/talos/pkg/machinery/resources/hardware"
 	"github.com/siderolabs/talos/pkg/machinery/resources/network"
 	"github.com/siderolabs/talos/pkg/machinery/resources/runtime"
 	"github.com/siderolabs/talos/pkg/machinery/resources/v1alpha1"
@@ -798,6 +800,15 @@ func (c *MachineService) MetaWrite(ctx context.Context, req *machine.MetaWriteRe
 		}
 	}
 
+	// UUIDOverride is written by Omni to resolve UUID conflicts: emulate the real Talos behavior
+	// by replacing the node UUID (e.g. the all-zeroes UUID produced with forced conflicts) with the
+	// overridden one, so the machine reconnects to SideroLink with its new unique UUID.
+	if req.Key == meta.UUIDOverride {
+		if err := c.overrideNodeUUID(ctx, string(req.Value)); err != nil {
+			return nil, err
+		}
+	}
+
 	if err := c.state.Create(ctx, metaKey); err != nil {
 		if !state.IsConflictError(err) {
 			return nil, err
@@ -897,6 +908,21 @@ func (c *MachineService) createOrUpdateUniqueToken(ctx context.Context, req *mac
 	})
 
 	return err
+}
+
+func (c *MachineService) overrideNodeUUID(ctx context.Context, uuid string) error {
+	_, err := safe.StateUpdateWithConflicts(ctx, c.state, hardware.NewSystemInformation(hardware.SystemInformationID).Metadata(), func(r *hardware.SystemInformation) error {
+		r.TypedSpec().UUID = uuid
+
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+
+	c.logger.Info("overrode node UUID", zap.String("uuid", uuid))
+
+	return nil
 }
 
 // SystemStat implements machine.MachineServiceServer.

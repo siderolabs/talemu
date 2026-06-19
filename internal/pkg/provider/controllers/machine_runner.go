@@ -138,18 +138,20 @@ func (ctrl *MachineController) Run(ctx context.Context, r controller.Runtime, lo
 }
 
 func (ctrl *MachineController) resetMachine(ctx context.Context, m *resources.MachineTask, logger *zap.Logger) error {
-	logger.Info("reset machine", zap.String("uuid", m.TypedSpec().Value.Uuid), zap.String("request", m.Metadata().ID()))
+	machineID := runtime.MachineID(int(m.TypedSpec().Value.Slot))
+
+	logger.Info("reset machine", zap.String("machine", machineID), zap.String("uuid", m.TypedSpec().Value.Uuid), zap.String("request", m.Metadata().ID()))
 
 	ctrl.runner.StopTask(logger, m.Metadata().ID())
 
-	stateDir := runtime.GetStateDir(m.TypedSpec().Value.Uuid)
+	stateDir := runtime.GetStateDir(machineID)
 
 	err := os.RemoveAll(stateDir)
-	if !os.IsNotExist(err) {
+	if err != nil && !os.IsNotExist(err) {
 		return err
 	}
 
-	err = ctrl.globalState.Destroy(ctx, emu.NewMachineStatus(emu.NamespaceName, m.TypedSpec().Value.Uuid).Metadata())
+	err = ctrl.globalState.Destroy(ctx, emu.NewMachineStatus(emu.NamespaceName, machineID).Metadata())
 	if err != nil && !state.IsNotFoundError(err) {
 		return err
 	}

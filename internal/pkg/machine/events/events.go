@@ -12,7 +12,6 @@ import (
 	"net"
 	"net/netip"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/cosi-project/runtime/pkg/resource"
@@ -60,61 +59,121 @@ func (h *Handler) Run(ctx context.Context, logger *zap.Logger) error {
 		return err
 	}
 
+	endpoint := config.TypedSpec().Endpoint
+
+	// The siderolink address can change at runtime: when Omni resolves a UUID conflict it assigns a
+	// new UUID and the machine re-provisions, getting a brand new address. Events must originate from
+	// the address Omni currently associates with this machine, so watch the address and rebuild the
+	// event sink connection whenever it changes (the same way APIDController restarts its listener).
+	addressCh := make(chan state.Event)
+	if err = h.state.WatchKind(ctx, network.NewAddressStatus(network.NamespaceName, "").Metadata(), addressCh); err != nil {
+		return fmt.Errorf("failed to watch addresses: %w", err)
+	}
+
 	var (
-		bindAddress *net.TCPAddr
-		mu          sync.Mutex
+		boundAddr  netip.Addr
+		sinkEg     *errgroup.Group
+		stopSink   context.CancelFunc
+		haveRunner bool
 	)
 
+	teardownSink := func() {
+		if !haveRunner {
+			return
+		}
+
+		stopSink()
+		sinkEg.Wait() //nolint:errcheck
+
+		haveRunner = false
+	}
+
+	defer teardownSink()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return nil
+		case ev := <-addressCh:
+			if ev.Type == state.Errored {
+				return fmt.Errorf("address watch failed: %w", ev.Error)
+			}
+		}
+
+		addr, linkName, ok, err := h.siderolinkAddress(ctx)
+		if err != nil {
+			return err
+		}
+
+		if !ok || addr == boundAddr {
+			continue
+		}
+
+		teardownSink()
+
+		boundAddr = addr
+
+		sinkCtx, cancelSink := context.WithCancel(ctx)
+
+		sinkEg, err = h.startEventSink(sinkCtx, logger, endpoint, addr, linkName)
+		if err != nil {
+			cancelSink()
+
+			return err
+		}
+
+		stopSink = cancelSink
+		haveRunner = true
+	}
+}
+
+// siderolinkAddress returns the current siderolink interface address, if any.
+func (h *Handler) siderolinkAddress(ctx context.Context) (netip.Addr, string, bool, error) {
+	list, err := safe.ReaderListAll[*network.AddressStatus](ctx, h.state)
+	if err != nil {
+		return netip.Addr{}, "", false, err
+	}
+
+	addr, ok := list.Find(func(r *network.AddressStatus) bool {
+		return strings.HasPrefix(r.TypedSpec().LinkName, constants.SideroLinkName)
+	})
+	if !ok {
+		return netip.Addr{}, "", false, nil
+	}
+
+	return addr.TypedSpec().Address.Addr(), addr.TypedSpec().LinkName, true, nil
+}
+
+// startEventSink dials the event sink bound to the given address and starts publishing events.
+// The returned group winds down (closing the connection) once ctx is canceled.
+func (h *Handler) startEventSink(ctx context.Context, logger *zap.Logger, endpoint string, addr netip.Addr, linkName string) (*errgroup.Group, error) {
+	bindAddress := net.TCPAddrFromAddrPort(netip.AddrPortFrom(addr, 0))
+
 	conn, err := grpc.NewClient(
-		config.TypedSpec().Endpoint,
+		endpoint,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 		grpc.WithSharedWriteBuffer(true),
 		grpc.WithContextDialer(func(ctx context.Context, address string) (net.Conn, error) {
-			mu.Lock()
-			defer mu.Unlock()
-
-			var (
-				dialer   net.Dialer
-				linkName string
-			)
-
-			if bindAddress == nil {
-				list, e := safe.ReaderListAll[*network.AddressStatus](ctx, h.state)
-				if err != nil {
-					return nil, e
-				}
-
-				addr, ok := list.Find(func(r *network.AddressStatus) bool {
-					return strings.HasPrefix(r.TypedSpec().LinkName, constants.SideroLinkName)
-				})
-				if !ok {
-					return nil, fmt.Errorf("failed to look up siderolink address")
-				}
-
-				siderolinkAddr := addr.TypedSpec().Address
-
-				bindAddress = net.TCPAddrFromAddrPort(netip.AddrPortFrom(
-					siderolinkAddr.Addr(),
-					0,
-				))
-
-				linkName = addr.TypedSpec().LinkName
-			}
+			var dialer net.Dialer
 
 			dialer.LocalAddr = bindAddress
-
 			dialer.Control = emunet.BindToInterface(linkName)
 
 			return dialer.DialContext(ctx, "tcp", address)
 		}),
 	)
 	if err != nil {
-		return fmt.Errorf("error establishing connection to event sink: %w", err)
+		return nil, fmt.Errorf("error establishing connection to event sink: %w", err)
 	}
 
-	defer conn.Close() //nolint:errcheck
+	eg, ctx := errgroup.WithContext(ctx)
 
-	var eg errgroup.Group
+	// close the connection once the context is canceled (address change or shutdown).
+	eg.Go(func() error {
+		<-ctx.Done()
+
+		return conn.Close()
+	})
 
 	client := events.NewEventSinkServiceClient(conn)
 
@@ -185,7 +244,7 @@ func (h *Handler) Run(ctx context.Context, logger *zap.Logger) error {
 		})
 	})
 
-	return eg.Wait()
+	return eg, nil
 }
 
 func (h *Handler) runWithRetries(ctx context.Context, logger *zap.Logger, cb func() error) error {

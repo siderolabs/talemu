@@ -95,9 +95,7 @@ func NewRuntime(ctx context.Context, logger *zap.Logger, slot int, id string, gl
 		},
 		&controllers.GRPCTLSController{},
 		&controllers.MachineTypeController{},
-		&controllers.HostnameConfigController{
-			MachineID: id,
-		},
+		&controllers.HostnameConfigController{},
 		&controllers.HostnameMergeController{},
 		&controllers.HostnameSpecController{
 			GlobalState: globalState,

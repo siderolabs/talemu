@@ -102,10 +102,15 @@ func (m *Machine) Run(ctx context.Context, siderolinkParams *SideroLinkParams, s
 
 	defer logSink.Close(ctx) //nolint:errcheck
 
-	m.logger = zap.New(core).With(zap.String("machine", m.uuid))
+	// The internal machine identifier is derived from the unique slot rather than the UUID:
+	// UUIDs can be duplicated (e.g. when forcing UUID conflicts), and using them for per-machine
+	// state would make machines clobber each other's state directory and resources.
+	machineID := truntime.MachineID(slot)
+
+	m.logger = zap.New(core).With(zap.String("machine", machineID), zap.String("uuid", m.uuid))
 
 	rt, err := truntime.NewRuntime(
-		ctx, m.logger, slot, m.uuid, m.globalState,
+		ctx, m.logger, slot, machineID, m.globalState,
 		kubernetes, opts.nc, logSink, siderolinkParams.RawKernelArgs, m.schematicService,
 		m.imageFactoryHost, opts.nodeProxyingDisabled,
 	)

@@ -6,6 +6,9 @@
     },
     "secure_boot": {
       "type": "boolean"
+    },
+    "uuid": {
+      "type": "string"
     }
   }
 }

@@ -36,7 +36,8 @@ func NewProvisioner(state state.State) *Provisioner {
 }
 
 type providerData struct {
-	SecureBoot bool `yaml:"secure_boot"`
+	UUID       string `yaml:"uuid"`
+	SecureBoot bool   `yaml:"secure_boot"`
 }
 
 // ProvisionSteps implements infra.Provisioner.
@@ -57,7 +58,6 @@ func (p *Provisioner) ProvisionSteps() []provision.Step[*resources.Machine] {
 
 			// the machine is already provisioned, so no need to do anything, just return the current machine state
 			if machineTask != nil {
-				pctx.SetMachineUUID(machineTask.TypedSpec().Value.Uuid)
 				pctx.SetMachineInfraID(fmt.Sprintf("%d", machineTask.TypedSpec().Value.Slot))
 
 				return nil
@@ -73,7 +73,13 @@ func (p *Provisioner) ProvisionSteps() []provision.Step[*resources.Machine] {
 					return fmt.Errorf("failed to pick a free slot: %w", err)
 				}
 
-				machine.TypedSpec().Value.Uuid = fmt.Sprintf("%06d03-c798-4da7-a410-f09abb48c8d8", machine.TypedSpec().Value.Slot)
+				if pd.UUID != "" {
+					logger.Warn("machine UUID is overridden via provider data; reusing the same UUID across machines fakes a conflict that should be handled gracefully", zap.String("uuid", pd.UUID))
+
+					machine.TypedSpec().Value.Uuid = pd.UUID
+				} else {
+					machine.TypedSpec().Value.Uuid = fmt.Sprintf("%06d03-c798-4da7-a410-f09abb48c8d8", machine.TypedSpec().Value.Slot)
+				}
 
 				machine.TypedSpec().Value.Schematic, err = pctx.GenerateSchematicID(ctx, logger, provision.WithoutConnectionParams())
 				if err != nil {
@@ -96,7 +102,6 @@ func (p *Provisioner) ProvisionSteps() []provision.Step[*resources.Machine] {
 				SecureBoot:     pd.SecureBoot,
 			}
 
-			pctx.SetMachineUUID(machineTask.TypedSpec().Value.Uuid)
 			pctx.SetMachineInfraID(fmt.Sprintf("%d", machineTask.TypedSpec().Value.Slot))
 
 			if err = p.state.Create(ctx, machineTask); err != nil {

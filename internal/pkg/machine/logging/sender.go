@@ -20,11 +20,13 @@ import (
 
 // LogSender writes zap logs to the remote destination.
 type LogSender struct {
-	endpoint  *url.URL
 	conn      net.Conn
+	endpoint  *url.URL
 	sema      chan struct{}
-	iface     string
 	localAddr netip.Prefix
+	connAddr  netip.Prefix
+	iface     string
+	connIface string
 	mu        sync.Mutex
 }
 
@@ -105,6 +107,15 @@ func (j *LogSender) Send(ctx context.Context, e *LogEvent) error {
 
 	defer unlock()
 
+	// The bind address can change at runtime (e.g. when Omni resolves a UUID conflict the machine
+	// re-provisions and gets a new address). If the current connection is bound to a stale address,
+	// drop it so we redial and bind to the current one, otherwise Omni keeps receiving logs from an
+	// address it no longer associates with this machine.
+	if j.conn != nil && (j.connAddr != localAddr || j.connIface != iface) {
+		j.conn.Close() //nolint:errcheck
+		j.conn = nil
+	}
+
 	var dialer net.Dialer
 
 	dialer.LocalAddr = net.TCPAddrFromAddrPort(netip.AddrPortFrom(localAddr.Addr(), 0))
@@ -118,6 +129,8 @@ func (j *LogSender) Send(ctx context.Context, e *LogEvent) error {
 		}
 
 		j.conn = conn
+		j.connAddr = localAddr
+		j.connIface = iface
 	}
 
 	d, _ := ctx.Deadline()

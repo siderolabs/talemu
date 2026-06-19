@@ -20,6 +20,7 @@ import (
 	"github.com/siderolabs/talos/pkg/machinery/nethelpers"
 	"github.com/siderolabs/talos/pkg/machinery/resources/cluster"
 	"github.com/siderolabs/talos/pkg/machinery/resources/config"
+	"github.com/siderolabs/talos/pkg/machinery/resources/hardware"
 	"github.com/siderolabs/talos/pkg/machinery/resources/network"
 	"go.uber.org/zap"
 
@@ -27,9 +28,7 @@ import (
 )
 
 // HostnameConfigController manages network.HostnameSpec based on machine configuration, kernel cmdline.
-type HostnameConfigController struct {
-	MachineID string
-}
+type HostnameConfigController struct{}
 
 // Name implements controller.Controller interface.
 func (ctrl *HostnameConfigController) Name() string {
@@ -55,6 +54,12 @@ func (ctrl *HostnameConfigController) Inputs() []controller.Input {
 			Namespace: cluster.NamespaceName,
 			Type:      cluster.IdentityType,
 			ID:        optional.Some(cluster.LocalIdentity),
+			Kind:      controller.InputWeak,
+		},
+		{
+			Namespace: hardware.NamespaceName,
+			Type:      hardware.SystemInformationType,
+			ID:        optional.Some(hardware.SystemInformationID),
 			Kind:      controller.InputWeak,
 		},
 	}
@@ -118,6 +123,21 @@ func (ctrl *HostnameConfigController) Run(ctx context.Context, r controller.Runt
 			defaultAddr = addrs.(*network.NodeAddress) //nolint:errcheck,forcetypeassert
 		}
 
+		// the default hostname is the machine UUID (including any override Omni assigned to resolve a
+		// UUID conflict), so it tracks the node UUID rather than the internal slot-based identifier.
+		var (
+			defaultHostname string
+			sysInfo         *hardware.SystemInformation
+		)
+
+		if sysInfo, err = safe.ReaderGetByID[*hardware.SystemInformation](ctx, r, hardware.SystemInformationID); err != nil {
+			if !state.IsNotFoundError(err) {
+				return fmt.Errorf("error getting system information: %w", err)
+			}
+		} else {
+			defaultHostname = sysInfo.TypedSpec().UUID
+		}
+
 		// parse machine configuration for specs
 		if cfgProvider != nil {
 			configHostname := ctrl.parseMachineConfiguration(logger, cfgProvider)
@@ -147,7 +167,7 @@ func (ctrl *HostnameConfigController) Run(ctx context.Context, r controller.Runt
 			}
 		} else {
 			specs = append(specs, network.HostnameSpecSpec{
-				Hostname:    ctrl.MachineID,
+				Hostname:    defaultHostname,
 				ConfigLayer: network.ConfigDefault,
 			})
 		}
