@@ -6,16 +6,19 @@ package services
 
 import (
 	"context"
+	"crypto/sha256"
 	"fmt"
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/cosi-project/runtime/pkg/controller/generic"
 	"github.com/cosi-project/runtime/pkg/resource"
 	"github.com/cosi-project/runtime/pkg/safe"
 	"github.com/cosi-project/runtime/pkg/state"
+	"github.com/google/uuid"
 	"github.com/siderolabs/omni/client/pkg/constants"
 	"github.com/siderolabs/talos/pkg/machinery/api/common"
 	"github.com/siderolabs/talos/pkg/machinery/api/machine"
@@ -45,26 +48,30 @@ import (
 type MachineService struct {
 	machine.UnimplementedMachineServiceServer
 	storage.UnimplementedStorageServiceServer
-
-	state       state.State
-	globalState state.State
-
-	logger    *zap.Logger
-	startTime time.Time
-
-	machineID        string
-	imageFactoryHost string
+	startTime          time.Time
+	state              state.State
+	globalState        state.State
+	logger             *zap.Logger
+	sharedMachineState *machineState
+	machineID          string
+	imageFactoryHost   string
 }
 
-// NewMachineService creates a new MachineService.
-func NewMachineService(machineID string, state, globalState state.State, imageFactoryHost string, logger *zap.Logger) *MachineService {
+// NewMachineService creates a new MachineService. sharedMachineState is the per-machine emulator state held
+// across apid restarts; when nil (e.g. in tests) a fresh one is allocated.
+func NewMachineService(machineID string, state, globalState state.State, imageFactoryHost string, logger *zap.Logger, sharedMachineState *machineState) *MachineService {
+	if sharedMachineState == nil {
+		sharedMachineState = newMachineState()
+	}
+
 	return &MachineService{
-		state:            state,
-		globalState:      globalState,
-		logger:           logger,
-		machineID:        machineID,
-		imageFactoryHost: imageFactoryHost,
-		startTime:        time.Now(),
+		state:              state,
+		globalState:        globalState,
+		logger:             logger,
+		machineID:          machineID,
+		imageFactoryHost:   imageFactoryHost,
+		startTime:          time.Now(),
+		sharedMachineState: sharedMachineState,
 	}
 }
 
@@ -79,7 +86,7 @@ func (c *MachineService) ApplyConfiguration(ctx context.Context, request *machin
 	isPartialConfig := cfg.Config().Machine() == nil
 
 	if !isPartialConfig {
-		if err = c.validateInstaller(ctx, cfg.Config().Machine().Install().Image()); err != nil {
+		if err = validateInstaller(ctx, c.state, cfg.Config().Machine().Install().Image()); err != nil {
 			return nil, err
 		}
 	}
@@ -318,47 +325,33 @@ func (c *MachineService) Version(ctx context.Context, _ *emptypb.Empty) (*machin
 
 // Upgrade implements machine.MachineServiceServer.
 func (c *MachineService) Upgrade(ctx context.Context, req *machine.UpgradeRequest) (*machine.UpgradeResponse, error) {
-	if err := c.validateInstaller(ctx, req.Image); err != nil {
+	if !c.sharedMachineState.sequenceMu.TryLock() {
+		return nil, errSequenceInProgress
+	}
+	defer c.sharedMachineState.sequenceMu.Unlock()
+
+	installed, err := machineInstalled(ctx, c.state)
+	if err != nil {
 		return nil, err
 	}
 
-	parts := strings.Split(req.Image, "/")
-
-	var schematic string
-
-	s, version, found := strings.Cut(parts[len(parts)-1], ":")
-	if !found {
-		return nil, status.Errorf(codes.InvalidArgument, "failed to parse the image")
+	if !installed {
+		return nil, status.Error(codes.FailedPrecondition, "Talos is not installed")
 	}
 
-	if parts[0] == c.imageFactoryHost {
-		schematic = s
+	if err = validateInstaller(ctx, c.state, req.Image); err != nil {
+		return nil, err
 	}
 
-	image := talos.NewImage(talos.NamespaceName, talos.ImageID)
-	image.TypedSpec().Value.Schematic = schematic
-	image.TypedSpec().Value.Version = version
-
-	changed := true
-
-	if err := c.state.Create(ctx, image); err != nil {
-		if !state.IsConflictError(err) {
-			return nil, err
-		}
-
-		if _, err = safe.StateUpdateWithConflicts(ctx, c.state, image.Metadata(), func(res *talos.Image) error {
-			changed = !res.TypedSpec().Value.EqualVT(image.TypedSpec().Value)
-
-			res.TypedSpec().Value = image.TypedSpec().Value
-
-			return nil
-		}); err != nil {
-			return nil, err
-		}
+	changed, err := setImage(ctx, c.state, c.imageFactoryHost, req.Image)
+	if err != nil {
+		return nil, err
 	}
 
+	// Only reboot when the target image actually differs, so a redundant upgrade (e.g. an Omni
+	// retry to the running version) does not needlessly drop the apid connection.
 	if changed {
-		if _, err := c.Reboot(ctx, &machine.RebootRequest{}); err != nil {
+		if err := c.requestReboot(ctx); err != nil {
 			return nil, err
 		}
 	}
@@ -375,15 +368,12 @@ func (c *MachineService) Upgrade(ctx context.Context, req *machine.UpgradeReques
 
 // Reboot implements machine.MachineServiceServer.
 func (c *MachineService) Reboot(ctx context.Context, _ *machine.RebootRequest) (*machine.RebootResponse, error) {
-	reboot := talos.NewReboot(talos.NamespaceName, talos.RebootID)
-	reboot.TypedSpec().Value.Downtime = durationpb.New(time.Second * 2)
-
-	err := destroyResourceByID[*talos.Reboot](ctx, c.state, talos.RebootID)
-	if err != nil && !state.IsNotFoundError(err) {
-		return nil, err
+	if !c.sharedMachineState.sequenceMu.TryLock() {
+		return nil, errSequenceInProgress
 	}
+	defer c.sharedMachineState.sequenceMu.Unlock()
 
-	if err = c.state.Create(ctx, reboot); err != nil {
+	if err := c.requestReboot(ctx); err != nil {
 		return nil, err
 	}
 
@@ -393,6 +383,18 @@ func (c *MachineService) Reboot(ctx context.Context, _ *machine.RebootRequest) (
 		},
 	}, nil
 }
+
+// Read implements machine.MachineServiceServer. The emulator only serves the kernel boot ID file.
+func (c *MachineService) Read(req *machine.ReadRequest, srv machine.MachineService_ReadServer) error {
+	if req.GetPath() != BootIDPath {
+		return status.Errorf(codes.Unimplemented, "reading %q is not supported by the emulator", req.GetPath())
+	}
+
+	return srv.Send(&common.Data{Bytes: []byte(c.currentBootID() + "\n")})
+}
+
+// BootIDPath is the kernel-provided per-boot identifier; its value changes on every reboot.
+const BootIDPath = "/proc/sys/kernel/random/boot_id"
 
 // EtcdMemberList implements machine.MachineServiceServer.
 func (c *MachineService) EtcdMemberList(ctx context.Context, _ *machine.EtcdMemberListRequest) (*machine.EtcdMemberListResponse, error) {
@@ -750,21 +752,33 @@ func (c *MachineService) ImageList(_ *machine.ImageListRequest, serv machine.Mac
 
 // ImagePull implements machine.MachineServiceServer.
 func (c *MachineService) ImagePull(ctx context.Context, req *machine.ImagePullRequest) (*machine.ImagePullResponse, error) {
-	if strings.HasSuffix(req.Reference, "-bad") {
-		return nil, fmt.Errorf("emulator is set to fail on images ending with -bad suffix")
-	}
-
-	image := talos.NewCachedImage(talos.NamespaceName, req.Reference)
-	image.TypedSpec().Value.Digest = "aaaa"
-	image.TypedSpec().Value.Size = 1024
-
-	if err := c.state.Create(ctx, image); err != nil && !state.IsConflictError(err) {
+	if _, err := cacheImage(ctx, c.state, req.Reference); err != nil {
 		return nil, err
 	}
 
 	return &machine.ImagePullResponse{
 		Messages: []*machine.ImagePull{},
 	}, nil
+}
+
+// cacheImage records a pulled image as a CachedImage and returns its digest, derived from the reference so it is stable across calls.
+func cacheImage(ctx context.Context, st state.State, ref string) (string, error) {
+	// The emulator fails on a "-bad" suffix, mapped to the not-found code Talos returns for a missing image, so both pull entry points reject it consistently.
+	if strings.HasSuffix(ref, "-bad") {
+		return "", status.Errorf(codes.NotFound, "image %q not found", ref)
+	}
+
+	digest := fmt.Sprintf("sha256:%x", sha256.Sum256([]byte(ref)))
+
+	image := talos.NewCachedImage(talos.NamespaceName, ref)
+	image.TypedSpec().Value.Digest = digest
+	image.TypedSpec().Value.Size = 1024
+
+	if err := st.Create(ctx, image); err != nil && !state.IsConflictError(err) {
+		return "", err
+	}
+
+	return digest, nil
 }
 
 // Dmesg implements machine.MachineServiceServer.
@@ -850,8 +864,8 @@ func (c *MachineService) MetaDelete(ctx context.Context, req *machine.MetaDelete
 	return &machine.MetaDeleteResponse{}, nil
 }
 
-func (c *MachineService) validateInstaller(ctx context.Context, image string) error {
-	securityState, err := safe.ReaderGetByID[*runtime.SecurityState](ctx, c.state, runtime.SecurityStateID)
+func validateInstaller(ctx context.Context, st state.State, image string) error {
+	securityState, err := safe.ReaderGetByID[*runtime.SecurityState](ctx, st, runtime.SecurityStateID)
 	if err != nil {
 		return err
 	}
@@ -1005,6 +1019,122 @@ func (c *MachineService) Processes(_ context.Context, _ *emptypb.Empty) (*machin
 			{Processes: processes},
 		},
 	}, nil
+}
+
+// setImage records the target Talos image on the machine and reports whether it differs from the image already recorded, so callers can avoid a needless reboot on a redundant upgrade.
+func setImage(ctx context.Context, st state.State, imageFactoryHost, imageRef string) (bool, error) {
+	ref := imageRef
+
+	if at := strings.IndexByte(ref, '@'); at != -1 {
+		ref = ref[:at]
+	}
+
+	parts := strings.Split(ref, "/")
+
+	s, version, found := strings.Cut(parts[len(parts)-1], ":")
+	if !found {
+		return false, status.Errorf(codes.InvalidArgument, "failed to parse the image %q", imageRef)
+	}
+
+	var schematic string
+
+	if parts[0] == imageFactoryHost {
+		schematic = s
+	}
+
+	var changed bool
+
+	if err := st.Modify(ctx, talos.NewImage(talos.NamespaceName, talos.ImageID), func(res resource.Resource) error {
+		typedRes := res.(*talos.Image) //nolint:forcetypeassert,errcheck
+
+		value := typedRes.TypedSpec().Value
+		changed = value.Schematic != schematic || value.Version != version
+
+		value.Schematic = schematic
+		value.Version = version
+
+		return nil
+	}); err != nil {
+		return false, err
+	}
+
+	return changed, nil
+}
+
+// requestReboot simulates a node reboot by (re)creating a Reboot resource with a short downtime,
+// and rotates the boot ID as the kernel does on every boot.
+func (c *MachineService) requestReboot(ctx context.Context) error {
+	reboot := talos.NewReboot(talos.NamespaceName, talos.RebootID)
+	reboot.TypedSpec().Value.Downtime = durationpb.New(time.Second * 2)
+
+	if err := destroyResourceByID[*talos.Reboot](ctx, c.state, talos.RebootID); err != nil && !state.IsNotFoundError(err) {
+		return err
+	}
+
+	if err := c.state.Create(ctx, reboot); err != nil {
+		return err
+	}
+
+	c.rotateBootID()
+
+	return nil
+}
+
+// currentBootID returns the current kernel boot ID.
+func (c *MachineService) currentBootID() string {
+	return c.sharedMachineState.bootID.get()
+}
+
+// rotateBootID assigns a fresh kernel boot ID.
+func (c *MachineService) rotateBootID() {
+	c.sharedMachineState.bootID.rotate()
+}
+
+// errLifecycleInProgress is returned when a lifecycle install or upgrade is already running.
+var errLifecycleInProgress = status.Error(codes.FailedPrecondition, "another install or upgrade is already in progress")
+
+// errSequenceInProgress is returned when a machine-service sequence operation (upgrade or reboot) is already running.
+var errSequenceInProgress = status.Error(codes.FailedPrecondition, "another sequence is already running")
+
+// machineState is the per-machine emulator state shared between the machine and lifecycle services.
+// It is owned by the APID service, so it survives apid restarts (cert and address changes) and lets
+// the services observe the same boot ID and serialize operations within each Talos lock domain.
+type machineState struct {
+	bootID *kernelBootID
+	// lifecycleMu serializes LifecycleService.Install and Upgrade, mirroring the lifecycle lock.
+	lifecycleMu sync.Mutex
+	// sequenceMu serializes the machine service's sequence operations (Upgrade and Reboot), lightly mirroring the sequencer lock.
+	sequenceMu sync.Mutex
+}
+
+// newMachineState allocates per-machine state with a fresh boot ID.
+func newMachineState() *machineState {
+	return &machineState{bootID: newKernelBootID()}
+}
+
+// kernelBootID emulates /proc/sys/kernel/random/boot_id.
+type kernelBootID struct {
+	value string
+	mu    sync.Mutex
+}
+
+// newKernelBootID allocates a boot ID with a fresh value.
+func newKernelBootID() *kernelBootID {
+	return &kernelBootID{value: uuid.New().String()}
+}
+
+func (b *kernelBootID) get() string {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	return b.value
+}
+
+func (b *kernelBootID) rotate() {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	b.value = uuid.New().String()
 }
 
 type fakeProc struct {

@@ -50,6 +50,7 @@ type APID struct {
 	localAddressProvider director.LocalAddressProvider
 	shutdown             chan struct{}
 	eg                   *errgroup.Group
+	sharedMachineState   *machineState
 	machineID            string
 	imageFactoryHost     string
 	nodeProxyingDisabled bool
@@ -64,6 +65,7 @@ func NewAPID(machineID string, state state.State, globalState state.State, image
 		imageFactoryHost:     imageFactoryHost,
 		localAddressProvider: localAddressProvider,
 		nodeProxyingDisabled: nodeProxyingDisabled,
+		sharedMachineState:   newMachineState(),
 	}
 }
 
@@ -131,6 +133,10 @@ func (apid *APID) Run(ctx context.Context, endpoint netip.Prefix, logger *zap.Lo
 		"/machine.MachineService/Logs",
 		"/machine.MachineService/PacketCapture",
 		"/machine.MachineService/Read",
+		"/machine.ImageService/List",
+		"/machine.ImageService/Pull",
+		"/machine.LifecycleService/Install",
+		"/machine.LifecycleService/Upgrade",
 		"/os.OSService/Dmesg",
 		"/cluster.ClusterService/HealthCheck",
 	} {
@@ -163,7 +169,9 @@ func (apid *APID) Run(ctx context.Context, endpoint netip.Prefix, logger *zap.Lo
 	}
 
 	recoveryOption := recovery.WithRecoveryHandler(recoveryHandler)
-	machineSrv := NewMachineService(apid.machineID, apid.state, apid.globalState, apid.imageFactoryHost, logger)
+	machineSrv := NewMachineService(apid.machineID, apid.state, apid.globalState, apid.imageFactoryHost, logger, apid.sharedMachineState)
+	imageSrv := NewImageService(apid.state, logger)
+	lifecycleSrv := NewLifecycleService(apid.state, apid.imageFactoryHost, logger, apid.sharedMachineState)
 	localServer := grpc.NewServer(
 		grpc.Creds(insecure.NewCredentials()),
 		grpc.ForceServerCodecV2(proxy.Codec()),
@@ -173,6 +181,8 @@ func (apid *APID) Run(ctx context.Context, endpoint netip.Prefix, logger *zap.Lo
 	)
 
 	machine.RegisterMachineServiceServer(localServer, machineSrv)
+	machine.RegisterImageServiceServer(localServer, imageSrv)
+	machine.RegisterLifecycleServiceServer(localServer, lifecycleSrv)
 	storage.RegisterStorageServiceServer(localServer, machineSrv)
 	cosiv1alpha1.RegisterStateServer(localServer, resourceState)
 
