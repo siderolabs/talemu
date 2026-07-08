@@ -72,64 +72,45 @@ func (ctrl *EtcdController) Run(ctx context.Context, r controller.Runtime, logge
 		return err
 	}
 
-outer:
 	for {
-		var clusterID string
-
 		select {
 		case <-ctx.Done():
 			return nil
 		case <-r.EventCh():
+			// The machine's own config can arrive after the cluster has already bootstrapped (e.g. a control
+			// plane joining an existing cluster). Reconcile here so etcd still comes up in that ordering, not
+			// only when the global cluster status changes.
+			if err := ctrl.reconcile(ctx, r, logger); err != nil {
+				return err
+			}
 		case event := <-watchEvents:
 			switch event.Type {
 			case state.Errored:
 				return event.Error
 			case state.Bootstrapped, state.Noop:
-				continue outer
+				continue
 			case state.Destroyed, state.Created, state.Updated:
-				clusterID = event.Resource.Metadata().ID()
 			}
 
-			config, err := machineconfig.GetComplete(ctx, r)
-			if err != nil && !state.IsNotFoundError(err) {
-				return err
-			}
-
-			if clusterID != "" && config != nil && clusterID != config.Provider().Cluster().ID() {
-				continue
-			}
-
-			if config == nil || !config.Provider().Machine().Type().IsControlPlane() {
-				if err = ctrl.reconcileTeardown(ctx, r, logger); err != nil {
-					return err
-				}
-
-				continue
-			}
-
-			if err = ctrl.reconcileRunning(ctx, r, config, logger); err != nil {
+			if err := ctrl.reconcile(ctx, r, logger); err != nil {
 				return err
 			}
 		}
 	}
 }
 
-func (ctrl *EtcdController) reconcileTeardown(ctx context.Context, r controller.Runtime, logger *zap.Logger) error {
-	if err := ctrl.resetETCDMember(ctx, logger); err != nil {
-		return err
-	}
-
-	err := r.Destroy(ctx, etcd.NewMember(etcd.NamespaceName, etcd.LocalMemberID).Metadata())
+// reconcile ensures the etcd service and member are present for a control-plane machine.
+func (ctrl *EtcdController) reconcile(ctx context.Context, r controller.Runtime, logger *zap.Logger) error {
+	config, err := machineconfig.GetComplete(ctx, r)
 	if err != nil && !state.IsNotFoundError(err) {
 		return err
 	}
 
-	err = r.Destroy(ctx, v1alpha1.NewService(constants.ETCDService).Metadata())
-	if err != nil && !state.IsNotFoundError(err) {
-		return err
+	if config == nil || !config.Provider().Machine().Type().IsControlPlane() {
+		return nil
 	}
 
-	return nil
+	return ctrl.reconcileRunning(ctx, r, config, logger)
 }
 
 func (ctrl *EtcdController) reconcileRunning(ctx context.Context, r controller.Runtime, config *config.MachineConfig, logger *zap.Logger) error {
@@ -153,6 +134,12 @@ func (ctrl *EtcdController) reconcileRunning(ctx context.Context, r controller.R
 
 	clusterStatus, err := safe.ReaderGetByID[*emu.ClusterStatus](ctx, ctrl.GlobalState, config.Provider().Cluster().ID())
 	if err != nil {
+		if state.IsNotFoundError(err) {
+			// Config landed before the cluster status was published. Leave etcd not-ready and wait: the
+			// cluster status watch will trigger another reconcile once it appears.
+			return nil
+		}
+
 		return err
 	}
 
@@ -207,20 +194,4 @@ func (ctrl *EtcdController) genETCDMember(ctx context.Context) (string, error) {
 	}
 
 	return member, nil
-}
-
-func (ctrl *EtcdController) resetETCDMember(ctx context.Context, logger *zap.Logger) error {
-	if _, err := safe.StateUpdateWithConflicts(ctx, ctrl.GlobalState, emu.NewMachineStatus(emu.NamespaceName, ctrl.MachineID).Metadata(), func(res *emu.MachineStatus) error {
-		if res.TypedSpec().Value.EtcdMemberId != "" {
-			logger.Info("reset etcd member")
-		}
-
-		res.TypedSpec().Value.EtcdMemberId = ""
-
-		return nil
-	}); err != nil {
-		return err
-	}
-
-	return nil
 }

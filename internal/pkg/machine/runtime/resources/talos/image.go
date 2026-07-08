@@ -5,6 +5,9 @@
 package talos
 
 import (
+	"fmt"
+	"strings"
+
 	"github.com/cosi-project/runtime/pkg/resource"
 	"github.com/cosi-project/runtime/pkg/resource/meta"
 	"github.com/cosi-project/runtime/pkg/resource/protobuf"
@@ -19,6 +22,30 @@ func NewImage(ns, id string) *Image {
 		resource.NewMetadata(ns, ImageType, id, resource.VersionUndefined),
 		protobuf.NewResourceSpec(&specs.ImageSpec{}),
 	)
+}
+
+// ParseImageRef splits an installer image reference into its schematic id and Talos version.
+// The schematic is only recoverable when the reference points at the image factory host, since
+// only those references carry it as the repository path segment.
+func ParseImageRef(imageFactoryHost, imageRef string) (schematic, version string, err error) {
+	ref := imageRef
+
+	if at := strings.IndexByte(ref, '@'); at != -1 {
+		ref = ref[:at]
+	}
+
+	parts := strings.Split(ref, "/")
+
+	schematicCandidate, version, found := strings.Cut(parts[len(parts)-1], ":")
+	if !found {
+		return "", "", fmt.Errorf("failed to parse the image %q", imageRef)
+	}
+
+	if parts[0] == imageFactoryHost {
+		schematic = schematicCandidate
+	}
+
+	return schematic, version, nil
 }
 
 const (

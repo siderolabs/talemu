@@ -567,16 +567,23 @@ func (c *MachineService) EtcdForfeitLeadership(context.Context, *machine.EtcdFor
 }
 
 func (c *MachineService) EtcdStatus(ctx context.Context, _ *emptypb.Empty) (*machine.EtcdStatusResponse, error) {
-	member, err := safe.ReaderGetByID[*etcd.Member](ctx, c.state, etcd.LocalMemberID)
+	// Read the member from the shared global status, the same durable source EtcdMemberList uses, so the two
+	// RPCs always agree and both survive reboots.
+	machineStatus, err := safe.ReaderGetByID[*emu.MachineStatus](ctx, c.globalState, c.machineID)
 	if err != nil {
 		if state.IsNotFoundError(err) {
 			return nil, status.Errorf(codes.InvalidArgument, "the machine doesn't have etcd member")
 		}
 
-		return nil, fmt.Errorf("failed to get etcd member %w", err)
+		return nil, fmt.Errorf("failed to get machine status %w", err)
 	}
 
-	id, err := etcd.ParseMemberID(member.TypedSpec().MemberID)
+	memberID := machineStatus.TypedSpec().Value.EtcdMemberId
+	if memberID == "" {
+		return nil, status.Errorf(codes.InvalidArgument, "the machine doesn't have etcd member")
+	}
+
+	id, err := etcd.ParseMemberID(memberID)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to parse etcd member id %s", err.Error())
 	}
@@ -761,9 +768,10 @@ func (c *MachineService) ImagePull(ctx context.Context, req *machine.ImagePullRe
 	}, nil
 }
 
-// cacheImage records a pulled image as a CachedImage and returns its digest, derived from the reference so it is stable across calls.
+// cacheImage records a pulled image and returns a digest derived from the reference, so it stays
+// stable across calls.
 func cacheImage(ctx context.Context, st state.State, ref string) (string, error) {
-	// The emulator fails on a "-bad" suffix, mapped to the not-found code Talos returns for a missing image, so both pull entry points reject it consistently.
+	// A "-bad" suffix stands in for a missing image, so both pull paths reject it the way Talos does.
 	if strings.HasSuffix(ref, "-bad") {
 		return "", status.Errorf(codes.NotFound, "image %q not found", ref)
 	}
@@ -1021,30 +1029,17 @@ func (c *MachineService) Processes(_ context.Context, _ *emptypb.Empty) (*machin
 	}, nil
 }
 
-// setImage records the target Talos image on the machine and reports whether it differs from the image already recorded, so callers can avoid a needless reboot on a redundant upgrade.
+// setImage records the target Talos image and reports whether it changed, so a redundant upgrade to
+// the running image can skip the reboot.
 func setImage(ctx context.Context, st state.State, imageFactoryHost, imageRef string) (bool, error) {
-	ref := imageRef
-
-	if at := strings.IndexByte(ref, '@'); at != -1 {
-		ref = ref[:at]
-	}
-
-	parts := strings.Split(ref, "/")
-
-	s, version, found := strings.Cut(parts[len(parts)-1], ":")
-	if !found {
-		return false, status.Errorf(codes.InvalidArgument, "failed to parse the image %q", imageRef)
-	}
-
-	var schematic string
-
-	if parts[0] == imageFactoryHost {
-		schematic = s
+	schematic, version, err := talos.ParseImageRef(imageFactoryHost, imageRef)
+	if err != nil {
+		return false, status.Errorf(codes.InvalidArgument, "%s", err.Error())
 	}
 
 	var changed bool
 
-	if err := st.Modify(ctx, talos.NewImage(talos.NamespaceName, talos.ImageID), func(res resource.Resource) error {
+	if err = st.Modify(ctx, talos.NewImage(talos.NamespaceName, talos.ImageID), func(res resource.Resource) error {
 		typedRes := res.(*talos.Image) //nolint:forcetypeassert,errcheck
 
 		value := typedRes.TypedSpec().Value

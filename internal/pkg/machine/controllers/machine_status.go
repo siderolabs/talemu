@@ -31,7 +31,8 @@ import (
 // MachineStatusController computes machine state from the existing resources.
 // Updates machine status resource.
 type MachineStatusController struct {
-	State state.State
+	State            state.State
+	ImageFactoryHost string
 }
 
 // Name implements controller.Controller interface.
@@ -229,9 +230,36 @@ func (ctrl *MachineStatusController) reconcile(ctx context.Context, r controller
 		return err
 	}
 
+	// A config-apply install writes the config's install image to disk, so the running Talos
+	// version and schematic become that image. Omni's same-minor maintenance-install path relies on
+	// this instead of an explicit LifecycleService.Install, so without it the machine keeps reporting
+	// its boot version and never reaches the target the cluster was created with.
+	if err = ctrl.setInstalledImage(ctx, installConfig.Image()); err != nil {
+		return err
+	}
+
 	return safe.WriterModify(ctx, r, block.NewSystemDisk(block.NamespaceName, block.SystemDiskID), func(r *block.SystemDisk) error {
 		r.TypedSpec().DiskID = installDisk.Metadata().ID()
 		r.TypedSpec().DevPath = filepath.Join("/dev/", installDisk.Metadata().ID())
+
+		return nil
+	})
+}
+
+// setInstalledImage records the config's install image as the machine's current on-disk image.
+// talos.Image is owned by no controller (the services mutate it directly), so it is updated through
+// the raw state here rather than a controller output.
+func (ctrl *MachineStatusController) setInstalledImage(ctx context.Context, imageRef string) error {
+	schematic, version, err := talos.ParseImageRef(ctrl.ImageFactoryHost, imageRef)
+	if err != nil {
+		return err
+	}
+
+	return ctrl.State.Modify(ctx, talos.NewImage(talos.NamespaceName, talos.ImageID), func(res resource.Resource) error {
+		value := res.(*talos.Image).TypedSpec().Value //nolint:forcetypeassert,errcheck
+
+		value.Schematic = schematic
+		value.Version = version
 
 		return nil
 	})

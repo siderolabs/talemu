@@ -218,6 +218,15 @@ func (ctrl *StaticPodController) reconcile(ctx context.Context, r controller.Run
 		pod.Labels[machineIDLabel] = ctrl.MachineID
 		pod.Labels[inputVersionLabel] = nodenameVersion
 
+		// The control-plane components run as static pods on real Talos, so a node drain skips them (a
+		// kubelet marks its static pods with the mirror annotation). Mirror that here, otherwise draining a
+		// control-plane machine (e.g. during an upgrade) blocks forever waiting for these pods to terminate.
+		if pod.Annotations == nil {
+			pod.Annotations = map[string]string{}
+		}
+
+		pod.Annotations[v1.MirrorPodAnnotationKey] = ctrl.MachineID
+
 		pod.Spec.SchedulerName = "default-scheduler"
 		pod.Spec.NodeName = nodename.TypedSpec().Nodename
 		pod.Spec.HostNetwork = true

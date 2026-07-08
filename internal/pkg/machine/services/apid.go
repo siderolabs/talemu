@@ -197,7 +197,7 @@ func (apid *APID) Run(ctx context.Context, endpoint netip.Prefix, logger *zap.Lo
 		}
 
 		err = localServer.Serve(listener)
-		if errors.Is(err, context.Canceled) {
+		if errors.Is(err, context.Canceled) || errors.Is(err, grpc.ErrServerStopped) {
 			return nil
 		}
 
@@ -206,7 +206,7 @@ func (apid *APID) Run(ctx context.Context, endpoint netip.Prefix, logger *zap.Lo
 
 	eg.Go(func() error {
 		err := s.Serve(lis)
-		if errors.Is(err, context.Canceled) {
+		if errors.Is(err, context.Canceled) || errors.Is(err, grpc.ErrServerStopped) {
 			return nil
 		}
 
@@ -214,9 +214,20 @@ func (apid *APID) Run(ctx context.Context, endpoint netip.Prefix, logger *zap.Lo
 	})
 
 	eg.Go(func() error {
+		var reboot bool
+
 		select {
 		case <-ctx.Done():
 		case <-apid.shutdown:
+			reboot = true
+		}
+
+		if reboot {
+			// Force-stop the servers so clients observe the reboot instead of a graceful drain.
+			s.Stop()
+			localServer.Stop()
+
+			return nil
 		}
 
 		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 2*time.Second)
@@ -226,10 +237,6 @@ func (apid *APID) Run(ctx context.Context, endpoint netip.Prefix, logger *zap.Lo
 		ServerGracefulStop(localServer, shutdownCtx) //nolint:contextcheck
 
 		return nil
-	})
-
-	eg.Go(func() error {
-		return s.Serve(lis)
 	})
 
 	return nil

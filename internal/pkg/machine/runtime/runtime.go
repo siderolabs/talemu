@@ -116,7 +116,7 @@ func NewRuntime(ctx context.Context, logger *zap.Logger, slot int, id string, gl
 			SchematicService: schematicService,
 			ImageFactoryHost: imageFactoryHost,
 		},
-		&controllers.MachineStatusController{State: st},
+		&controllers.MachineStatusController{State: st, ImageFactoryHost: imageFactoryHost},
 		&controllers.VersionController{},
 		&controllers.NodeIdentityController{},
 		&controllers.NodenameController{},
