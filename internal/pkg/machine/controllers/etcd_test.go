@@ -103,6 +103,14 @@ func TestEtcdControllerControlPlanesRegisterOnBootstrap(t *testing.T) {
 
 		rtestutils.AssertResource(ctx, t, globalState, id, func(res *emu.MachineStatus, a *assert.Assertions) {
 			a.NotEmptyf(res.TypedSpec().Value.EtcdMemberId, "control plane %q must register an etcd member", id)
+
+			// EtcdMemberList filters the global status by these labels, so the member is only counted when
+			// they are written alongside it. Assert both are present on the same status as the member.
+			cluster, hasCluster := res.Metadata().Labels().Get(emu.LabelCluster)
+			a.Truef(hasCluster && cluster == clusterID, "control plane %q must carry the cluster label with its member", id)
+
+			_, hasControlPlane := res.Metadata().Labels().Get(emu.LabelControlPlaneRole)
+			a.Truef(hasControlPlane, "control plane %q must carry the control-plane label with its member", id)
 		})
 	}
 }

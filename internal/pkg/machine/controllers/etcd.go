@@ -158,13 +158,25 @@ func (ctrl *EtcdController) reconcileRunning(ctx context.Context, r controller.R
 
 		logger.Info("generated etcd member")
 
-		if res.TypedSpec().MemberID, err = ctrl.genETCDMember(ctx); err != nil {
-			return err
+		memberID, genErr := genMemberID()
+		if genErr != nil {
+			return genErr
 		}
+
+		res.TypedSpec().MemberID = memberID
 
 		return nil
 	})
 	if err != nil {
+		return err
+	}
+
+	// EtcdMemberList/EtcdStatus read the member from the shared global status and filter it by the cluster
+	// and control-plane labels. Those labels are otherwise written once by ApplyConfiguration, separately
+	// from the member, so a machine could end up with a member but no labels and drop out of the member
+	// list. Write both together here, every reconcile, so a control plane that has a member is always
+	// counted for its cluster.
+	if err = ctrl.syncGlobalMember(ctx, config.Provider().Cluster().ID(), member.TypedSpec().MemberID); err != nil {
 		return err
 	}
 
@@ -177,21 +189,24 @@ func (ctrl *EtcdController) reconcileRunning(ctx context.Context, r controller.R
 	return nil
 }
 
-func (ctrl *EtcdController) genETCDMember(ctx context.Context) (string, error) {
+func genMemberID() (string, error) {
 	buf := make([]byte, 8)
 	if _, err := rand.Read(buf); err != nil {
 		return "", err
 	}
 
-	member := etcd.FormatMemberID(binary.LittleEndian.Uint64(buf))
+	return etcd.FormatMemberID(binary.LittleEndian.Uint64(buf)), nil
+}
 
-	if _, err := safe.StateUpdateWithConflicts(ctx, ctrl.GlobalState, emu.NewMachineStatus(emu.NamespaceName, ctrl.MachineID).Metadata(), func(res *emu.MachineStatus) error {
-		res.TypedSpec().Value.EtcdMemberId = member
+func (ctrl *EtcdController) syncGlobalMember(ctx context.Context, clusterID, memberID string) error {
+	_, err := safe.StateUpdateWithConflicts(ctx, ctrl.GlobalState, emu.NewMachineStatus(emu.NamespaceName, ctrl.MachineID).Metadata(), func(res *emu.MachineStatus) error {
+		res.TypedSpec().Value.EtcdMemberId = memberID
+
+		res.Metadata().Labels().Set(emu.LabelCluster, clusterID)
+		res.Metadata().Labels().Set(emu.LabelControlPlaneRole, "")
 
 		return nil
-	}); err != nil {
-		return "", err
-	}
+	})
 
-	return member, nil
+	return err
 }
