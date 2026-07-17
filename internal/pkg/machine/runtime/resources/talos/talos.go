@@ -171,6 +171,7 @@ func Register(ctx context.Context, state state.State) error {
 		&runtime.MountStatus{},
 		&runtime.PlatformMetadata{},
 		&runtime.SecurityState{},
+		&runtime.Version{},
 		&secrets.API{},
 		&secrets.CertSAN{},
 		&secrets.Etcd{},

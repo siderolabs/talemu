@@ -7,7 +7,6 @@ package controllers
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"github.com/cosi-project/runtime/pkg/controller"
 	"github.com/cosi-project/runtime/pkg/safe"
@@ -37,16 +36,14 @@ func readCurrentSchematicID(ctx context.Context, r controller.Runtime, imageFact
 	}
 
 	installImage := schematicContent.Container().RawV1Alpha1().Machine().Install().Image()
-	if !strings.HasPrefix(installImage, imageFactoryHost) {
+	if installImage == "" {
 		return "", nil
 	}
 
-	parts := strings.Split(installImage, "/")
-
-	schematicID, _, found := strings.Cut(parts[len(parts)-1], ":")
-	if !found {
-		return "", fmt.Errorf("failed to parse schematic id from the install image")
+	parsed, err := talos.ParseImageRef(imageFactoryHost, installImage)
+	if err != nil {
+		return "", fmt.Errorf("failed to parse schematic id from the install image: %w", err)
 	}
 
-	return schematicID, nil
+	return parsed.Schematic, nil
 }

@@ -24,10 +24,25 @@ func NewImage(ns, id string) *Image {
 	)
 }
 
-// ParseImageRef splits an installer image reference into its schematic id and Talos version.
-// The schematic is only recoverable when the reference points at the image factory host, since
-// only those references carry it as the repository path segment.
-func ParseImageRef(imageFactoryHost, imageRef string) (schematic, version string, err error) {
+// ImageRef is the parsed form of an installer image reference.
+type ImageRef struct {
+	// Host is the registry host of the reference. Real install images are pulled via containerd,
+	// which requires fully qualified references, so the first path component is the host. It is
+	// only empty for a single-component reference, which cannot reach a real machine.
+	Host string
+
+	// Schematic is the image factory schematic ID. It is only recoverable when the reference
+	// points at the image factory host, since only those references carry it as the repository
+	// path segment.
+	Schematic string
+
+	// Version is the image tag.
+	Version string
+}
+
+// ParseImageRef splits an installer image reference into its registry host, schematic id and
+// Talos version.
+func ParseImageRef(imageFactoryHost, imageRef string) (ImageRef, error) {
 	ref := imageRef
 
 	if at := strings.IndexByte(ref, '@'); at != -1 {
@@ -38,14 +53,22 @@ func ParseImageRef(imageFactoryHost, imageRef string) (schematic, version string
 
 	schematicCandidate, version, found := strings.Cut(parts[len(parts)-1], ":")
 	if !found {
-		return "", "", fmt.Errorf("failed to parse the image %q", imageRef)
+		return ImageRef{}, fmt.Errorf("failed to parse the image %q", imageRef)
 	}
 
-	if parts[0] == imageFactoryHost {
-		schematic = schematicCandidate
+	parsed := ImageRef{
+		Version: version,
 	}
 
-	return schematic, version, nil
+	if len(parts) > 1 {
+		parsed.Host = parts[0]
+	}
+
+	if parsed.Host != "" && parsed.Host == imageFactoryHost {
+		parsed.Schematic = schematicCandidate
+	}
+
+	return parsed, nil
 }
 
 const (

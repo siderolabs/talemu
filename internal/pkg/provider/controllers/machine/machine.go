@@ -14,6 +14,7 @@ import (
 
 	"github.com/siderolabs/talemu/internal/pkg/kubefactory"
 	"github.com/siderolabs/talemu/internal/pkg/machine"
+	"github.com/siderolabs/talemu/internal/pkg/machine/controllers"
 	"github.com/siderolabs/talemu/internal/pkg/machine/network"
 	"github.com/siderolabs/talemu/internal/pkg/provider/resources"
 	"github.com/siderolabs/talemu/internal/pkg/schematic"
@@ -26,10 +27,11 @@ type TaskSpec struct {
 	Machine              *resources.MachineTask
 	GlobalState          state.State
 	SchematicService     *schematic.Service
+	EnterpriseChecker    controllers.EnterpriseChecker
 	Params               *machine.SideroLinkParams
 	Kubernetes           *kubefactory.Kubernetes
 	NC                   *network.Client
-	ImageFactoryHost     string
+	ImageFactoryBaseURL  string
 	NodeProxyingDisabled bool
 }
 
@@ -45,7 +47,7 @@ func (s TaskSpec) Equal(other TaskSpec) bool {
 
 // RunTask implements task.TaskSpec.
 func (s TaskSpec) RunTask(ctx context.Context, logger *zap.Logger, _ any) error {
-	m, err := machine.NewMachine(s.Machine.TypedSpec().Value.Uuid, logger, s.GlobalState, s.SchematicService, s.ImageFactoryHost)
+	m, err := machine.NewMachine(s.Machine.TypedSpec().Value.Uuid, logger, s.GlobalState, s.SchematicService, s.EnterpriseChecker, s.ImageFactoryBaseURL)
 	if err != nil {
 		return err
 	}
@@ -62,5 +64,6 @@ func (s TaskSpec) RunTask(ctx context.Context, logger *zap.Logger, _ any) error 
 		machine.WithNetworkClient(s.NC),
 		machine.WithSecureBoot(s.Machine.TypedSpec().Value.SecureBoot),
 		machine.WithNodeProxyingDisabled(s.NodeProxyingDisabled),
+		machine.WithBootFactoryURL(s.Machine.TypedSpec().Value.BootFactoryUrl),
 	)
 }

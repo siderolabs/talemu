@@ -25,6 +25,7 @@ import (
 
 	emuconst "github.com/siderolabs/talemu/internal/pkg/constants"
 	emuruntime "github.com/siderolabs/talemu/internal/pkg/emu"
+	"github.com/siderolabs/talemu/internal/pkg/factory"
 	"github.com/siderolabs/talemu/internal/pkg/kubefactory"
 	"github.com/siderolabs/talemu/internal/pkg/machine"
 	"github.com/siderolabs/talemu/internal/pkg/machine/network"
@@ -96,7 +97,11 @@ var rootCmd = &cobra.Command{
 
 		defer nc.Close() //nolint:errcheck
 
-		schematicService, err := schematicsvc.NewService(cfg.schematicCacheDir, cfg.imageFactoryBaseURL, logger.With(zap.String("component", "schematic_service")))
+		schematicService, err := schematicsvc.NewService(
+			cfg.schematicCacheDir, cfg.imageFactoryBaseURL,
+			os.Getenv(emuconst.ImageFactoryUsernameEnv), os.Getenv(emuconst.ImageFactoryPasswordEnv),
+			logger.With(zap.String("component", "schematic_service")),
+		)
 		if err != nil {
 			return err
 		}
@@ -116,8 +121,10 @@ var rootCmd = &cobra.Command{
 			return err
 		}
 
+		enterpriseChecker := factory.NewEnterpriseChecker()
+
 		for i := range cfg.machinesCount {
-			m, err := machine.NewMachine(fmt.Sprintf("%04d1802-c798-4da7-a410-f09abb48c8d8", i+1000), logger, emulatorState, schematicService, imageFactoryHost)
+			m, err := machine.NewMachine(fmt.Sprintf("%04d1802-c798-4da7-a410-f09abb48c8d8", i+1000), logger, emulatorState, schematicService, enterpriseChecker, cfg.imageFactoryBaseURL)
 			if err != nil {
 				return err
 			}

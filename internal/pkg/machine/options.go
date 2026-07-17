@@ -15,6 +15,7 @@ type Options struct {
 	nc                   *network.Client
 	talosVersion         string
 	schematic            string
+	bootFactoryURL       string
 	secureBoot           bool
 	nodeProxyingDisabled bool
 }
@@ -60,5 +61,13 @@ func WithSecureBoot(value bool) Option {
 func WithNodeProxyingDisabled(value bool) Option {
 	return func(o *Options) {
 		o.nodeProxyingDisabled = value
+	}
+}
+
+// WithBootFactoryURL sets the base URL of the image factory the machine's boot media is
+// pretended to come from. Empty means the configured image factory.
+func WithBootFactoryURL(value string) Option {
+	return func(o *Options) {
+		o.bootFactoryURL = value
 	}
 }

@@ -34,10 +34,13 @@ message VersionSpec {
   string architecture = 2;
 }
 
-// ImageSpec is the last image used in the upgrade request.
+// ImageSpec is the current emulated Talos image, written by config-apply installs and the
+// install/upgrade APIs.
 message ImageSpec {
   string version = 1;
   string schematic = 2;
+  // Host is the registry host of the image ref, empty when the ref carries no host.
+  string host = 3;
 }
 
 // CachedImageSpec is the image pulled by the ImagePull API.
@@ -84,4 +87,7 @@ message MachineTaskSpec {
   string talos_version = 4;
   string connection_args = 5;
   bool secure_boot = 6;
+  // BootFactoryUrl is the base URL of the image factory the machine's boot media is pretended
+  // to come from, empty to use the provider's configured factory.
+  string boot_factory_url = 7;
 }

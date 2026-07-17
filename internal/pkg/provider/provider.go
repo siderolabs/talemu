@@ -10,15 +10,19 @@ import (
 
 	"github.com/siderolabs/talemu/internal/pkg/emu"
 	"github.com/siderolabs/talemu/internal/pkg/kubefactory"
+	machinecontrollers "github.com/siderolabs/talemu/internal/pkg/machine/controllers"
 	"github.com/siderolabs/talemu/internal/pkg/machine/network"
 	"github.com/siderolabs/talemu/internal/pkg/provider/controllers"
 	"github.com/siderolabs/talemu/internal/pkg/schematic"
 )
 
 // RegisterControllers registers additional controllers required for the infra provider.
-func RegisterControllers(runtime *emu.Runtime, kubernetes *kubefactory.Kubernetes, nc *network.Client, schematicService *schematic.Service, imageFactoryHost string, nodeProxyingDisabled bool) error {
+func RegisterControllers(
+	runtime *emu.Runtime, kubernetes *kubefactory.Kubernetes, nc *network.Client, schematicService *schematic.Service,
+	enterpriseChecker machinecontrollers.EnterpriseChecker, imageFactoryBaseURL string, nodeProxyingDisabled bool,
+) error {
 	controllers := []controller.Controller{
-		controllers.NewMachineController(runtime.State(), kubernetes, nc, schematicService, imageFactoryHost, nodeProxyingDisabled),
+		controllers.NewMachineController(runtime.State(), kubernetes, nc, schematicService, enterpriseChecker, imageFactoryBaseURL, nodeProxyingDisabled),
 	}
 
 	for _, ctrl := range controllers {

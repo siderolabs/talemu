@@ -1032,7 +1032,7 @@ func (c *MachineService) Processes(_ context.Context, _ *emptypb.Empty) (*machin
 // setImage records the target Talos image and reports whether it changed, so a redundant upgrade to
 // the running image can skip the reboot.
 func setImage(ctx context.Context, st state.State, imageFactoryHost, imageRef string) (bool, error) {
-	schematic, version, err := talos.ParseImageRef(imageFactoryHost, imageRef)
+	parsed, err := talos.ParseImageRef(imageFactoryHost, imageRef)
 	if err != nil {
 		return false, status.Errorf(codes.InvalidArgument, "%s", err.Error())
 	}
@@ -1043,10 +1043,14 @@ func setImage(ctx context.Context, st state.State, imageFactoryHost, imageRef st
 		typedRes := res.(*talos.Image) //nolint:forcetypeassert,errcheck
 
 		value := typedRes.TypedSpec().Value
-		changed = value.Schematic != schematic || value.Version != version
 
-		value.Schematic = schematic
-		value.Version = version
+		// the host takes part in the comparison, as the same version/schematic served by a different
+		// factory is a different build (e.g. an enterprise one), and the change must cause a reboot
+		changed = value.Schematic != parsed.Schematic || value.Version != parsed.Version || value.Host != parsed.Host
+
+		value.Schematic = parsed.Schematic
+		value.Version = parsed.Version
+		value.Host = parsed.Host
 
 		return nil
 	}); err != nil {

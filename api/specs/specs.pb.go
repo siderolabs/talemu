@@ -261,11 +261,14 @@ func (x *VersionSpec) GetArchitecture() string {
 	return ""
 }
 
-// ImageSpec is the last image used in the upgrade request.
+// ImageSpec is the current emulated Talos image, written by config-apply installs and the
+// install/upgrade APIs.
 type ImageSpec struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Version       string                 `protobuf:"bytes,1,opt,name=version,proto3" json:"version,omitempty"`
-	Schematic     string                 `protobuf:"bytes,2,opt,name=schematic,proto3" json:"schematic,omitempty"`
+	state     protoimpl.MessageState `protogen:"open.v1"`
+	Version   string                 `protobuf:"bytes,1,opt,name=version,proto3" json:"version,omitempty"`
+	Schematic string                 `protobuf:"bytes,2,opt,name=schematic,proto3" json:"schematic,omitempty"`
+	// Host is the registry host of the image ref, empty when the ref carries no host.
+	Host          string `protobuf:"bytes,3,opt,name=host,proto3" json:"host,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -310,6 +313,13 @@ func (x *ImageSpec) GetVersion() string {
 func (x *ImageSpec) GetSchematic() string {
 	if x != nil {
 		return x.Schematic
+	}
+	return ""
+}
+
+func (x *ImageSpec) GetHost() string {
+	if x != nil {
+		return x.Host
 	}
 	return ""
 }
@@ -588,6 +598,9 @@ type MachineTaskSpec struct {
 	TalosVersion   string                 `protobuf:"bytes,4,opt,name=talos_version,json=talosVersion,proto3" json:"talos_version,omitempty"`
 	ConnectionArgs string                 `protobuf:"bytes,5,opt,name=connection_args,json=connectionArgs,proto3" json:"connection_args,omitempty"`
 	SecureBoot     bool                   `protobuf:"varint,6,opt,name=secure_boot,json=secureBoot,proto3" json:"secure_boot,omitempty"`
+	// BootFactoryUrl is the base URL of the image factory the machine's boot media is pretended
+	// to come from, empty to use the provider's configured factory.
+	BootFactoryUrl string `protobuf:"bytes,7,opt,name=boot_factory_url,json=bootFactoryUrl,proto3" json:"boot_factory_url,omitempty"`
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
 }
@@ -662,6 +675,13 @@ func (x *MachineTaskSpec) GetSecureBoot() bool {
 		return x.SecureBoot
 	}
 	return false
+}
+
+func (x *MachineTaskSpec) GetBootFactoryUrl() string {
+	if x != nil {
+		return x.BootFactoryUrl
+	}
+	return ""
 }
 
 type ServiceSpec_Health struct {
@@ -756,10 +776,11 @@ const file_specs_specs_proto_rawDesc = "" +
 	"\x05value\x18\x02 \x01(\x04R\x05value:\x028\x01\"G\n" +
 	"\vVersionSpec\x12\x14\n" +
 	"\x05value\x18\x01 \x01(\tR\x05value\x12\"\n" +
-	"\farchitecture\x18\x02 \x01(\tR\farchitecture\"C\n" +
+	"\farchitecture\x18\x02 \x01(\tR\farchitecture\"W\n" +
 	"\tImageSpec\x12\x18\n" +
 	"\aversion\x18\x01 \x01(\tR\aversion\x12\x1c\n" +
-	"\tschematic\x18\x02 \x01(\tR\tschematic\"=\n" +
+	"\tschematic\x18\x02 \x01(\tR\tschematic\x12\x12\n" +
+	"\x04host\x18\x03 \x01(\tR\x04host\"=\n" +
 	"\x0fCachedImageSpec\x12\x16\n" +
 	"\x06digest\x18\x01 \x01(\tR\x06digest\x12\x12\n" +
 	"\x04size\x18\x02 \x01(\x03R\x04size\"\x88\x02\n" +
@@ -781,7 +802,7 @@ const file_specs_specs_proto_rawDesc = "" +
 	"\x04slot\x18\x01 \x01(\x05R\x04slot\x12\x12\n" +
 	"\x04uuid\x18\x02 \x01(\tR\x04uuid\x12\x1c\n" +
 	"\tschematic\x18\x03 \x01(\tR\tschematic\x12#\n" +
-	"\rtalos_version\x18\x04 \x01(\tR\ftalosVersion\"\xc6\x01\n" +
+	"\rtalos_version\x18\x04 \x01(\tR\ftalosVersion\"\xf0\x01\n" +
 	"\x0fMachineTaskSpec\x12\x12\n" +
 	"\x04slot\x18\x01 \x01(\x05R\x04slot\x12\x12\n" +
 	"\x04uuid\x18\x02 \x01(\tR\x04uuid\x12\x1c\n" +
@@ -789,7 +810,8 @@ const file_specs_specs_proto_rawDesc = "" +
 	"\rtalos_version\x18\x04 \x01(\tR\ftalosVersion\x12'\n" +
 	"\x0fconnection_args\x18\x05 \x01(\tR\x0econnectionArgs\x12\x1f\n" +
 	"\vsecure_boot\x18\x06 \x01(\bR\n" +
-	"secureBootB(Z&github.com/siderolabs/talemu/api/specsb\x06proto3"
+	"secureBoot\x12(\n" +
+	"\x10boot_factory_url\x18\a \x01(\tR\x0ebootFactoryUrlB(Z&github.com/siderolabs/talemu/api/specsb\x06proto3"
 
 var (
 	file_specs_specs_proto_rawDescOnce sync.Once

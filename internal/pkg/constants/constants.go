@@ -22,3 +22,11 @@ const DefaultImageFactoryBaseURL = "https://factory.talos.dev"
 
 // OfficialExtensionPrefix is the prefix for official extensions.
 const OfficialExtensionPrefix = "siderolabs/"
+
+// ImageFactoryUsernameEnv is the environment variable carrying the optional basic auth username
+// for the image factory, needed for schematic reads against an enterprise image factory.
+const ImageFactoryUsernameEnv = "TALEMU_IMAGE_FACTORY_USERNAME"
+
+// ImageFactoryPasswordEnv is the environment variable carrying the optional basic auth password
+// for the image factory.
+const ImageFactoryPasswordEnv = "TALEMU_IMAGE_FACTORY_PASSWORD"

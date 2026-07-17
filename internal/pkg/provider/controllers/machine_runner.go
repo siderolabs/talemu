@@ -19,6 +19,7 @@ import (
 
 	"github.com/siderolabs/talemu/internal/pkg/kubefactory"
 	"github.com/siderolabs/talemu/internal/pkg/machine"
+	"github.com/siderolabs/talemu/internal/pkg/machine/controllers"
 	"github.com/siderolabs/talemu/internal/pkg/machine/network"
 	"github.com/siderolabs/talemu/internal/pkg/machine/runtime"
 	"github.com/siderolabs/talemu/internal/pkg/machine/runtime/resources/emu"
@@ -34,14 +35,16 @@ type MachineController struct {
 	nc                   *network.Client
 	globalState          state.State
 	schematicService     *schematic.Service
-	imageFactoryHost     string
+	enterpriseChecker    controllers.EnterpriseChecker
+	imageFactoryBaseURL  string
 	nodeProxyingDisabled bool
 }
 
 // NewMachineController creates new machine controller.
 func NewMachineController(
 	globalState state.State, kubernetes *kubefactory.Kubernetes, nc *network.Client,
-	schematicService *schematic.Service, imageFactoryHost string, nodeProxyingDisabled bool,
+	schematicService *schematic.Service, enterpriseChecker controllers.EnterpriseChecker,
+	imageFactoryBaseURL string, nodeProxyingDisabled bool,
 ) *MachineController {
 	return &MachineController{
 		runner:               task.NewEqualRunner[machinetask.TaskSpec](),
@@ -49,7 +52,8 @@ func NewMachineController(
 		kubernetes:           kubernetes,
 		nc:                   nc,
 		schematicService:     schematicService,
-		imageFactoryHost:     imageFactoryHost,
+		enterpriseChecker:    enterpriseChecker,
+		imageFactoryBaseURL:  imageFactoryBaseURL,
 		nodeProxyingDisabled: nodeProxyingDisabled,
 	}
 }
@@ -123,7 +127,8 @@ func (ctrl *MachineController) Run(ctx context.Context, r controller.Runtime, lo
 				Machine:              m,
 				GlobalState:          ctrl.globalState,
 				SchematicService:     ctrl.schematicService,
-				ImageFactoryHost:     ctrl.imageFactoryHost,
+				EnterpriseChecker:    ctrl.enterpriseChecker,
+				ImageFactoryBaseURL:  ctrl.imageFactoryBaseURL,
 				Kubernetes:           ctrl.kubernetes,
 				Params:               params,
 				NC:                   ctrl.nc,

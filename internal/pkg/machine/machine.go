@@ -9,6 +9,7 @@ import (
 	"context"
 	"fmt"
 	"net/netip"
+	"net/url"
 
 	"github.com/cosi-project/runtime/pkg/resource"
 	"github.com/cosi-project/runtime/pkg/safe"
@@ -51,24 +52,30 @@ const (
 
 // Machine is a single Talos machine.
 type Machine struct {
-	globalState      state.State
-	runtime          *truntime.Runtime
-	logger           *zap.Logger
-	shutdown         chan struct{}
-	schematicService *schematic.Service
-	imageFactoryHost string
-	uuid             string
+	globalState       state.State
+	runtime           *truntime.Runtime
+	logger            *zap.Logger
+	shutdown          chan struct{}
+	schematicService  *schematic.Service
+	enterpriseChecker controllers.EnterpriseChecker
+
+	// imageFactoryBaseURL is the base URL of the configured image factory, scheme included.
+	imageFactoryBaseURL string
+	uuid                string
 }
 
 // NewMachine creates a Machine.
-func NewMachine(uuid string, logger *zap.Logger, globalState state.State, schematicService *schematic.Service, imageFactoryHost string) (*Machine, error) {
+func NewMachine(uuid string, logger *zap.Logger, globalState state.State, schematicService *schematic.Service,
+	enterpriseChecker controllers.EnterpriseChecker, imageFactoryBaseURL string,
+) (*Machine, error) {
 	return &Machine{
-		uuid:             uuid,
-		logger:           logger,
-		globalState:      globalState,
-		schematicService: schematicService,
-		imageFactoryHost: imageFactoryHost,
-		shutdown:         make(chan struct{}, 1),
+		uuid:                uuid,
+		logger:              logger,
+		globalState:         globalState,
+		schematicService:    schematicService,
+		enterpriseChecker:   enterpriseChecker,
+		imageFactoryBaseURL: imageFactoryBaseURL,
+		shutdown:            make(chan struct{}, 1),
 	}, nil
 }
 
@@ -109,10 +116,21 @@ func (m *Machine) Run(ctx context.Context, siderolinkParams *SideroLinkParams, s
 
 	m.logger = zap.New(core).With(zap.String("machine", machineID), zap.String("uuid", m.uuid))
 
+	imageFactoryHost, err := hostOfURL(m.imageFactoryBaseURL)
+	if err != nil {
+		return err
+	}
+
+	// the configured base URL is used as-is, so a plain-HTTP factory keeps working
+	bootFactoryURL := opts.bootFactoryURL
+	if bootFactoryURL == "" {
+		bootFactoryURL = m.imageFactoryBaseURL
+	}
+
 	rt, err := truntime.NewRuntime(
 		ctx, m.logger, slot, machineID, m.globalState,
 		kubernetes, opts.nc, logSink, siderolinkParams.RawKernelArgs, m.schematicService,
-		m.imageFactoryHost, opts.nodeProxyingDisabled,
+		m.enterpriseChecker, imageFactoryHost, bootFactoryURL, opts.nodeProxyingDisabled,
 	)
 	if err != nil {
 		return fmt.Errorf("COSI runtime creation failed: %w", err)
@@ -324,6 +342,18 @@ func (m *Machine) Run(ctx context.Context, siderolinkParams *SideroLinkParams, s
 		image.TypedSpec().Value.Schematic = opts.schematic
 		image.TypedSpec().Value.Version = opts.talosVersion
 
+		// the seeded image is the boot media, so it carries the boot factory host, making the
+		// machine identity (enterprise-ness, FIPS state) follow the boot media until an
+		// install/upgrade overwrites the image
+		var bootFactoryHost string
+
+		bootFactoryHost, err = hostOfURL(bootFactoryURL)
+		if err != nil {
+			return err
+		}
+
+		image.TypedSpec().Value.Host = bootFactoryHost
+
 		resources = append(resources, image)
 	}
 
@@ -405,4 +435,14 @@ func (m *Machine) Cleanup(ctx context.Context) error {
 
 		return conn.Link.Delete(existing.Index)
 	})
+}
+
+// hostOfURL extracts the host part of a base URL.
+func hostOfURL(rawURL string) (string, error) {
+	parsed, err := url.Parse(rawURL)
+	if err != nil {
+		return "", fmt.Errorf("failed to parse URL %q: %w", rawURL, err)
+	}
+
+	return parsed.Host, nil
 }

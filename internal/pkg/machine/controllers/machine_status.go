@@ -250,7 +250,7 @@ func (ctrl *MachineStatusController) reconcile(ctx context.Context, r controller
 // talos.Image is owned by no controller (the services mutate it directly), so it is updated through
 // the raw state here rather than a controller output.
 func (ctrl *MachineStatusController) setInstalledImage(ctx context.Context, imageRef string) error {
-	schematic, version, err := talos.ParseImageRef(ctrl.ImageFactoryHost, imageRef)
+	parsed, err := talos.ParseImageRef(ctrl.ImageFactoryHost, imageRef)
 	if err != nil {
 		return err
 	}
@@ -258,8 +258,9 @@ func (ctrl *MachineStatusController) setInstalledImage(ctx context.Context, imag
 	return ctrl.State.Modify(ctx, talos.NewImage(talos.NamespaceName, talos.ImageID), func(res resource.Resource) error {
 		value := res.(*talos.Image).TypedSpec().Value //nolint:forcetypeassert,errcheck
 
-		value.Schematic = schematic
-		value.Version = version
+		value.Schematic = parsed.Schematic
+		value.Version = parsed.Version
+		value.Host = parsed.Host
 
 		return nil
 	})

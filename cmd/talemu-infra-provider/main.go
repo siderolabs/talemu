@@ -34,6 +34,7 @@ import (
 
 	emuconst "github.com/siderolabs/talemu/internal/pkg/constants"
 	emuruntime "github.com/siderolabs/talemu/internal/pkg/emu"
+	"github.com/siderolabs/talemu/internal/pkg/factory"
 	"github.com/siderolabs/talemu/internal/pkg/kubefactory"
 	"github.com/siderolabs/talemu/internal/pkg/machine/network"
 	"github.com/siderolabs/talemu/internal/pkg/machine/runtime"
@@ -153,7 +154,11 @@ var rootCmd = &cobra.Command{
 			imageFactoryBaseURL = emuconst.DefaultImageFactoryBaseURL
 		}
 
-		schematicService, err := schematic.NewService(cfg.schematicCacheDir, imageFactoryBaseURL, logger.With(zap.String("component", "schematic_service")))
+		schematicService, err := schematic.NewService(
+			cfg.schematicCacheDir, imageFactoryBaseURL,
+			os.Getenv(emuconst.ImageFactoryUsernameEnv), os.Getenv(emuconst.ImageFactoryPasswordEnv),
+			logger.With(zap.String("component", "schematic_service")),
+		)
 		if err != nil {
 			return err
 		}
@@ -168,7 +173,9 @@ var rootCmd = &cobra.Command{
 			return fmt.Errorf("image factory URL %q has no host", imageFactoryBaseURL)
 		}
 
-		if err = provider.RegisterControllers(runtime, kubernetes, nc, schematicService, imageFactoryHost, cfg.nodeProxyingDisabled); err != nil {
+		enterpriseChecker := factory.NewEnterpriseChecker()
+
+		if err = provider.RegisterControllers(runtime, kubernetes, nc, schematicService, enterpriseChecker, imageFactoryBaseURL, cfg.nodeProxyingDisabled); err != nil {
 			return err
 		}
 

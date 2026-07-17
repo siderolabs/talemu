@@ -43,7 +43,7 @@ type Runtime struct {
 // NewRuntime creates new runtime.
 func NewRuntime(ctx context.Context, logger *zap.Logger, slot int, id string, globalState state.State,
 	kubernetes *kubefactory.Kubernetes, nc *network.Client, logSink *logging.ZapCore, baseKernelArgs string, schematicService *schematic.Service,
-	imageFactoryHost string, nodeProxyingDisabled bool,
+	enterpriseChecker controllers.EnterpriseChecker, imageFactoryHost, bootFactoryURL string, nodeProxyingDisabled bool,
 ) (*Runtime, error) {
 	stateDir := GetStateDir(id)
 
@@ -117,7 +117,16 @@ func NewRuntime(ctx context.Context, logger *zap.Logger, slot int, id string, gl
 			ImageFactoryHost: imageFactoryHost,
 		},
 		&controllers.MachineStatusController{State: st, ImageFactoryHost: imageFactoryHost},
-		&controllers.VersionController{},
+		&controllers.VersionController{
+			Checker:          enterpriseChecker,
+			ImageFactoryHost: imageFactoryHost,
+			BootFactoryURL:   bootFactoryURL,
+		},
+		&controllers.SecurityStateController{
+			Checker:          enterpriseChecker,
+			ImageFactoryHost: imageFactoryHost,
+			BootFactoryURL:   bootFactoryURL,
+		},
 		&controllers.NodeIdentityController{},
 		&controllers.NodenameController{},
 		&controllers.EtcdController{

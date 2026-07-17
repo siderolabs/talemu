@@ -24,9 +24,14 @@ type Service struct {
 	logger              *zap.Logger
 	cacheDir            string
 	imageFactoryBaseURL string
+	username            string
+	password            string
 }
 
-func NewService(cacheDir, imageFactoryBaseURL string, logger *zap.Logger) (*Service, error) {
+// NewService creates a schematic service. The credentials are optional and used as basic auth
+// against the image factory when set, as enterprise image factories require authentication for
+// schematic reads.
+func NewService(cacheDir, imageFactoryBaseURL, username, password string, logger *zap.Logger) (*Service, error) {
 	if cacheDir == "" {
 		userCacheDir, err := os.UserCacheDir()
 		if err != nil {
@@ -43,6 +48,8 @@ func NewService(cacheDir, imageFactoryBaseURL string, logger *zap.Logger) (*Serv
 	return &Service{
 		cacheDir:            cacheDir,
 		imageFactoryBaseURL: imageFactoryBaseURL,
+		username:            username,
+		password:            password,
 		logger:              logger,
 	}, nil
 }
@@ -96,7 +103,13 @@ func (svc *Service) getByID(ctx context.Context, id string) (*schematic.Schemati
 
 	// doesn't exist, get schematic
 
-	factoryClient, err := client.New(svc.imageFactoryBaseURL)
+	var clientOpts []client.Option
+
+	if svc.username != "" {
+		clientOpts = append(clientOpts, client.WithBasicAuth(svc.username, svc.password))
+	}
+
+	factoryClient, err := client.New(svc.imageFactoryBaseURL, clientOpts...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create factory client: %w", err)
 	}

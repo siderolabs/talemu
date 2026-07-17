@@ -7,6 +7,7 @@ package provider
 import (
 	"context"
 	"fmt"
+	"net/url"
 	"strings"
 	"time"
 
@@ -36,8 +37,12 @@ func NewProvisioner(state state.State) *Provisioner {
 }
 
 type providerData struct {
-	UUID       string `yaml:"uuid"`
-	SecureBoot bool   `yaml:"secure_boot"`
+	UUID string `yaml:"uuid"`
+	// BootFactoryURL is the base URL of the image factory the machine's boot media is pretended
+	// to come from, empty to use the provider's configured factory. The machine identity
+	// (enterprise-ness, FIPS state) follows it until something is installed.
+	BootFactoryURL string `yaml:"boot_factory_url"`
+	SecureBoot     bool   `yaml:"secure_boot"`
 }
 
 // ProvisionSteps implements infra.Provisioner.
@@ -54,6 +59,14 @@ func (p *Provisioner) ProvisionSteps() []provision.Step[*resources.Machine] {
 			err = pctx.UnmarshalProviderData(&pd)
 			if err != nil {
 				return fmt.Errorf("failed to unmarshal provider data: %w", err)
+			}
+
+			if pd.BootFactoryURL != "" {
+				var bootFactoryURL *url.URL
+
+				if bootFactoryURL, err = url.Parse(pd.BootFactoryURL); err != nil || bootFactoryURL.Scheme == "" || bootFactoryURL.Host == "" {
+					return fmt.Errorf("invalid provider data: boot_factory_url %q is not a valid base URL", pd.BootFactoryURL)
+				}
 			}
 
 			// the machine is already provisioned, so no need to do anything, just return the current machine state
@@ -100,6 +113,7 @@ func (p *Provisioner) ProvisionSteps() []provision.Step[*resources.Machine] {
 				TalosVersion:   ms.TalosVersion,
 				ConnectionArgs: strings.Join(pctx.ConnectionParams.KernelArgs, " "),
 				SecureBoot:     pd.SecureBoot,
+				BootFactoryUrl: pd.BootFactoryURL,
 			}
 
 			pctx.SetMachineInfraID(fmt.Sprintf("%d", machineTask.TypedSpec().Value.Slot))
