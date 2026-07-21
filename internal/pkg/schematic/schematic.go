@@ -9,6 +9,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 	"time"
@@ -20,18 +21,37 @@ import (
 )
 
 type Service struct {
-	sf                  singleflight.Group
-	logger              *zap.Logger
-	cacheDir            string
-	imageFactoryBaseURL string
-	username            string
-	password            string
+	sf               singleflight.Group
+	logger           *zap.Logger
+	cacheDir         string
+	factoryClient    *client.Client
+	imageFactoryHost string
 }
 
 // NewService creates a schematic service. The credentials are optional and used as basic auth
 // against the image factory when set, as enterprise image factories require authentication for
 // schematic reads.
 func NewService(cacheDir, imageFactoryBaseURL, username, password string, logger *zap.Logger) (*Service, error) {
+	factoryURL, err := url.Parse(imageFactoryBaseURL)
+	if err != nil {
+		return nil, fmt.Errorf("invalid image factory URL %q: %w", imageFactoryBaseURL, err)
+	}
+
+	if factoryURL.Scheme == "" || factoryURL.Host == "" {
+		return nil, fmt.Errorf("invalid image factory URL %q: scheme and host are required", imageFactoryBaseURL)
+	}
+
+	var clientOpts []client.Option
+
+	if username != "" {
+		clientOpts = append(clientOpts, client.WithBasicAuth(username, password))
+	}
+
+	factoryClient, err := client.New(imageFactoryBaseURL, clientOpts...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create factory client: %w", err)
+	}
+
 	if cacheDir == "" {
 		userCacheDir, err := os.UserCacheDir()
 		if err != nil {
@@ -46,12 +66,21 @@ func NewService(cacheDir, imageFactoryBaseURL, username, password string, logger
 	}
 
 	return &Service{
-		cacheDir:            cacheDir,
-		imageFactoryBaseURL: imageFactoryBaseURL,
-		username:            username,
-		password:            password,
-		logger:              logger,
+		cacheDir:         cacheDir,
+		factoryClient:    factoryClient,
+		imageFactoryHost: factoryURL.Host,
+		logger:           logger,
 	}, nil
+}
+
+// ImageFactoryBaseURL returns the base URL of the configured image factory client.
+func (svc *Service) ImageFactoryBaseURL() string {
+	return svc.factoryClient.BaseURL()
+}
+
+// ImageFactoryHost returns the configured image factory host.
+func (svc *Service) ImageFactoryHost() string {
+	return svc.imageFactoryHost
 }
 
 func (svc *Service) GetByID(ctx context.Context, id string) (*schematic.Schematic, error) {
@@ -103,21 +132,10 @@ func (svc *Service) getByID(ctx context.Context, id string) (*schematic.Schemati
 
 	// doesn't exist, get schematic
 
-	var clientOpts []client.Option
-
-	if svc.username != "" {
-		clientOpts = append(clientOpts, client.WithBasicAuth(svc.username, svc.password))
-	}
-
-	factoryClient, err := client.New(svc.imageFactoryBaseURL, clientOpts...)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create factory client: %w", err)
-	}
-
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
-	schematic, err := factoryClient.SchematicGet(ctx, id)
+	schematic, err := svc.factoryClient.SchematicGet(ctx, id)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get schematic from factory: %w", err)
 	}

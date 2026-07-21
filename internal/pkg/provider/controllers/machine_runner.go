@@ -36,7 +36,6 @@ type MachineController struct {
 	globalState          state.State
 	schematicService     *schematic.Service
 	enterpriseChecker    controllers.EnterpriseChecker
-	imageFactoryBaseURL  string
 	nodeProxyingDisabled bool
 }
 
@@ -44,7 +43,7 @@ type MachineController struct {
 func NewMachineController(
 	globalState state.State, kubernetes *kubefactory.Kubernetes, nc *network.Client,
 	schematicService *schematic.Service, enterpriseChecker controllers.EnterpriseChecker,
-	imageFactoryBaseURL string, nodeProxyingDisabled bool,
+	nodeProxyingDisabled bool,
 ) *MachineController {
 	return &MachineController{
 		runner:               task.NewEqualRunner[machinetask.TaskSpec](),
@@ -53,7 +52,6 @@ func NewMachineController(
 		nc:                   nc,
 		schematicService:     schematicService,
 		enterpriseChecker:    enterpriseChecker,
-		imageFactoryBaseURL:  imageFactoryBaseURL,
 		nodeProxyingDisabled: nodeProxyingDisabled,
 	}
 }
@@ -128,7 +126,6 @@ func (ctrl *MachineController) Run(ctx context.Context, r controller.Runtime, lo
 				GlobalState:          ctrl.globalState,
 				SchematicService:     ctrl.schematicService,
 				EnterpriseChecker:    ctrl.enterpriseChecker,
-				ImageFactoryBaseURL:  ctrl.imageFactoryBaseURL,
 				Kubernetes:           ctrl.kubernetes,
 				Params:               params,
 				NC:                   ctrl.nc,

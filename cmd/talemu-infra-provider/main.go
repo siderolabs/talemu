@@ -9,8 +9,6 @@ import (
 	"context"
 	_ "embed"
 	"errors"
-	"fmt"
-	"net/url"
 	"os"
 	"os/signal"
 	"syscall"
@@ -164,19 +162,9 @@ var rootCmd = &cobra.Command{
 			return err
 		}
 
-		factoryURL, err := url.Parse(imageFactoryBaseURL)
-		if err != nil {
-			return fmt.Errorf("invalid image factory URL %q: %w", imageFactoryBaseURL, err)
-		}
-
-		imageFactoryHost := factoryURL.Host
-		if imageFactoryHost == "" {
-			return fmt.Errorf("image factory URL %q has no host", imageFactoryBaseURL)
-		}
-
 		enterpriseChecker := factory.NewEnterpriseChecker()
 
-		if err = provider.RegisterControllers(runtime, kubernetes, nc, schematicService, enterpriseChecker, imageFactoryBaseURL, cfg.nodeProxyingDisabled); err != nil {
+		if err = provider.RegisterControllers(runtime, kubernetes, nc, schematicService, enterpriseChecker, cfg.nodeProxyingDisabled); err != nil {
 			return err
 		}
 

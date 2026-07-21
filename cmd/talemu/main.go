@@ -9,7 +9,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net/url"
 	"os"
 	"os/signal"
 	"strings"
@@ -106,16 +105,6 @@ var rootCmd = &cobra.Command{
 			return err
 		}
 
-		factoryURL, err := url.Parse(cfg.imageFactoryBaseURL)
-		if err != nil {
-			return fmt.Errorf("invalid image factory URL %q: %w", cfg.imageFactoryBaseURL, err)
-		}
-
-		imageFactoryHost := factoryURL.Host
-		if imageFactoryHost == "" {
-			return fmt.Errorf("image factory URL %q has no host", cfg.imageFactoryBaseURL)
-		}
-
 		initialSchematicID, err := buildInitialSchematicID()
 		if err != nil {
 			return err
@@ -124,7 +113,7 @@ var rootCmd = &cobra.Command{
 		enterpriseChecker := factory.NewEnterpriseChecker()
 
 		for i := range cfg.machinesCount {
-			m, err := machine.NewMachine(fmt.Sprintf("%04d1802-c798-4da7-a410-f09abb48c8d8", i+1000), logger, emulatorState, schematicService, enterpriseChecker, cfg.imageFactoryBaseURL)
+			m, err := machine.NewMachine(fmt.Sprintf("%04d1802-c798-4da7-a410-f09abb48c8d8", i+1000), logger, emulatorState, schematicService, enterpriseChecker)
 			if err != nil {
 				return err
 			}

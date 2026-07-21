@@ -30,6 +30,18 @@ const (
             - siderolabs/qemu-guest-agent`
 )
 
+func TestNewService(t *testing.T) {
+	t.Parallel()
+
+	service, err := schematicsvc.NewService(t.TempDir(), "http://factory.local:8080/base", "user", "password", nil)
+	require.NoError(t, err)
+	require.Equal(t, "http://factory.local:8080/base", service.ImageFactoryBaseURL())
+	require.Equal(t, "factory.local:8080", service.ImageFactoryHost())
+
+	_, err = schematicsvc.NewService(t.TempDir(), "factory.local", "", "", nil)
+	require.Error(t, err)
+}
+
 func TestGetByID(t *testing.T) {
 	t.Helper()
 

@@ -22,6 +22,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
+	"github.com/siderolabs/talemu/internal/pkg/machine/runtime/resources/talos"
 	"github.com/siderolabs/talemu/internal/pkg/machine/services"
 )
 
@@ -145,7 +146,7 @@ func TestLifecycleUpgrade(t *testing.T) {
 
 	srv := &recordingStream[*machine.LifecycleServiceUpgradeResponse]{ctx: t.Context()}
 	err := svc.Upgrade(&machine.LifecycleServiceUpgradeRequest{
-		Source: &machine.InstallArtifactsSource{ImageName: "factory.talos.dev/installer/abc123:v1.14.1"},
+		Source: &machine.InstallArtifactsSource{ImageName: "factory-enterprise.staging.talos.dev/installer/abc123:v1.14.0"},
 	}, srv)
 	require.NoError(t, err)
 
@@ -153,6 +154,11 @@ func TestLifecycleUpgrade(t *testing.T) {
 	require.NotEmpty(t, srv.sent)
 	require.NotEmpty(t, srv.sent[0].GetProgress().GetMessage())
 	require.Equal(t, int32(0), srv.sent[len(srv.sent)-1].GetProgress().GetExitCode())
+
+	image, err := safe.ReaderGetByID[*talos.Image](t.Context(), st, talos.ImageID)
+	require.NoError(t, err)
+	require.Equal(t, "factory-enterprise.staging.talos.dev", image.TypedSpec().Value.Host)
+	require.Equal(t, "v1.14.0", image.TypedSpec().Value.Version)
 }
 
 func TestLifecycleConcurrentOperationRejected(t *testing.T) {

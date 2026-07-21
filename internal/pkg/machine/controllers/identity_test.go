@@ -130,6 +130,24 @@ func TestMachineIdentityFollowsImage(t *testing.T) {
 		a.Equal(runtime.FIPSStateDisabled, res.TypedSpec().FIPSState)
 		a.True(res.TypedSpec().SecureBoot, "secure boot is a firmware property and never follows the image")
 	})
+
+	// A same-version upgrade back to the enterprise factory flips the identity and restores FIPS.
+	// The existing strict kernel argument applies again once the running build supports FIPS.
+	_, err = safe.StateUpdateWithConflicts(ctx, st, bootImage.Metadata(), func(res *talos.Image) error {
+		res.TypedSpec().Value.Host = enterpriseFactoryHost
+
+		return nil
+	})
+	require.NoError(t, err)
+
+	rtestutils.AssertResource(ctx, t, st, runtime.NewVersion().Metadata().ID(), func(res *runtime.Version, a *assert.Assertions) {
+		a.Equal("Talos Enterprise", res.TypedSpec().Name)
+		a.Equal("v1.14.0", res.TypedSpec().Version)
+	})
+	rtestutils.AssertResource(ctx, t, st, runtime.SecurityStateID, func(res *runtime.SecurityState, a *assert.Assertions) {
+		a.Equal(runtime.FIPSStateStrict, res.TypedSpec().FIPSState)
+		a.True(res.TypedSpec().SecureBoot)
+	})
 }
 
 // TestMachineIdentityCheckerFailure verifies that a broken image factory probe neither blocks the

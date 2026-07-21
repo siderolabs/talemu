@@ -58,24 +58,20 @@ type Machine struct {
 	shutdown          chan struct{}
 	schematicService  *schematic.Service
 	enterpriseChecker controllers.EnterpriseChecker
-
-	// imageFactoryBaseURL is the base URL of the configured image factory, scheme included.
-	imageFactoryBaseURL string
-	uuid                string
+	uuid              string
 }
 
 // NewMachine creates a Machine.
 func NewMachine(uuid string, logger *zap.Logger, globalState state.State, schematicService *schematic.Service,
-	enterpriseChecker controllers.EnterpriseChecker, imageFactoryBaseURL string,
+	enterpriseChecker controllers.EnterpriseChecker,
 ) (*Machine, error) {
 	return &Machine{
-		uuid:                uuid,
-		logger:              logger,
-		globalState:         globalState,
-		schematicService:    schematicService,
-		enterpriseChecker:   enterpriseChecker,
-		imageFactoryBaseURL: imageFactoryBaseURL,
-		shutdown:            make(chan struct{}, 1),
+		uuid:              uuid,
+		logger:            logger,
+		globalState:       globalState,
+		schematicService:  schematicService,
+		enterpriseChecker: enterpriseChecker,
+		shutdown:          make(chan struct{}, 1),
 	}, nil
 }
 
@@ -116,21 +112,16 @@ func (m *Machine) Run(ctx context.Context, siderolinkParams *SideroLinkParams, s
 
 	m.logger = zap.New(core).With(zap.String("machine", machineID), zap.String("uuid", m.uuid))
 
-	imageFactoryHost, err := hostOfURL(m.imageFactoryBaseURL)
-	if err != nil {
-		return err
-	}
-
 	// the configured base URL is used as-is, so a plain-HTTP factory keeps working
 	bootFactoryURL := opts.bootFactoryURL
 	if bootFactoryURL == "" {
-		bootFactoryURL = m.imageFactoryBaseURL
+		bootFactoryURL = m.schematicService.ImageFactoryBaseURL()
 	}
 
 	rt, err := truntime.NewRuntime(
 		ctx, m.logger, slot, machineID, m.globalState,
 		kubernetes, opts.nc, logSink, siderolinkParams.RawKernelArgs, m.schematicService,
-		m.enterpriseChecker, imageFactoryHost, bootFactoryURL, opts.nodeProxyingDisabled,
+		m.enterpriseChecker, m.schematicService.ImageFactoryHost(), bootFactoryURL, opts.nodeProxyingDisabled,
 	)
 	if err != nil {
 		return fmt.Errorf("COSI runtime creation failed: %w", err)
