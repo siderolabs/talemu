@@ -43,6 +43,7 @@ import (
 	"github.com/siderolabs/talemu/internal/pkg/provider/clientconfig"
 	"github.com/siderolabs/talemu/internal/pkg/provider/meta"
 	"github.com/siderolabs/talemu/internal/pkg/schematic"
+	"github.com/siderolabs/talemu/internal/version"
 )
 
 //go:embed data/schema.json
@@ -185,7 +186,7 @@ var rootCmd = &cobra.Command{
 			return ip.Run(ctx, logger, infra.WithOmniEndpoint(cfg.omniAPIEndpoint), infra.WithClientOptions(
 				client.WithServiceAccount(cfg.serviceAccountKey),
 				client.WithInsecureSkipTLSVerify(true),
-			), infra.WithEncodeRequestIDsIntoTokens())
+			), infra.WithEncodeRequestIDsIntoTokens(), infra.WithVersion(version.Tag))
 		})
 
 		eg.Go(func() error {
