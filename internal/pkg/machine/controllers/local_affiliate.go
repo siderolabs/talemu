@@ -189,7 +189,7 @@ func (ctrl *LocalAffiliateController) Run(ctx context.Context, r controller.Runt
 
 		localID := identity.TypedSpec().NodeID
 
-		if discoveryConfig.TypedSpec().DiscoveryEnabled {
+		if discoveryConfig.TypedSpec().RegistryKubernetesEnabled || len(discoveryConfig.TypedSpec().ServiceEndpoints) > 0 {
 			if err = safe.WriterModify(ctx, r, cluster.NewAffiliate(cluster.NamespaceName, localID), func(res *cluster.Affiliate) error {
 				res.Metadata().Labels().Set(labelLocal, "")
 

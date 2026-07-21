@@ -178,8 +178,8 @@ github.com/josharian/native v1.1.0 h1:uuaP0hAbW7Y4l0ZRQ6C9zfb7Mg1mbFKry/xzDAfmtL
 github.com/josharian/native v1.1.0/go.mod h1:7X/raswPFr05uY3HiLlYeyQntB6OO7E/d2Cu7qoaN2w=
 github.com/jsimonetti/rtnetlink v1.4.2 h1:Df9w9TZ3npHTyDn0Ev9e1uzmN2odmXd0QX+J5GTEn90=
 github.com/jsimonetti/rtnetlink v1.4.2/go.mod h1:92s6LJdE+1iOrw+F2/RO7LYI2Qd8pPpFNNUYW06gcoM=
-github.com/jsimonetti/rtnetlink/v2 v2.2.1-0.20260317095713-310581b9c6ac h1:UfziP9RaDM6D+f+yNdL3T/N1DztwltLDGBkpybF/fYs=
-github.com/jsimonetti/rtnetlink/v2 v2.2.1-0.20260317095713-310581b9c6ac/go.mod h1:A/gqt1BEMJcvzGQJXQ3SnsDOQL7QRNhxTiC3eb++608=
+github.com/jsimonetti/rtnetlink/v2 v2.2.1-0.20260614152944-ab8601692836 h1:h1uYsdsK0AzkpVK0RQkCFFDEeBd9LKVbK1jZMRIRqu8=
+github.com/jsimonetti/rtnetlink/v2 v2.2.1-0.20260614152944-ab8601692836/go.mod h1:0KUud/qfJE1yQYz4b8e+nzWzWMO1mP0Y47moMeM0Jjw=
 github.com/json-iterator/go v1.1.12 h1:PV8peI4a0ysnczrg+LtxykD8LfKY9ML6u2jnxaEnrnM=
 github.com/json-iterator/go v1.1.12/go.mod h1:e30LSqwooZae/UwlEbR2852Gd8hjQvJoHmT4TnhNGBo=
 github.com/jxskiss/base62 v1.1.0 h1:A5zbF8v8WXx2xixnAKD2w+abC+sIzYJX+nxmhA6HWFw=
@@ -320,8 +320,8 @@ github.com/siderolabs/protoenc v0.2.4 h1:D3Fpn2nQSQOhl8ZlAxijZAf7K6F8CM1uZq0afIG
 github.com/siderolabs/protoenc v0.2.4/go.mod h1:i5XLHjfv5vyi7LhQrSEo19HCA+lYtDd7CWxsoWp9XE8=
 github.com/siderolabs/siderolink v0.3.16 h1:DZzf3rzE/5hm4s9yfaYnoR2cy0od+oNKMx0GEpCxrfw=
 github.com/siderolabs/siderolink v0.3.16/go.mod h1:/05gMCYn81gCRZcmWlDbKwuy2800so1Mwd1CP1h3m4g=
-github.com/siderolabs/talos/pkg/machinery v1.14.0-alpha.1 h1:Jnlr2EcuasOnWQl4BRdm5AYwnzm5j1Vpv74kA5v8uUo=
-github.com/siderolabs/talos/pkg/machinery v1.14.0-alpha.1/go.mod h1:Se0hlgso8NiGY2FBFTJT+vIGsDKU0bCuk7LRulzhbvQ=
+github.com/siderolabs/talos/pkg/machinery v1.14.0-alpha.2 h1:fmE4MHro0vrcxm5265jxPXHH82PdtaqQpOPYAWi9nkY=
+github.com/siderolabs/talos/pkg/machinery v1.14.0-alpha.2/go.mod h1:CTl3V8+y7tY6YiYrjmxNSn8isd03lAoSOexADKiMAcg=
 github.com/sirupsen/logrus v1.8.1/go.mod h1:yWOB1SBYBC5VeMP7gHvWumXLIWorT60ONWic61uBYv0=
 github.com/sirupsen/logrus v1.9.4 h1:TsZE7l11zFCLZnZ+teH4Umoq5BhEIfIzfRDZ1Uzql2w=
 github.com/sirupsen/logrus v1.9.4/go.mod h1:ftWc9WdOfJ0a92nsE2jF5u5ZwH8Bv2zdeOC42RjbV2g=
@@ -475,8 +475,8 @@ golang.zx2c4.com/wireguard/wgctrl v0.0.0-20241231184526-a9ab2273dd10 h1:3GDAcqdI
 golang.zx2c4.com/wireguard/wgctrl v0.0.0-20241231184526-a9ab2273dd10/go.mod h1:T97yPqesLiNrOYxkwmhMI0ZIlJDm+p0PMR8eRVeR5tQ=
 gonum.org/v1/gonum v0.17.0 h1:VbpOemQlsSMrYmn7T2OUvQ4dqxQXU+ouZFQsZOx50z4=
 gonum.org/v1/gonum v0.17.0/go.mod h1:El3tOrEuMpv2UdMrbNlKEh9vd86bmQ6vqIcDwxEOc1E=
-google.golang.org/genproto/googleapis/api v0.0.0-20260615183401-62b3387ff324 h1:g0RAkxK/smSu/iRwC/KIX1mwUoVJtk2OjbgaeS4DmUM=
-google.golang.org/genproto/googleapis/api v0.0.0-20260615183401-62b3387ff324/go.mod h1:Z4WJ5pJOYWFWcHEQUelD5QaZDknIQkpIL/+fyJOT9+A=
+google.golang.org/genproto/googleapis/api v0.0.0-20260618152121-87f3d3e198d3 h1:ctPmKL12ZsoKAlmPUsoW70zEDiYF+/H6aLieXxgAU0k=
+google.golang.org/genproto/googleapis/api v0.0.0-20260618152121-87f3d3e198d3/go.mod h1:Z4WJ5pJOYWFWcHEQUelD5QaZDknIQkpIL/+fyJOT9+A=
 google.golang.org/genproto/googleapis/rpc v0.0.0-20260615183401-62b3387ff324 h1:9HZDLIdYBJXAnaFOr9WHrKVycfpY+75s9HGadC0305A=
 google.golang.org/genproto/googleapis/rpc v0.0.0-20260615183401-62b3387ff324/go.mod h1:4Hqkh8ycfw05ld/3BWL7rJOSfebL2Q+DVDeRgYgxUU8=
 google.golang.org/grpc v1.81.1 h1:VnnIIZ88UzOOKLukQi+ImGz8O1Wdp8nAGGnvOfEIWQQ=

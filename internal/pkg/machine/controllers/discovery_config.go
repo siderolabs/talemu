@@ -8,7 +8,6 @@ import (
 	"context"
 	"encoding/base64"
 	"net"
-	"net/url"
 
 	"github.com/cosi-project/runtime/pkg/controller"
 	"github.com/cosi-project/runtime/pkg/controller/generic/transform"
@@ -40,19 +39,13 @@ func NewClusterConfigController() *ConfigController {
 			TransformFunc: func(_ context.Context, _ controller.Reader, _ *zap.Logger, cfg *config.MachineConfig, res *cluster.Config) error {
 				c := cfg.Config()
 
-				res.TypedSpec().DiscoveryEnabled = c.Cluster().Discovery().Enabled()
-
 				if c.Cluster().Discovery().Enabled() {
 					res.TypedSpec().RegistryKubernetesEnabled = c.Cluster().Discovery().Registries().Kubernetes().Enabled()
-					res.TypedSpec().RegistryServiceEnabled = c.Cluster().Discovery().Registries().Service().Enabled()
 
-					if c.Cluster().Discovery().Registries().Service().Enabled() {
-						var u *url.URL
+					discoveryServiceConfigs := c.DiscoveryServiceConfigs()
 
-						u, err := url.ParseRequestURI(c.Cluster().Discovery().Registries().Service().Endpoint())
-						if err != nil {
-							return err
-						}
+					if len(discoveryServiceConfigs) > 0 {
+						u := discoveryServiceConfigs[0].Endpoint()
 
 						host := u.Hostname()
 						port := u.Port()
@@ -65,24 +58,28 @@ func NewClusterConfigController() *ConfigController {
 							}
 						}
 
-						res.TypedSpec().ServiceEndpoint = net.JoinHostPort(host, port)
-						res.TypedSpec().ServiceEndpointInsecure = u.Scheme == "http"
-
-						res.TypedSpec().ServiceEncryptionKey, err = base64.StdEncoding.DecodeString(c.Cluster().Secret())
+						serviceEncryptionKey, err := base64.StdEncoding.DecodeString(c.Cluster().Secret())
 						if err != nil {
 							return err
 						}
 
+						res.TypedSpec().ServiceEndpoints = []cluster.ServiceEndpoint{
+							{
+								Name:     discoveryServiceConfigs[0].Name(),
+								Endpoint: net.JoinHostPort(host, port),
+								Insecure: u.Scheme == "http",
+							},
+						}
+						res.TypedSpec().ServiceEncryptionKey = serviceEncryptionKey
 						res.TypedSpec().ServiceClusterID = c.Cluster().ID()
 					} else {
-						res.TypedSpec().ServiceEndpoint = ""
-						res.TypedSpec().ServiceEndpointInsecure = false
+						res.TypedSpec().ServiceEndpoints = nil
 						res.TypedSpec().ServiceEncryptionKey = nil
 						res.TypedSpec().ServiceClusterID = ""
 					}
 				} else {
 					res.TypedSpec().RegistryKubernetesEnabled = false
-					res.TypedSpec().RegistryServiceEnabled = false
+					res.TypedSpec().ServiceEndpoints = nil
 				}
 
 				return nil

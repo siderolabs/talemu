@@ -338,7 +338,7 @@ func (ctrl *StaticPodController) renderAPIServer(machineConfig *config.MachineCo
 	pod.Spec.Containers = []v1.Container{
 		{
 			Name:  "kube-apiserver",
-			Image: machineConfig.Config().Cluster().APIServer().Image(),
+			Image: machineConfig.Config().K8sAPIServerConfig().Image(),
 			Resources: v1.ResourceRequirements{
 				Limits: v1.ResourceList{
 					v1.ResourceCPU:    kresource.MustParse("50m"),

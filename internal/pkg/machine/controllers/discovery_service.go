@@ -150,7 +150,7 @@ func (ctrl *DiscoveryServiceController) Run(ctx context.Context, r controller.Ru
 			}
 		}
 
-		if discoveryConfig == nil || !discoveryConfig.TypedSpec().RegistryServiceEnabled {
+		if discoveryConfig == nil || len(discoveryConfig.TypedSpec().ServiceEndpoints) == 0 {
 			// if discovery is disabled cleanup existing resources
 			if err = cleanupAffiliates(ctx, ctrl, r, nil); err != nil {
 				return err
@@ -226,11 +226,11 @@ func (ctrl *DiscoveryServiceController) Run(ctx context.Context, r controller.Ru
 
 			client, err = discoveryclient.NewClient(discoveryclient.Options{
 				Cipher:        cipherBlock,
-				Endpoint:      discoveryConfig.TypedSpec().ServiceEndpoint,
+				Endpoint:      discoveryConfig.TypedSpec().ServiceEndpoints[0].Endpoint,
 				ClusterID:     discoveryConfig.TypedSpec().ServiceClusterID,
 				AffiliateID:   localAffiliateID,
 				TTL:           defaultDiscoveryTTL,
-				Insecure:      discoveryConfig.TypedSpec().ServiceEndpointInsecure,
+				Insecure:      discoveryConfig.TypedSpec().ServiceEndpoints[0].Insecure,
 				ClientVersion: version.Tag,
 			})
 			if err != nil {

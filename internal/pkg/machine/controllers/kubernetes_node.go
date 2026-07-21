@@ -9,6 +9,7 @@ import (
 	"context"
 	"fmt"
 	"maps"
+	"net/netip"
 	"strings"
 	"time"
 
@@ -17,6 +18,7 @@ import (
 	"github.com/cosi-project/runtime/pkg/safe"
 	"github.com/cosi-project/runtime/pkg/state"
 	"github.com/siderolabs/gen/optional"
+	"github.com/siderolabs/gen/xslices"
 	"github.com/siderolabs/talos/pkg/machinery/resources/config"
 	"github.com/siderolabs/talos/pkg/machinery/resources/hardware"
 	"github.com/siderolabs/talos/pkg/machinery/resources/k8s"
@@ -183,9 +185,11 @@ func (ctrl *KubernetesNodeController) Run(ctx context.Context, r controller.Runt
 			return err
 		}
 
+		podCIDRs := xslices.Map(config.Provider().K8sNetworkConfig().PodCIDRs(), netip.Prefix.String)
+
 		spec := v1.NodeSpec{
-			PodCIDR:  config.Provider().Cluster().Network().PodCIDRs()[0],
-			PodCIDRs: config.Provider().Cluster().Network().PodCIDRs(),
+			PodCIDR:  podCIDRs[0],
+			PodCIDRs: podCIDRs,
 		}
 
 		hostname, err := safe.ReaderGetByID[*network.HostnameStatus](ctx, r, network.HostnameID)
@@ -297,7 +301,7 @@ func (ctrl *KubernetesNodeController) computeNodeStatus(ctx context.Context, r c
 	}
 
 	nodeInfo.KubeletVersion = getImageVersion(config.Provider().Machine().Kubelet().Image())
-	nodeInfo.KubeProxyVersion = getImageVersion(config.Provider().Cluster().Proxy().Image()) //nolint:staticcheck
+	nodeInfo.KubeProxyVersion = getImageVersion(config.Provider().K8sProxyConfig().Image()) //nolint:staticcheck
 
 	address, err := safe.ReaderGetByID[*network.NodeAddress](ctx, r, network.NodeAddressDefaultID)
 	if err != nil && !state.IsNotFoundError(err) {

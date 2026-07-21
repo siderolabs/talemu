@@ -173,7 +173,7 @@ func (c *MachineService) ApplyConfiguration(ctx context.Context, request *machin
 	return &machine.ApplyConfigurationResponse{
 		Messages: []*machine.ApplyConfiguration{
 			{
-				Mode: machine.ApplyConfigurationRequest_REBOOT,
+				Mode: machine.ApplyConfigurationRequest_REBOOT, //nolint:staticcheck
 			},
 		},
 	}, nil

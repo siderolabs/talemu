@@ -20,6 +20,7 @@ import (
 	"github.com/siderolabs/crypto/x509"
 	"github.com/siderolabs/gen/optional"
 	"github.com/siderolabs/gen/xerrors"
+	sideronet "github.com/siderolabs/net"
 	"github.com/siderolabs/talos/pkg/machinery/constants"
 	"github.com/siderolabs/talos/pkg/machinery/resources/config"
 	"github.com/siderolabs/talos/pkg/machinery/resources/network"
@@ -86,10 +87,10 @@ func NewRootKubernetesController() *RootKubernetesController {
 				k8sSecrets.Name = cfgProvider.Cluster().Name()
 				k8sSecrets.Endpoint = cfgProvider.Cluster().Endpoint()
 				k8sSecrets.LocalEndpoint = localEndpoint
-				k8sSecrets.CertSANs = cfgProvider.Cluster().CertSANs()
-				k8sSecrets.DNSDomain = cfgProvider.Cluster().Network().DNSDomain()
+				k8sSecrets.CertSANs = cfgProvider.K8sAPIServerConfig().CertSANs()
+				k8sSecrets.DNSDomain = cfgProvider.K8sNetworkConfig().DNSDomain()
 
-				k8sSecrets.APIServerIPs, err = cfgProvider.Cluster().Network().APIServerIPs()
+				k8sSecrets.APIServerIPs, err = sideronet.NthIPInCIDRSet(cfgProvider.K8sNetworkConfig().ServiceCIDRs(), 1)
 				if err != nil {
 					return fmt.Errorf("error building API service IPs: %w", err)
 				}
