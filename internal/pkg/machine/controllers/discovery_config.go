@@ -39,6 +39,10 @@ func NewClusterConfigController() *ConfigController {
 			TransformFunc: func(_ context.Context, _ controller.Reader, _ *zap.Logger, cfg *config.MachineConfig, res *cluster.Config) error {
 				c := cfg.Config()
 
+				// Keep populating the legacy single-endpoint fields alongside the endpoints list, the same way Talos does
+				// for backwards compatibility. Omni versions that predate the endpoints list read only the legacy fields.
+				res.TypedSpec().DiscoveryEnabled = c.Cluster().Discovery().Enabled() //nolint:staticcheck
+
 				if c.Cluster().Discovery().Enabled() {
 					res.TypedSpec().RegistryKubernetesEnabled = c.Cluster().Discovery().Registries().Kubernetes().Enabled()
 
@@ -63,23 +67,38 @@ func NewClusterConfigController() *ConfigController {
 							return err
 						}
 
+						endpoint := net.JoinHostPort(host, port)
+						insecure := u.Scheme == "http"
+
 						res.TypedSpec().ServiceEndpoints = []cluster.ServiceEndpoint{
 							{
 								Name:     discoveryServiceConfigs[0].Name(),
-								Endpoint: net.JoinHostPort(host, port),
-								Insecure: u.Scheme == "http",
+								Endpoint: endpoint,
+								Insecure: insecure,
 							},
 						}
 						res.TypedSpec().ServiceEncryptionKey = serviceEncryptionKey
 						res.TypedSpec().ServiceClusterID = c.Cluster().ID()
+
+						res.TypedSpec().RegistryServiceEnabled = true      //nolint:staticcheck
+						res.TypedSpec().ServiceEndpoint = endpoint         //nolint:staticcheck
+						res.TypedSpec().ServiceEndpointInsecure = insecure //nolint:staticcheck
 					} else {
 						res.TypedSpec().ServiceEndpoints = nil
 						res.TypedSpec().ServiceEncryptionKey = nil
 						res.TypedSpec().ServiceClusterID = ""
+
+						res.TypedSpec().RegistryServiceEnabled = false  //nolint:staticcheck
+						res.TypedSpec().ServiceEndpoint = ""            //nolint:staticcheck
+						res.TypedSpec().ServiceEndpointInsecure = false //nolint:staticcheck
 					}
 				} else {
 					res.TypedSpec().RegistryKubernetesEnabled = false
 					res.TypedSpec().ServiceEndpoints = nil
+
+					res.TypedSpec().RegistryServiceEnabled = false  //nolint:staticcheck
+					res.TypedSpec().ServiceEndpoint = ""            //nolint:staticcheck
+					res.TypedSpec().ServiceEndpointInsecure = false //nolint:staticcheck
 				}
 
 				return nil
