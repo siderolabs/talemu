@@ -1,11 +1,15 @@
 # commit to be tagged for the new release
 commit = "HEAD"
 
-project_name = ""
-github_repo = "/"
-match_deps = "^github.com/(/[a-zA-Z0-9-]+)$"
+project_name = "Talemu"
+github_repo = "siderolabs/talemu"
+match_deps = "^github.com/(siderolabs/[a-zA-Z0-9-]+)$"
 
-# previous = -
-# pre_release = true
+pre_release = false
+previous = ""
 
-# [notes]
+[notes.initial-release]
+title = "Initial Release"
+description = """\
+This is the first release of Talemu, an internal-only tool for Sidero Labs.
+"""
