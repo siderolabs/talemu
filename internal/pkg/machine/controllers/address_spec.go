@@ -55,8 +55,10 @@ func (ctrl *AddressSpecController) Inputs() []controller.Input {
 func (ctrl *AddressSpecController) Outputs() []controller.Output {
 	return []controller.Output{
 		{
+			// shared because the discovery service controller also writes an AddressStatus (the public IP
+			// reported by the discovery service, in the cluster namespace), the same way Talos does
 			Type: network.AddressStatusType,
-			Kind: controller.OutputExclusive,
+			Kind: controller.OutputShared,
 		},
 	}
 }

@@ -23,6 +23,7 @@ import (
 	"github.com/siderolabs/talos/pkg/machinery/api/common"
 	"github.com/siderolabs/talos/pkg/machinery/api/machine"
 	"github.com/siderolabs/talos/pkg/machinery/api/storage"
+	talosconfig "github.com/siderolabs/talos/pkg/machinery/config"
 	"github.com/siderolabs/talos/pkg/machinery/config/configloader"
 	"github.com/siderolabs/talos/pkg/machinery/meta"
 	"github.com/siderolabs/talos/pkg/machinery/resources/block"
@@ -123,34 +124,8 @@ func (c *MachineService) ApplyConfiguration(ctx context.Context, request *machin
 		}, nil
 	}
 
-	id := cfgProvider.Cluster().ID()
-
-	clusterStatus, err := safe.ReaderGetByID[*emu.ClusterStatus](ctx, c.globalState, id)
+	id, err := c.registerClusterMachine(ctx, cfgProvider)
 	if err != nil {
-		if !state.IsNotFoundError(err) {
-			return nil, err
-		}
-
-		clusterStatus = emu.NewClusterStatus(emu.NamespaceName, id)
-
-		if err = c.globalState.Create(ctx, clusterStatus); err != nil {
-			if !state.IsConflictError(err) {
-				return nil, err
-			}
-		}
-	}
-
-	if _, err = safe.StateUpdateWithConflicts(ctx, c.globalState, clusterStatus.Metadata(), func(r *emu.ClusterStatus) error {
-		if cfgProvider.Machine().Type().IsControlPlane() {
-			r.TypedSpec().Value.ControlPlanes++
-
-			return nil
-		}
-
-		r.TypedSpec().Value.Workers++
-
-		return nil
-	}); err != nil {
 		return nil, err
 	}
 
@@ -179,6 +154,48 @@ func (c *MachineService) ApplyConfiguration(ctx context.Context, request *machin
 	}, nil
 }
 
+// registerClusterMachine counts the machine into the emulator-global status of its cluster, creating the status
+// when the machine is the first one, and returns the cluster ID.
+func (c *MachineService) registerClusterMachine(ctx context.Context, cfgProvider talosconfig.Provider) (string, error) {
+	id := machineconfig.ClusterID(cfgProvider)
+	if id == "" {
+		// the cluster ID keys the emulator-global cluster state, an empty one would silently alias
+		// unrelated clusters into one record
+		return "", status.Error(codes.InvalidArgument, "the machine config carries no cluster identity")
+	}
+
+	clusterStatus, err := safe.ReaderGetByID[*emu.ClusterStatus](ctx, c.globalState, id)
+	if err != nil {
+		if !state.IsNotFoundError(err) {
+			return "", err
+		}
+
+		clusterStatus = emu.NewClusterStatus(emu.NamespaceName, id)
+
+		if err = c.globalState.Create(ctx, clusterStatus); err != nil {
+			if !state.IsConflictError(err) {
+				return "", err
+			}
+		}
+	}
+
+	if _, err = safe.StateUpdateWithConflicts(ctx, c.globalState, clusterStatus.Metadata(), func(r *emu.ClusterStatus) error {
+		if cfgProvider.Machine().Type().IsControlPlane() {
+			r.TypedSpec().Value.ControlPlanes++
+
+			return nil
+		}
+
+		r.TypedSpec().Value.Workers++
+
+		return nil
+	}); err != nil {
+		return "", err
+	}
+
+	return id, nil
+}
+
 // Bootstrap implements machine.MachineServiceServer.
 func (c *MachineService) Bootstrap(ctx context.Context, _ *machine.BootstrapRequest) (*machine.BootstrapResponse, error) {
 	config, err := machineconfig.GetComplete(ctx, c.state)
@@ -190,7 +207,7 @@ func (c *MachineService) Bootstrap(ctx context.Context, _ *machine.BootstrapRequ
 		return nil, err
 	}
 
-	id := config.Config().Cluster().ID()
+	id := machineconfig.ClusterID(config.Config())
 
 	clusterStatus, err := safe.ReaderGetByID[*emu.ClusterStatus](ctx, c.globalState, id)
 	if err != nil {
@@ -237,7 +254,7 @@ func (c *MachineService) Reset(ctx context.Context, request *machine.ResetReques
 		return nil, err
 	}
 
-	id := cfg.Provider().Cluster().ID()
+	id := machineconfig.ClusterID(cfg.Provider())
 
 	clusterStatus, err := safe.ReaderGetByID[*emu.ClusterStatus](ctx, c.globalState, id)
 	if err != nil {
@@ -411,7 +428,7 @@ func (c *MachineService) EtcdMemberList(ctx context.Context, _ *machine.EtcdMemb
 		return nil, status.Errorf(codes.InvalidArgument, "the machine is not a control plane")
 	}
 
-	clusterStatus, err := safe.ReaderGetByID[*emu.ClusterStatus](ctx, c.globalState, config.Provider().Cluster().ID())
+	clusterStatus, err := safe.ReaderGetByID[*emu.ClusterStatus](ctx, c.globalState, machineconfig.ClusterID(config.Provider()))
 	if err != nil {
 		return nil, fmt.Errorf("failed to get cluster status: %w", err)
 	}
@@ -419,7 +436,7 @@ func (c *MachineService) EtcdMemberList(ctx context.Context, _ *machine.EtcdMemb
 	machines, err := safe.ReaderListAll[*emu.MachineStatus](
 		ctx, c.globalState,
 		state.WithLabelQuery(
-			resource.LabelEqual(emu.LabelCluster, config.Provider().Cluster().ID()),
+			resource.LabelEqual(emu.LabelCluster, machineconfig.ClusterID(config.Provider())),
 			resource.LabelExists(emu.LabelControlPlaneRole),
 		),
 	)
@@ -485,7 +502,7 @@ func (c *MachineService) EtcdRemoveMemberByID(ctx context.Context, req *machine.
 
 	memberID := etcd.FormatMemberID(req.MemberId)
 
-	clusterStatus := emu.NewClusterStatus(emu.NamespaceName, config.Provider().Cluster().ID()).Metadata()
+	clusterStatus := emu.NewClusterStatus(emu.NamespaceName, machineconfig.ClusterID(config.Provider())).Metadata()
 
 	_, err = safe.StateUpdateWithConflicts(ctx, c.globalState, clusterStatus, func(res *emu.ClusterStatus) error {
 		if slices.Contains(res.TypedSpec().Value.DenyEtcdMembers, memberID) {
@@ -535,7 +552,7 @@ func (c *MachineService) EtcdLeaveCluster(ctx context.Context, _ *machine.EtcdLe
 		return nil, status.Errorf(codes.FailedPrecondition, "the machine doesn't have etcd member ID")
 	}
 
-	clusterStatus := emu.NewClusterStatus(emu.NamespaceName, config.Provider().Cluster().ID()).Metadata()
+	clusterStatus := emu.NewClusterStatus(emu.NamespaceName, machineconfig.ClusterID(config.Provider())).Metadata()
 
 	_, err = safe.StateUpdateWithConflicts(ctx, c.globalState, clusterStatus, func(res *emu.ClusterStatus) error {
 		if slices.Contains(res.TypedSpec().Value.DenyEtcdMembers, member.TypedSpec().MemberID) {

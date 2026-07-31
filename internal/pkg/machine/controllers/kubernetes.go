@@ -212,7 +212,7 @@ func (ctrl *KubernetesController) Run(ctx context.Context, r controller.Runtime,
 						panichandler.Go(func() {
 							defer close(done)
 
-							if runErr := ctrl.Kubernetes.RunAPIService(serverCtx, address, iface, ctrl.MachineID, config.Provider().Cluster().ID()); runErr != nil {
+							if runErr := ctrl.Kubernetes.RunAPIService(serverCtx, address, iface, ctrl.MachineID, machineconfig.ClusterID(config.Provider())); runErr != nil {
 								logger.Error("kubernetes api server crashed", zap.Error(runErr))
 							}
 						}, logger)

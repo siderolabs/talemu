@@ -7,11 +7,12 @@ package controllers
 import (
 	"context"
 	"encoding/base64"
-	"net"
+	"errors"
 
 	"github.com/cosi-project/runtime/pkg/controller"
 	"github.com/cosi-project/runtime/pkg/controller/generic/transform"
 	"github.com/siderolabs/gen/optional"
+	clustertypes "github.com/siderolabs/talos/pkg/machinery/config/types/cluster"
 	"github.com/siderolabs/talos/pkg/machinery/resources/cluster"
 	"github.com/siderolabs/talos/pkg/machinery/resources/config"
 	"go.uber.org/zap"
@@ -20,7 +21,9 @@ import (
 // ConfigController watches v1alpha1.Config, updates discovery config.
 type ConfigController = transform.Controller[*config.MachineConfig, *cluster.Config]
 
-// NewClusterConfigController instanciates the config controller.
+// NewClusterConfigController instantiates the config controller.
+//
+// It is a verbatim copy of the cluster.ConfigController of Talos.
 func NewClusterConfigController() *ConfigController {
 	return transform.NewController(
 		transform.Settings[*config.MachineConfig, *cluster.Config]{
@@ -36,69 +39,66 @@ func NewClusterConfigController() *ConfigController {
 
 				return optional.Some(cluster.NewConfig(config.NamespaceName, cluster.ConfigID))
 			},
-			TransformFunc: func(_ context.Context, _ controller.Reader, _ *zap.Logger, cfg *config.MachineConfig, res *cluster.Config) error {
-				c := cfg.Config()
+			TransformFunc: func(_ context.Context, _ controller.Reader, _ *zap.Logger, machineConfig *config.MachineConfig, res *cluster.Config) error {
+				var err error
 
-				// Keep populating the legacy single-endpoint fields alongside the endpoints list, the same way Talos does
-				// for backwards compatibility. Omni versions that predate the endpoints list read only the legacy fields.
-				res.TypedSpec().DiscoveryEnabled = c.Cluster().Discovery().Enabled() //nolint:staticcheck
+				cfg := machineConfig.Config()
 
-				if c.Cluster().Discovery().Enabled() {
-					res.TypedSpec().RegistryKubernetesEnabled = c.Cluster().Discovery().Registries().Kubernetes().Enabled()
+				// Both the legacy v1alpha1 service endpoint, and the new multi-doc DiscoveryServiceConfig(s) get
+				// surfaced via the .DiscoveryServiceConfigs() interface. By now the configs have been validated.
+				discoveryServiceConfigs := cfg.DiscoveryServiceConfigs()
 
-					discoveryServiceConfigs := c.DiscoveryServiceConfigs()
+				if len(discoveryServiceConfigs) > 0 {
+					res.TypedSpec().ServiceEndpoints = []cluster.ServiceEndpoint{}
 
-					if len(discoveryServiceConfigs) > 0 {
-						u := discoveryServiceConfigs[0].Endpoint()
-
-						host := u.Hostname()
-						port := u.Port()
-
-						if port == "" {
-							if u.Scheme == "http" {
-								port = "80"
-							} else {
-								port = "443" // use default https port for everything else
-							}
+					for _, discoveryServiceConfig := range discoveryServiceConfigs {
+						normalizedEndpoint, insecure, endpointErr := clustertypes.NormalizeEndpoint(discoveryServiceConfig.Endpoint().String())
+						if endpointErr != nil {
+							return endpointErr
 						}
 
-						serviceEncryptionKey, err := base64.StdEncoding.DecodeString(c.Cluster().Secret())
-						if err != nil {
-							return err
-						}
-
-						endpoint := net.JoinHostPort(host, port)
-						insecure := u.Scheme == "http"
-
-						res.TypedSpec().ServiceEndpoints = []cluster.ServiceEndpoint{
-							{
-								Name:     discoveryServiceConfigs[0].Name(),
-								Endpoint: endpoint,
-								Insecure: insecure,
-							},
-						}
-						res.TypedSpec().ServiceEncryptionKey = serviceEncryptionKey
-						res.TypedSpec().ServiceClusterID = c.Cluster().ID()
-
-						res.TypedSpec().RegistryServiceEnabled = true      //nolint:staticcheck
-						res.TypedSpec().ServiceEndpoint = endpoint         //nolint:staticcheck
-						res.TypedSpec().ServiceEndpointInsecure = insecure //nolint:staticcheck
-					} else {
-						res.TypedSpec().ServiceEndpoints = nil
-						res.TypedSpec().ServiceEncryptionKey = nil
-						res.TypedSpec().ServiceClusterID = ""
-
-						res.TypedSpec().RegistryServiceEnabled = false  //nolint:staticcheck
-						res.TypedSpec().ServiceEndpoint = ""            //nolint:staticcheck
-						res.TypedSpec().ServiceEndpointInsecure = false //nolint:staticcheck
+						res.TypedSpec().ServiceEndpoints = append(res.TypedSpec().ServiceEndpoints, cluster.ServiceEndpoint{
+							Name:     discoveryServiceConfig.Name(),
+							Endpoint: normalizedEndpoint,
+							Insecure: insecure,
+						})
 					}
+
+					identity := cfg.DiscoveryIdentityConfig()
+					if identity == nil {
+						return errors.New("cluster identity is required when discovery service is configured")
+					}
+
+					res.TypedSpec().ServiceEncryptionKey, err = base64.StdEncoding.DecodeString(identity.ClusterSecret())
+					if err != nil {
+						return err
+					}
+
+					res.TypedSpec().ServiceClusterID = identity.ClusterID()
+
+					// Legacy field support for Omni backwards compatibility.
+					// We don't actually use these fields anymore in the discovery service controller.
+					res.TypedSpec().RegistryServiceEnabled = true //nolint:staticcheck // legacy config
+					// Just use the first one off the top. We can't use all of them until Omni supports multiple discovery services.
+					// This is the normalized endpoint (just port:host) and insecure flag, not the raw URL.
+					res.TypedSpec().ServiceEndpoint = res.TypedSpec().ServiceEndpoints[0].Endpoint         //nolint:staticcheck // legacy config
+					res.TypedSpec().ServiceEndpointInsecure = res.TypedSpec().ServiceEndpoints[0].Insecure //nolint:staticcheck // legacy config
 				} else {
-					res.TypedSpec().RegistryKubernetesEnabled = false
+					res.TypedSpec().ServiceEncryptionKey = nil
+					res.TypedSpec().ServiceClusterID = ""
 					res.TypedSpec().ServiceEndpoints = nil
 
-					res.TypedSpec().RegistryServiceEnabled = false  //nolint:staticcheck
-					res.TypedSpec().ServiceEndpoint = ""            //nolint:staticcheck
-					res.TypedSpec().ServiceEndpointInsecure = false //nolint:staticcheck
+					// Legacy field support for Omni backwards compatibility.
+					res.TypedSpec().RegistryServiceEnabled = false  //nolint:staticcheck // legacy config
+					res.TypedSpec().ServiceEndpoint = ""            //nolint:staticcheck // legacy config
+					res.TypedSpec().ServiceEndpointInsecure = false //nolint:staticcheck // legacy config
+				}
+
+				// Legacy support for Kubernetes discovery (not discovery service)
+				if cfg.Cluster().Discovery().Enabled() {
+					res.TypedSpec().RegistryKubernetesEnabled = cfg.Cluster().Discovery().Registries().Kubernetes().Enabled()
+				} else {
+					res.TypedSpec().RegistryKubernetesEnabled = false
 				}
 
 				return nil

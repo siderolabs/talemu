@@ -300,8 +300,13 @@ func (ctrl *KubernetesNodeController) computeNodeStatus(ctx context.Context, r c
 		nodeInfo.OSImage = fmt.Sprintf("Talos (%s)", version.TypedSpec().Value.Value)
 	}
 
-	nodeInfo.KubeletVersion = getImageVersion(config.Provider().Machine().Kubelet().Image())
-	nodeInfo.KubeProxyVersion = getImageVersion(config.Provider().K8sProxyConfig().Image()) //nolint:staticcheck
+	if kubeletConfig := config.Provider().K8sKubeletConfig(); kubeletConfig != nil {
+		nodeInfo.KubeletVersion = getImageVersion(kubeletConfig.Image())
+	}
+
+	if proxyConfig := config.Provider().K8sProxyConfig(); proxyConfig != nil {
+		nodeInfo.KubeProxyVersion = getImageVersion(proxyConfig.Image()) //nolint:staticcheck
+	}
 
 	address, err := safe.ReaderGetByID[*network.NodeAddress](ctx, r, network.NodeAddressDefaultID)
 	if err != nil && !state.IsNotFoundError(err) {
@@ -385,13 +390,17 @@ func (ctrl *KubernetesNodeController) computeNodeLabels(config *config.MachineCo
 	labels["kubernetes.io/os"] = osLinux
 	labels["beta.kubernetes.io/os"] = osLinux
 
-	maps.Copy(labels, config.Config().Machine().NodeLabels())
-
-	if config.Config().Machine().Type().IsControlPlane() {
-		labels["node-role.kubernetes.io/control-plane"] = ""
+	// the node config labels already carry the control plane role label for control plane machines
+	if nodeConfig := config.Config().K8sNodeConfig(); nodeConfig != nil {
+		maps.Copy(labels, nodeConfig.Labels())
 	}
 
-	kubeletArgs := config.Config().Machine().Kubelet().ExtraArgs()
+	var kubeletArgs map[string][]string
+
+	if kubeletConfig := config.Config().K8sKubeletConfig(); kubeletConfig != nil {
+		kubeletArgs = kubeletConfig.ExtraArgs()
+	}
+
 	if kubeleteLabels, ok := kubeletArgs["node-labels"]; ok {
 		for _, pair := range kubeleteLabels {
 			key, value, found := strings.Cut(pair, "=")
@@ -433,7 +442,7 @@ func (ctrl *KubernetesNodeController) getClient(ctx context.Context, r controlle
 	if config == nil {
 		var cluster *emu.ClusterStatus
 
-		cluster, err = safe.ReaderGetByID[*emu.ClusterStatus](ctx, ctrl.GlobalState, machineConfig.Provider().Cluster().ID())
+		cluster, err = safe.ReaderGetByID[*emu.ClusterStatus](ctx, ctrl.GlobalState, machineconfig.ClusterID(machineConfig.Provider()))
 		if err != nil {
 			return nil, err
 		}

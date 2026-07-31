@@ -10,6 +10,7 @@ import (
 
 	"github.com/cosi-project/runtime/pkg/controller"
 	"github.com/cosi-project/runtime/pkg/safe"
+	talosconfig "github.com/siderolabs/talos/pkg/machinery/config"
 	"github.com/siderolabs/talos/pkg/machinery/resources/config"
 )
 
@@ -35,4 +36,18 @@ func GetComplete(ctx context.Context, st controller.Reader) (*config.MachineConf
 	}
 
 	return conf, nil
+}
+
+// ClusterID returns the cluster ID of the given machine config.
+//
+// It reads the identity document, which also surfaces the legacy .cluster.id field of the v1alpha1
+// config for configs generated for Talos older than 1.14. Returns an empty string when the config
+// carries no cluster identity.
+func ClusterID(cfg talosconfig.Config) string {
+	identity := cfg.DiscoveryIdentityConfig()
+	if identity == nil {
+		return ""
+	}
+
+	return identity.ClusterID()
 }

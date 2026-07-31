@@ -75,6 +75,10 @@ func (ctrl *NodenameController) Run(ctx context.Context, r controller.Runtime, _
 			return fmt.Errorf("error getting config: %w", err)
 		}
 
+		if cfg.Config().K8sNodeConfig() == nil {
+			continue
+		}
+
 		hostnameStatus, err := safe.ReaderGetByID[*network.HostnameStatus](ctx, r, network.HostnameID)
 		if err != nil {
 			if state.IsNotFoundError(err) {
@@ -91,7 +95,7 @@ func (ctrl *NodenameController) Run(ctx context.Context, r controller.Runtime, _
 			func(res *k8s.Nodename) error {
 				var hostname string
 
-				if cfg.Config().Machine().Kubelet().RegisterWithFQDN() {
+				if cfg.Config().K8sNodeConfig().RegisterWithFQDN() {
 					hostname = hostnameStatus.TypedSpec().FQDN()
 				} else {
 					hostname = hostnameStatus.TypedSpec().Hostname
@@ -103,7 +107,7 @@ func (ctrl *NodenameController) Run(ctx context.Context, r controller.Runtime, _
 				}
 
 				res.TypedSpec().HostnameVersion = hostnameStatus.Metadata().Version().String()
-				res.TypedSpec().SkipNodeRegistration = cfg.Config().Machine().Kubelet().SkipNodeRegistration()
+				res.TypedSpec().SkipNodeRegistration = cfg.Config().K8sNodeConfig().SkipNodeRegistration()
 
 				return nil
 			},

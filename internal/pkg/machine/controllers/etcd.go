@@ -132,7 +132,7 @@ func (ctrl *EtcdController) reconcileRunning(ctx context.Context, r controller.R
 		})
 	}()
 
-	clusterStatus, err := safe.ReaderGetByID[*emu.ClusterStatus](ctx, ctrl.GlobalState, config.Provider().Cluster().ID())
+	clusterStatus, err := safe.ReaderGetByID[*emu.ClusterStatus](ctx, ctrl.GlobalState, machineconfig.ClusterID(config.Provider()))
 	if err != nil {
 		if state.IsNotFoundError(err) {
 			// Config landed before the cluster status was published. Leave etcd not-ready and wait: the
@@ -176,7 +176,7 @@ func (ctrl *EtcdController) reconcileRunning(ctx context.Context, r controller.R
 	// from the member, so a machine could end up with a member but no labels and drop out of the member
 	// list. Write both together here, every reconcile, so a control plane that has a member is always
 	// counted for its cluster.
-	if err = ctrl.syncGlobalMember(ctx, config.Provider().Cluster().ID(), member.TypedSpec().MemberID); err != nil {
+	if err = ctrl.syncGlobalMember(ctx, machineconfig.ClusterID(config.Provider()), member.TypedSpec().MemberID); err != nil {
 		return err
 	}
 
