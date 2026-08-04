@@ -16,6 +16,7 @@ type Options struct {
 	talosVersion         string
 	schematic            string
 	bootFactoryURL       string
+	extensions           []string
 	extraDisks           int
 	secureBoot           bool
 	nodeProxyingDisabled bool
@@ -81,5 +82,17 @@ func WithBootFactoryURL(value string) Option {
 func WithExtraDisks(count int) Option {
 	return func(o *Options) {
 		o.extraDisks = count
+	}
+}
+
+// WithExtensions sets the extensions the machine reports when it has no schematic.
+//
+// A machine built by an image factory carries a schematic that lists its
+// extensions, and that takes precedence. Media built without a factory has no
+// schematic, so the extensions have to be stated directly, the same way real
+// Talos reads them from local metadata instead of asking a factory.
+func WithExtensions(extensions []string) Option {
+	return func(o *Options) {
+		o.extensions = extensions
 	}
 }

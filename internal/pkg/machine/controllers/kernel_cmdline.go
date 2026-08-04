@@ -27,6 +27,11 @@ type KernelCmdlineController struct {
 	SchematicService *schematicsvc.Service
 	ImageFactoryHost string
 	BaseKernelArgs   string
+
+	// BootFactoryURL is the factory the machine booted from. It is the fallback for
+	// resolving which factory holds the current schematic, and stops applying once an
+	// install or an upgrade replaces the image.
+	BootFactoryURL string
 }
 
 // Name implements controller.Controller interface.
@@ -71,7 +76,7 @@ func (ctrl *KernelCmdlineController) Run(ctx context.Context, r controller.Runti
 		case <-r.EventCh():
 		}
 
-		schematicID, err := readCurrentSchematicID(ctx, r, ctrl.ImageFactoryHost)
+		schematicID, factoryURL, err := readCurrentSchematic(ctx, r, ctrl.ImageFactoryHost, ctrl.BootFactoryURL)
 		if err != nil {
 			return fmt.Errorf("failed to read current schematic ID: %w", err)
 		}
@@ -81,14 +86,19 @@ func (ctrl *KernelCmdlineController) Run(ctx context.Context, r controller.Runti
 		if schematicID != "" {
 			var sch *schematic.Schematic
 
-			if sch, err = ctrl.SchematicService.GetByID(ctx, schematicID); err != nil {
+			if sch, err = ctrl.SchematicService.GetByID(ctx, schematicID, factoryURL); err != nil {
 				return fmt.Errorf("failed to get schematic by ID %q: %w", schematicID, err)
 			}
 
 			extraKernelArgs = sch.Customization.ExtraKernelArgs
 		}
 
-		cmdline := ctrl.BaseKernelArgs + " " + strings.Join(slices.Concat(extraKernelArgs, []string{"talemu=1"}), " ")
+		// The base args are empty when a schematic describes the boot media, since the
+		// schematic then supplies the whole command line, so build this by joining
+		// only the parts that exist rather than concatenating blindly.
+		parts := slices.Concat(strings.Fields(ctrl.BaseKernelArgs), extraKernelArgs, []string{"talemu=1"})
+
+		cmdline := strings.Join(parts, " ")
 		logger.Info("set cmdline", zap.String("cmdline", cmdline), zap.Strings("extra_args", extraKernelArgs))
 
 		if err = safe.WriterModify(ctx, r, runtime.NewKernelCmdline(), func(res *runtime.KernelCmdline) error {

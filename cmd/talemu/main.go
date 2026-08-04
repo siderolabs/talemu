@@ -14,7 +14,6 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/siderolabs/image-factory/pkg/schematic"
 	"github.com/siderolabs/omni/client/pkg/constants"
 	"github.com/spf13/cobra"
 	"go.uber.org/multierr"
@@ -44,9 +43,16 @@ var rootCmd = &cobra.Command{
 			return fmt.Errorf("--extra-disks must be between 0 and %d, got %d", machine.MaxExtraDisks, cfg.extraDisks)
 		}
 
-		params, err := machine.ParseKernelArgs(cfg.kernelArgs)
-		if err != nil {
-			return err
+		// A schematic describes the whole boot media, kernel args included, so taking
+		// both would mean deciding which one wins. Neither is required: SideroLink is
+		// optional in Talos, and machines given no boot media info at all simply run
+		// standalone and join nothing.
+		if cfg.schematicID != "" && cmd.Flags().Changed("kernel-args") {
+			return errors.New("--schematic-id and --kernel-args are mutually exclusive: a schematic already carries the kernel args of the media it describes")
+		}
+
+		if cfg.schematicID != "" && cmd.Flags().Changed("extensions") {
+			return errors.New("--schematic-id and --extensions are mutually exclusive: a schematic already lists the extensions of the media it describes")
 		}
 
 		eg, ctx := errgroup.WithContext(cmd.Context())
@@ -109,9 +115,39 @@ var rootCmd = &cobra.Command{
 			return err
 		}
 
-		initialSchematicID, err := buildInitialSchematicID()
+		// Resolve the boot media the machines are pretending to have booted from.
+		//
+		// With a schematic ID, that media came from an image factory, so the factory
+		// is asked for it up front: it is the source of truth for the kernel args and
+		// the extensions, and a missing one is a mistake worth failing on now rather
+		// than leaving every machine to rediscover it forever.
+		//
+		// Real Talos would not need the round trip, since it runs the media and knows
+		// its own kernel args and extensions. The emulator does not run it, so
+		// fetching the schematic is how it recovers the same facts.
+		kernelArgs := cfg.kernelArgs
+
+		if cfg.schematicID != "" {
+			sch, schErr := schematicService.GetByID(ctx, cfg.schematicID, "")
+			if schErr != nil {
+				return fmt.Errorf("schematic %q could not be read from %s: %w",
+					cfg.schematicID, schematicService.ImageFactoryBaseURL(), schErr)
+			}
+
+			kernelArgs = strings.Join(sch.Customization.ExtraKernelArgs, " ")
+		}
+
+		params, err := machine.ParseKernelArgs(kernelArgs)
 		if err != nil {
 			return err
+		}
+
+		// With a schematic the args above came out of it, and the machines read the
+		// command line from the schematic too, so passing them on as well would report
+		// every argument twice. Only the caller knows this, which is why the shared
+		// machine code does not try to work it out.
+		if cfg.schematicID != "" {
+			params.RawKernelArgs = ""
 		}
 
 		enterpriseChecker := factory.NewEnterpriseChecker()
@@ -123,8 +159,12 @@ var rootCmd = &cobra.Command{
 			}
 
 			eg.Go(func() error {
-				return m.Run(ctx, params, i+1000, kubernetes, machine.WithNetworkClient(nc), machine.WithTalosVersion(cfg.talosVersion),
-					machine.WithSchematic(initialSchematicID), machine.WithNodeProxyingDisabled(cfg.nodeProxyingDisabled),
+				return m.Run(ctx, params, i+1000, kubernetes,
+					machine.WithNetworkClient(nc),
+					machine.WithTalosVersion(cfg.talosVersion),
+					machine.WithSchematic(cfg.schematicID),
+					machine.WithExtensions(cfg.extensions),
+					machine.WithNodeProxyingDisabled(cfg.nodeProxyingDisabled),
 					machine.WithExtraDisks(cfg.extraDisks))
 			})
 
@@ -175,21 +215,9 @@ var rootCmd = &cobra.Command{
 	},
 }
 
-func buildInitialSchematicID() (string, error) {
-	initialSchematic := schematic.Schematic{
-		Customization: schematic.Customization{
-			ExtraKernelArgs: strings.Fields(cfg.kernelArgs),
-			SystemExtensions: schematic.SystemExtensions{
-				OfficialExtensions: cfg.extensions,
-			},
-		},
-	}
-
-	return initialSchematic.ID()
-}
-
 var cfg struct {
 	kernelArgs           string
+	schematicID          string
 	talosVersion         string
 	schematicCacheDir    string
 	imageFactoryBaseURL  string
@@ -213,14 +241,18 @@ func app() error {
 }
 
 func init() {
-	rootCmd.Flags().StringSliceVar(&cfg.extensions, "extensions", []string{emuconst.OfficialExtensionPrefix + "hello-world-service"}, "list of extensions to enable")
-	rootCmd.Flags().StringVar(&cfg.kernelArgs, "kernel-args", "", "specify the whole configuration using kernel args string")
+	rootCmd.Flags().StringSliceVar(&cfg.extensions, "extensions", []string{emuconst.OfficialExtensionPrefix + "hello-world-service"},
+		"list of extensions to report, for media not built by an image factory (mutually exclusive with --schematic-id)")
+	rootCmd.Flags().StringVar(&cfg.kernelArgs, "kernel-args", "",
+		"specify the whole configuration using kernel args string, for media not built by an image factory (mutually exclusive with --schematic-id)")
+	rootCmd.Flags().StringVar(&cfg.schematicID, "schematic-id", "",
+		"schematic ID of the boot media the machines pretend to have booted from; it must exist in the image factory, which supplies the kernel args and extensions")
 	rootCmd.Flags().StringVar(&cfg.talosVersion, "talos-version", constants.DefaultTalosVersion, "specify the Talos version to use")
 	rootCmd.Flags().StringVar(&cfg.schematicCacheDir, "schematic-cache-dir", "/tmp/talemu-schematics", "the directory to use for caching schematics")
 	rootCmd.Flags().StringVar(&cfg.imageFactoryBaseURL, "image-factory-base-url", emuconst.DefaultImageFactoryBaseURL, "base URL of the image factory")
 	rootCmd.Flags().IntVar(&cfg.machinesCount, "machines", 1, "the number of machines to emulate")
 	rootCmd.Flags().IntVar(&cfg.extraDisks, "extra-disks", 0,
-		fmt.Sprintf("the number of additional empty disks to give each machine, named vdb onwards (max %d)", machine.MaxExtraDisks))
+		fmt.Sprintf("the number of additional empty disks to give each machine, between 0 and %d", machine.MaxExtraDisks))
 	rootCmd.Flags().BoolVar(&cfg.nodeProxyingDisabled, "disable-node-proxying", false,
 		"disable node-to-node proxying in apid: rejects the 'node' header, validates that a single-entry 'nodes' header targets this node, multi-node 'nodes' is still proxied")
 }

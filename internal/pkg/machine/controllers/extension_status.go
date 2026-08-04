@@ -27,6 +27,17 @@ import (
 type ExtensionStatusController struct {
 	SchematicService *schematic.Service
 	ImageFactoryHost string
+
+	// BootFactoryURL is the factory the machine booted from. It is the fallback for
+	// resolving which factory holds the current schematic, and stops applying once an
+	// install or an upgrade replaces the image.
+	BootFactoryURL string
+
+	// LocalExtensions is reported when the machine has no schematic, which is the
+	// case for boot media that was not built by an image factory. Real Talos reads
+	// its extensions from local metadata rather than from a factory, so a machine
+	// without a schematic still knows what it has.
+	LocalExtensions []string
 }
 
 // Name implements controller.Controller interface.
@@ -73,45 +84,52 @@ func (ctrl *ExtensionStatusController) Run(ctx context.Context, r controller.Run
 		case <-r.EventCh():
 		}
 
-		schematicID, err := readCurrentSchematicID(ctx, r, ctrl.ImageFactoryHost)
+		schematicID, factoryURL, err := readCurrentSchematic(ctx, r, ctrl.ImageFactoryHost, ctrl.BootFactoryURL)
 		if err != nil {
 			return fmt.Errorf("failed to read current schematic ID: %w", err)
 		}
 
-		if schematicID == "" {
-			continue
-		}
-
-		sch, err := ctrl.SchematicService.GetByID(ctx, schematicID)
-		if err != nil {
-			return fmt.Errorf("failed to get schematic by ID %q: %w", schematicID, err)
-		}
-
 		touched := map[string]any{}
+		extensionList := ctrl.LocalExtensions
 
-		extensionStatus := runtime.NewExtensionStatus(runtime.NamespaceName, constants.SchematicIDExtensionName)
+		// With no schematic the machine reports the extensions it knows about locally
+		// and no schematic ID extension, exactly like a Talos image that an image
+		// factory did not build. Otherwise the schematic is the source of truth, and
+		// the schematic ID is published as an extension the way a factory image does.
+		if schematicID != "" {
+			sch, schErr := ctrl.SchematicService.GetByID(ctx, schematicID, factoryURL)
+			if schErr != nil {
+				return fmt.Errorf("failed to get schematic by ID %q: %w", schematicID, schErr)
+			}
 
-		data, err := sch.Marshal()
-		if err != nil {
-			return err
+			extensionList = sch.Customization.SystemExtensions.OfficialExtensions
+
+			extensionStatus := runtime.NewExtensionStatus(runtime.NamespaceName, constants.SchematicIDExtensionName)
+
+			var data []byte
+
+			data, err = sch.Marshal()
+			if err != nil {
+				return err
+			}
+
+			if err = safe.WriterModify(ctx, r, extensionStatus, func(res *runtime.ExtensionStatus) error {
+				res.TypedSpec().Metadata.Name = constants.SchematicIDExtensionName
+				res.TypedSpec().Metadata.Version = schematicID
+				res.TypedSpec().Metadata.ExtraInfo = string(data)
+
+				touched[res.Metadata().ID()] = struct{}{}
+
+				return nil
+			}); err != nil {
+				return err
+			}
 		}
 
-		if err = safe.WriterModify(ctx, r, extensionStatus, func(res *runtime.ExtensionStatus) error {
-			res.TypedSpec().Metadata.Name = constants.SchematicIDExtensionName
-			res.TypedSpec().Metadata.Version = schematicID
-			res.TypedSpec().Metadata.ExtraInfo = string(data)
-
-			touched[res.Metadata().ID()] = struct{}{}
-
-			return nil
-		}); err != nil {
-			return err
-		}
-
-		for _, extension := range sch.Customization.SystemExtensions.OfficialExtensions {
+		for _, extension := range extensionList {
 			nameWithoutPrefix := strings.TrimPrefix(extension, emuconst.OfficialExtensionPrefix)
 
-			extensionStatus = runtime.NewExtensionStatus(runtime.NamespaceName, nameWithoutPrefix)
+			extensionStatus := runtime.NewExtensionStatus(runtime.NamespaceName, nameWithoutPrefix)
 
 			touched[extensionStatus.Metadata().ID()] = struct{}{}
 

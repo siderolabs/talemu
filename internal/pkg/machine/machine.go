@@ -86,6 +86,32 @@ func extraDisks(count int) []resource.Resource {
 	return resources
 }
 
+// seedBootMedia records the boot media of a machine that has not installed yet.
+//
+// State survives restarts, so a machine started again with different media would
+// otherwise keep reporting the old one forever. Until an install happens, Talos is
+// running from ISO or PXE with nothing on disk, and booting such a machine from
+// other media genuinely does change what it is running, so the seeded values take
+// precedence. After an install the disk decides, and the installed image is left
+// alone.
+func seedBootMedia(ctx context.Context, st state.State, image *talos.Image) error {
+	_, err := safe.StateGetByID[*block.SystemDisk](ctx, st, block.SystemDiskID)
+
+	switch {
+	case err == nil:
+		// installed: the disk holds what the machine runs, not the boot media
+		return nil
+	case !state.IsNotFoundError(err):
+		return fmt.Errorf("failed to read system disk: %w", err)
+	}
+
+	return st.Modify(ctx, talos.NewImage(talos.NamespaceName, talos.ImageID), func(res resource.Resource) error {
+		res.(*talos.Image).TypedSpec().Value = image.TypedSpec().Value //nolint:forcetypeassert,errcheck
+
+		return nil
+	})
+}
+
 // Machine is a single Talos machine.
 type Machine struct {
 	globalState       state.State
@@ -154,10 +180,15 @@ func (m *Machine) Run(ctx context.Context, siderolinkParams *SideroLinkParams, s
 		bootFactoryURL = m.schematicService.ImageFactoryBaseURL()
 	}
 
+	// The raw args are whatever the caller knows that the schematic does not carry.
+	// The provider passes connection args here because it conveys them separately from
+	// the boot media, while static mode reads everything from the schematic and passes
+	// nothing, so the two never double-count.
 	rt, err := truntime.NewRuntime(
 		ctx, m.logger, slot, machineID, m.globalState,
 		kubernetes, opts.nc, logSink, siderolinkParams.RawKernelArgs, m.schematicService,
 		m.enterpriseChecker, m.schematicService.ImageFactoryHost(), bootFactoryURL, opts.nodeProxyingDisabled,
+		opts.extensions,
 	)
 	if err != nil {
 		return fmt.Errorf("COSI runtime creation failed: %w", err)
@@ -173,12 +204,20 @@ func (m *Machine) Run(ctx context.Context, siderolinkParams *SideroLinkParams, s
 	hardwareInformation.TypedSpec().ProductName = "Talos Emulator"
 	hardwareInformation.TypedSpec().Manufacturer = "qemu"
 
-	siderolinkConfig := siderolink.NewConfig(config.NamespaceName, siderolink.ConfigID)
-	siderolinkConfig.TypedSpec().APIEndpoint = siderolinkParams.APIEndpoint
-	siderolinkConfig.TypedSpec().JoinToken = siderolinkParams.JoinToken
-	siderolinkConfig.TypedSpec().Host = siderolinkParams.Host
-	siderolinkConfig.TypedSpec().Insecure = siderolinkParams.Insecure
-	siderolinkConfig.TypedSpec().Tunnel = siderolinkParams.TunnelMode
+	// SideroLink is optional: bare Talos does not join anything, and boot media
+	// without SideroLink kernel args emulates exactly that. Only seed the config
+	// when there is an endpoint to join, the connection controller treats a
+	// missing config as "nothing to do" and the machine simply runs standalone.
+	if siderolinkParams.APIEndpoint != "" {
+		siderolinkConfig := siderolink.NewConfig(config.NamespaceName, siderolink.ConfigID)
+		siderolinkConfig.TypedSpec().APIEndpoint = siderolinkParams.APIEndpoint
+		siderolinkConfig.TypedSpec().JoinToken = siderolinkParams.JoinToken
+		siderolinkConfig.TypedSpec().Host = siderolinkParams.Host
+		siderolinkConfig.TypedSpec().Insecure = siderolinkParams.Insecure
+		siderolinkConfig.TypedSpec().Tunnel = siderolinkParams.TunnelMode
+
+		resources = append(resources, siderolinkConfig)
+	}
 
 	platformMetadata := runtime.NewPlatformMetadataSpec(runtime.NamespaceName, runtime.PlatformMetadataID)
 	platformMetadata.TypedSpec().Platform = "metal"
@@ -262,7 +301,6 @@ func (m *Machine) Run(ctx context.Context, siderolinkParams *SideroLinkParams, s
 	resources = append(
 		resources,
 		hardwareInformation,
-		siderolinkConfig,
 		platformMetadata,
 		processorInfo,
 		securityState,
@@ -280,6 +318,8 @@ func (m *Machine) Run(ctx context.Context, siderolinkParams *SideroLinkParams, s
 	// can target any disk, at which point the layout moves there.
 	resources = append(resources, blocklayout.Build(diskDevName)...)
 	resources = append(resources, extraDisks(opts.extraDisks)...)
+
+	var bootMedia *talos.Image
 
 	if opts.schematic != "" || opts.talosVersion != "" {
 		image := talos.NewImage(talos.NamespaceName, talos.ImageID)
@@ -299,7 +339,7 @@ func (m *Machine) Run(ctx context.Context, siderolinkParams *SideroLinkParams, s
 
 		image.TypedSpec().Value.Host = bootFactoryHost
 
-		resources = append(resources, image)
+		bootMedia = image
 	}
 
 	for _, r := range resources {
@@ -309,6 +349,12 @@ func (m *Machine) Run(ctx context.Context, siderolinkParams *SideroLinkParams, s
 			}
 
 			return fmt.Errorf("failed to create resource %s: %w", r.Metadata(), err)
+		}
+	}
+
+	if bootMedia != nil {
+		if err = seedBootMedia(ctx, rt.State(), bootMedia); err != nil {
+			return err
 		}
 	}
 
