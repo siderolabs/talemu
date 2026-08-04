@@ -105,7 +105,6 @@ func NewEmbeddedEtcd(ctx context.Context, path string, logger *zap.Logger) (*Etc
 		DialTimeout: 5 * time.Second,
 		DialOptions: []grpc.DialOption{
 			grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(constants.GRPCMaxMessageSize)),
-			grpc.WithSharedWriteBuffer(true),
 		},
 		Logger: logger.WithOptions(
 			// never enable debug logs for etcd client, they are too chatty

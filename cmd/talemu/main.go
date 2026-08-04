@@ -40,6 +40,10 @@ var rootCmd = &cobra.Command{
 	Long:         `Can simulate as many nodes as you want`,
 	SilenceUsage: true,
 	RunE: func(cmd *cobra.Command, _ []string) error {
+		if cfg.extraDisks < 0 || cfg.extraDisks > machine.MaxExtraDisks {
+			return fmt.Errorf("--extra-disks must be between 0 and %d, got %d", machine.MaxExtraDisks, cfg.extraDisks)
+		}
+
 		params, err := machine.ParseKernelArgs(cfg.kernelArgs)
 		if err != nil {
 			return err
@@ -120,7 +124,8 @@ var rootCmd = &cobra.Command{
 
 			eg.Go(func() error {
 				return m.Run(ctx, params, i+1000, kubernetes, machine.WithNetworkClient(nc), machine.WithTalosVersion(cfg.talosVersion),
-					machine.WithSchematic(initialSchematicID), machine.WithNodeProxyingDisabled(cfg.nodeProxyingDisabled))
+					machine.WithSchematic(initialSchematicID), machine.WithNodeProxyingDisabled(cfg.nodeProxyingDisabled),
+					machine.WithExtraDisks(cfg.extraDisks))
 			})
 
 			machines = append(machines, m)
@@ -190,6 +195,7 @@ var cfg struct {
 	imageFactoryBaseURL  string
 	extensions           []string
 	machinesCount        int
+	extraDisks           int
 	nodeProxyingDisabled bool
 }
 
@@ -213,6 +219,8 @@ func init() {
 	rootCmd.Flags().StringVar(&cfg.schematicCacheDir, "schematic-cache-dir", "/tmp/talemu-schematics", "the directory to use for caching schematics")
 	rootCmd.Flags().StringVar(&cfg.imageFactoryBaseURL, "image-factory-base-url", emuconst.DefaultImageFactoryBaseURL, "base URL of the image factory")
 	rootCmd.Flags().IntVar(&cfg.machinesCount, "machines", 1, "the number of machines to emulate")
+	rootCmd.Flags().IntVar(&cfg.extraDisks, "extra-disks", 0,
+		fmt.Sprintf("the number of additional empty disks to give each machine, named vdb onwards (max %d)", machine.MaxExtraDisks))
 	rootCmd.Flags().BoolVar(&cfg.nodeProxyingDisabled, "disable-node-proxying", false,
 		"disable node-to-node proxying in apid: rejects the 'node' header, validates that a single-entry 'nodes' header targets this node, multi-node 'nodes' is still proxied")
 }

@@ -24,6 +24,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	emuconst "github.com/siderolabs/talemu/internal/pkg/constants"
+	"github.com/siderolabs/talemu/internal/pkg/machine/blocklayout"
 	"github.com/siderolabs/talemu/internal/pkg/machine/machineconfig"
 	"github.com/siderolabs/talemu/internal/pkg/machine/runtime/resources/talos"
 )
@@ -235,6 +236,12 @@ func (ctrl *MachineStatusController) reconcile(ctx context.Context, r controller
 	// this instead of an explicit LifecycleService.Install, so without it the machine keeps reporting
 	// its boot version and never reaches the target the cluster was created with.
 	if err = ctrl.setInstalledImage(ctx, installConfig.Image()); err != nil {
+		return err
+	}
+
+	// The install writes the partition layout to its target disk, so the block
+	// resources move there, keeping them all describing the same disk.
+	if err = blocklayout.Move(ctx, ctrl.State, installDisk.Metadata().ID()); err != nil {
 		return err
 	}
 

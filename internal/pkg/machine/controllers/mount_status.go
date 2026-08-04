@@ -18,6 +18,7 @@ import (
 	"github.com/siderolabs/talos/pkg/machinery/resources/runtime"
 	"go.uber.org/zap"
 
+	"github.com/siderolabs/talemu/internal/pkg/machine/blocklayout"
 	"github.com/siderolabs/talemu/internal/pkg/machine/machineconfig"
 )
 
@@ -71,6 +72,8 @@ func (ctrl *MountStatusController) Run(ctx context.Context, r controller.Runtime
 		case <-r.EventCh():
 		}
 
+		// The indexes match the emulated partition layout, so the mount sources point
+		// at partitions the discovered volumes actually describe.
 		statuses := []struct {
 			label  string
 			target string
@@ -78,12 +81,12 @@ func (ctrl *MountStatusController) Run(ctx context.Context, r controller.Runtime
 		}{
 			{
 				label:  constants.EphemeralPartitionLabel,
-				index:  6,
+				index:  blocklayout.EphemeralPartitionIndex,
 				target: "/var",
 			},
 			{
 				label:  constants.StatePartitionLabel,
-				index:  5,
+				index:  blocklayout.StatePartitionIndex,
 				target: "/system/state",
 			},
 		}

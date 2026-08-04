@@ -155,7 +155,6 @@ func (apid *APID) Run(ctx context.Context, endpoint netip.Prefix, logger *zap.Lo
 				proxy.WithStreamedDetector(router.StreamedDetector),
 			),
 		),
-		grpc.SharedWriteBuffer(true),
 	}
 
 	s := grpc.NewServer(
@@ -175,7 +174,6 @@ func (apid *APID) Run(ctx context.Context, endpoint netip.Prefix, logger *zap.Lo
 	localServer := grpc.NewServer(
 		grpc.Creds(insecure.NewCredentials()),
 		grpc.ForceServerCodecV2(proxy.Codec()),
-		grpc.SharedWriteBuffer(true),
 		grpc.ChainUnaryInterceptor(recovery.UnaryServerInterceptor(recoveryOption)),
 		grpc.ChainStreamInterceptor(recovery.StreamServerInterceptor(recoveryOption)),
 	)

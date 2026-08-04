@@ -152,7 +152,6 @@ func (h *Handler) startEventSink(ctx context.Context, logger *zap.Logger, endpoi
 	conn, err := grpc.NewClient(
 		endpoint,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
-		grpc.WithSharedWriteBuffer(true),
 		grpc.WithContextDialer(func(ctx context.Context, address string) (net.Conn, error) {
 			var dialer net.Dialer
 

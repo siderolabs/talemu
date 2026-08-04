@@ -17,6 +17,8 @@ import (
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+
+	"github.com/siderolabs/talemu/internal/pkg/machine/blocklayout"
 )
 
 // LifecycleService is a GRPC service emulating the behavior of the Talos lifecycle service.
@@ -71,6 +73,12 @@ func (s *LifecycleService) Install(req *machine.LifecycleServiceInstallRequest, 
 	}
 
 	if _, err = setImage(ctx, s.state, s.imageFactoryHost, image); err != nil {
+		return err
+	}
+
+	// The install writes the partition layout to its target disk, so the block
+	// resources move there, keeping them all describing the same disk.
+	if err = blocklayout.Move(ctx, s.state, filepath.Base(disk)); err != nil {
 		return err
 	}
 

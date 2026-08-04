@@ -46,7 +46,6 @@ func NewConnection(dialer func(ctx context.Context, addr string) (net.Conn, erro
 	grpcOpts := []grpc.DialOption{
 		grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)),
 		grpc.WithPerRPCCredentials(creds),
-		grpc.WithSharedWriteBuffer(true),
 		grpc.WithContextDialer(dialer),
 	}
 

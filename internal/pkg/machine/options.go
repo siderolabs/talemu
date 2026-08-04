@@ -16,6 +16,7 @@ type Options struct {
 	talosVersion         string
 	schematic            string
 	bootFactoryURL       string
+	extraDisks           int
 	secureBoot           bool
 	nodeProxyingDisabled bool
 }
@@ -69,5 +70,16 @@ func WithNodeProxyingDisabled(value bool) Option {
 func WithBootFactoryURL(value string) Option {
 	return func(o *Options) {
 		o.bootFactoryURL = value
+	}
+}
+
+// WithExtraDisks gives the machine additional empty disks beyond the system one,
+// named vdb, vdc and so on.
+//
+// A machine with a single disk offers nothing to choose from, so anything that
+// selects an install disk cannot be exercised against it.
+func WithExtraDisks(count int) Option {
+	return func(o *Options) {
+		o.extraDisks = count
 	}
 }

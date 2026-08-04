@@ -29,6 +29,7 @@ import (
 
 	"github.com/siderolabs/talemu/internal/pkg/constants"
 	"github.com/siderolabs/talemu/internal/pkg/kubefactory"
+	"github.com/siderolabs/talemu/internal/pkg/machine/blocklayout"
 	"github.com/siderolabs/talemu/internal/pkg/machine/controllers"
 	"github.com/siderolabs/talemu/internal/pkg/machine/events"
 	"github.com/siderolabs/talemu/internal/pkg/machine/logging"
@@ -39,16 +40,51 @@ import (
 )
 
 const (
-	diskDevName      = "vda"
-	diskDevPath      = "/dev/vda"
-	diskPartType     = "part"
-	stateDevPath     = "/dev/vda4"
-	ephemeralDevPath = "/dev/vda5"
+	diskDevName = "vda"
+	diskDevPath = "/dev/vda"
 
-	diskSize        = 50 * 1024 * 1024 * 1024
-	ephemeralOffset = 304 * 1024 * 1024
-	ephemeralSize   = diskSize - ephemeralOffset
+	diskSize = blocklayout.DiskSize
 )
+
+// MaxExtraDisks is the number of additional disks a machine can be given, capped
+// so the device names stay in the single-letter vdb..vdz range.
+const MaxExtraDisks = 25
+
+// extraDisks builds count additional empty disks, named vdb, vdc and so on.
+//
+// They carry no partitions, so the machine has somewhere to install to that is
+// not the disk it booted from.
+//
+// Callers are expected to keep count within 0..MaxExtraDisks, which the command
+// line enforces, since the naming scheme only has single letters to work with.
+func extraDisks(count int) []resource.Resource {
+	resources := make([]resource.Resource, 0, count*2)
+
+	for i := range count {
+		name := fmt.Sprintf("vd%c", 'b'+i)
+		devPath := "/dev/" + name
+
+		disk := block.NewDisk(block.NamespaceName, name)
+		disk.TypedSpec().Size = diskSize
+		disk.TypedSpec().Model = "CM5514"
+		disk.TypedSpec().Transport = "virtio"
+		disk.TypedSpec().Rotational = true
+		disk.TypedSpec().BusPath = fmt.Sprintf("/pci0000:00/0000:00:05.0/0000:01:01.0/virtio2/host2/target2:0:0/2:0:%d:0/", i+1)
+
+		discovered := block.NewDiscoveredVolume(block.NamespaceName, name)
+		discovered.TypedSpec().Type = "disk"
+		discovered.TypedSpec().DevPath = devPath
+		discovered.TypedSpec().DevicePath = devPath
+		discovered.TypedSpec().Name = name
+		discovered.TypedSpec().SetSize(diskSize)
+		discovered.TypedSpec().SectorSize = 512
+		discovered.TypedSpec().IOSize = 512
+
+		resources = append(resources, disk, discovered)
+	}
+
+	return resources
+}
 
 // Machine is a single Talos machine.
 type Machine struct {
@@ -201,86 +237,6 @@ func (m *Machine) Run(ctx context.Context, siderolinkParams *SideroLinkParams, s
 	discoveredDisk.TypedSpec().SectorSize = 512
 	discoveredDisk.TypedSpec().IOSize = 512
 
-	discoveredEfi := block.NewDiscoveredVolume(block.NamespaceName, "vda1")
-	discoveredEfi.TypedSpec().Type = diskPartType
-	discoveredEfi.TypedSpec().DevPath = "/dev/vda1"
-	discoveredEfi.TypedSpec().DevicePath = "/dev/vda1"
-	discoveredEfi.TypedSpec().Parent = diskDevName
-	discoveredEfi.TypedSpec().ParentDevPath = diskDevPath
-	discoveredEfi.TypedSpec().Name = "vda1"
-	discoveredEfi.TypedSpec().PartitionLabel = "EFI"
-	discoveredEfi.TypedSpec().PartitionIndex = 1
-	discoveredEfi.TypedSpec().Offset = 1024 * 1024
-	discoveredEfi.TypedSpec().SetSize(100 * 1024 * 1024)
-
-	discoveredBoot := block.NewDiscoveredVolume(block.NamespaceName, "vda2")
-	discoveredBoot.TypedSpec().Type = diskPartType
-	discoveredBoot.TypedSpec().DevPath = "/dev/vda2"
-	discoveredBoot.TypedSpec().DevicePath = "/dev/vda2"
-	discoveredBoot.TypedSpec().Parent = diskDevName
-	discoveredBoot.TypedSpec().ParentDevPath = diskDevPath
-	discoveredBoot.TypedSpec().Name = "vda2"
-	discoveredBoot.TypedSpec().PartitionLabel = "BOOT"
-	discoveredBoot.TypedSpec().PartitionIndex = 2
-	discoveredBoot.TypedSpec().Offset = 101 * 1024 * 1024
-	discoveredBoot.TypedSpec().SetSize(100 * 1024 * 1024)
-
-	discoveredMeta := block.NewDiscoveredVolume(block.NamespaceName, "vda3")
-	discoveredMeta.TypedSpec().Type = diskPartType
-	discoveredMeta.TypedSpec().DevPath = "/dev/vda3"
-	discoveredMeta.TypedSpec().DevicePath = "/dev/vda3"
-	discoveredMeta.TypedSpec().Parent = diskDevName
-	discoveredMeta.TypedSpec().ParentDevPath = diskDevPath
-	discoveredMeta.TypedSpec().Name = "vda3"
-	discoveredMeta.TypedSpec().PartitionLabel = "META"
-	discoveredMeta.TypedSpec().PartitionIndex = 3
-	discoveredMeta.TypedSpec().Offset = 202 * 1024 * 1024
-	discoveredMeta.TypedSpec().SetSize(2 * 1024 * 1024)
-
-	discoveredState := block.NewDiscoveredVolume(block.NamespaceName, "vda4")
-	discoveredState.TypedSpec().Type = diskPartType
-	discoveredState.TypedSpec().DevPath = stateDevPath
-	discoveredState.TypedSpec().DevicePath = stateDevPath
-	discoveredState.TypedSpec().Parent = diskDevName
-	discoveredState.TypedSpec().ParentDevPath = diskDevPath
-	discoveredState.TypedSpec().Name = "vda4"
-	discoveredState.TypedSpec().PartitionLabel = "STATE"
-	discoveredState.TypedSpec().PartitionIndex = 4
-	discoveredState.TypedSpec().Offset = 204 * 1024 * 1024
-	discoveredState.TypedSpec().SetSize(100 * 1024 * 1024)
-
-	discoveredEphemeral := block.NewDiscoveredVolume(block.NamespaceName, "vda5")
-	discoveredEphemeral.TypedSpec().Type = diskPartType
-	discoveredEphemeral.TypedSpec().DevPath = ephemeralDevPath
-	discoveredEphemeral.TypedSpec().DevicePath = ephemeralDevPath
-	discoveredEphemeral.TypedSpec().Parent = diskDevName
-	discoveredEphemeral.TypedSpec().ParentDevPath = diskDevPath
-	discoveredEphemeral.TypedSpec().Name = "vda5"
-	discoveredEphemeral.TypedSpec().PartitionLabel = "EPHEMERAL"
-	discoveredEphemeral.TypedSpec().PartitionIndex = 5
-	discoveredEphemeral.TypedSpec().Offset = ephemeralOffset
-	discoveredEphemeral.TypedSpec().SetSize(ephemeralSize)
-
-	volumeState := block.NewVolumeStatus(block.NamespaceName, "STATE")
-	volumeState.TypedSpec().Phase = block.VolumePhaseReady
-	volumeState.TypedSpec().Type = block.VolumeTypePartition
-	volumeState.TypedSpec().Location = stateDevPath
-	volumeState.TypedSpec().MountLocation = "/system/state"
-	volumeState.TypedSpec().ParentLocation = diskDevPath
-	volumeState.TypedSpec().PartitionIndex = 4
-	volumeState.TypedSpec().Filesystem = block.FilesystemTypeXFS
-	volumeState.TypedSpec().SetSize(100 * 1024 * 1024)
-
-	volumeEphemeral := block.NewVolumeStatus(block.NamespaceName, "EPHEMERAL")
-	volumeEphemeral.TypedSpec().Phase = block.VolumePhaseReady
-	volumeEphemeral.TypedSpec().Type = block.VolumeTypePartition
-	volumeEphemeral.TypedSpec().Location = ephemeralDevPath
-	volumeEphemeral.TypedSpec().MountLocation = "/var"
-	volumeEphemeral.TypedSpec().ParentLocation = diskDevPath
-	volumeEphemeral.TypedSpec().PartitionIndex = 5
-	volumeEphemeral.TypedSpec().Filesystem = block.FilesystemTypeXFS
-	volumeEphemeral.TypedSpec().SetSize(ephemeralSize)
-
 	pciNet := hardware.NewPCIDeviceInfo("0000:00:01.0")
 	pciNet.TypedSpec().Class = "Network controller"
 	pciNet.TypedSpec().Subclass = "Ethernet controller"
@@ -316,16 +272,14 @@ func (m *Machine) Run(ctx context.Context, siderolinkParams *SideroLinkParams, s
 		defaultRoute,
 		memory,
 		discoveredDisk,
-		discoveredEfi,
-		discoveredBoot,
-		discoveredMeta,
-		discoveredState,
-		discoveredEphemeral,
-		volumeState,
-		volumeEphemeral,
 		pciNet,
 		pciDisk,
 	)
+
+	// The machines are seeded with the partition layout on the boot disk. An install
+	// can target any disk, at which point the layout moves there.
+	resources = append(resources, blocklayout.Build(diskDevName)...)
+	resources = append(resources, extraDisks(opts.extraDisks)...)
 
 	if opts.schematic != "" || opts.talosVersion != "" {
 		image := talos.NewImage(talos.NamespaceName, talos.ImageID)
