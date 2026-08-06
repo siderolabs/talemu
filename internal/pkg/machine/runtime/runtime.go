@@ -16,6 +16,8 @@ import (
 	"github.com/cosi-project/runtime/pkg/controller"
 	"github.com/cosi-project/runtime/pkg/controller/runtime"
 	"github.com/cosi-project/runtime/pkg/state"
+	"github.com/cosi-project/runtime/pkg/state/impl/inmem"
+	netres "github.com/siderolabs/talos/pkg/machinery/resources/network"
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
 
@@ -53,7 +55,11 @@ func NewRuntime(ctx context.Context, logger *zap.Logger, slot int, id string, gl
 		return nil, fmt.Errorf("failed to create state directories %w", err)
 	}
 
-	st, backingStore, err := NewState(filepath.Join(stateDir, "state.db"), logger)
+	// The network namespace is kept in-memory: like in real Talos, its resources are runtime-derived and must not survive a reboot.
+	st, backingStore, err := NewState(
+		filepath.Join(stateDir, "state.db"), logger,
+		NamespacedState{Namespace: netres.NamespaceName, State: state.WrapCore(inmem.NewState(netres.NamespaceName))},
+	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create state %w", err)
 	}

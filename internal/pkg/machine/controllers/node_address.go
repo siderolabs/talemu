@@ -38,7 +38,7 @@ func (ctrl *NodeAddressController) Inputs() []controller.Input {
 	return []controller.Input{
 		{
 			Namespace: network.NamespaceName,
-			Type:      network.AddressSpecType,
+			Type:      network.AddressStatusType,
 			Kind:      controller.InputWeak,
 		},
 	}
@@ -67,16 +67,15 @@ func (ctrl *NodeAddressController) Run(ctx context.Context, r controller.Runtime
 		case <-r.EventCh():
 		}
 
-		addresses, err := safe.ReaderListAll[*network.AddressSpec](ctx, r)
+		// Node addresses derive from the address statuses, matching real Talos: they reflect what is actually assigned on the interfaces.
+		addresses, err := safe.ReaderListAll[*network.AddressStatus](ctx, r)
 		if err != nil {
 			return err
 		}
 
-		// Collect all real addresses from AddressSpec resources (includes SideroLink, etc.),
-		// matching real Talos behavior where NodeAddressCurrent contains all current interface addresses.
 		realAddrs := make([]netip.Prefix, 0, addresses.Len())
 
-		addresses.ForEach(func(r *network.AddressSpec) {
+		addresses.ForEach(func(r *network.AddressStatus) {
 			realAddrs = append(realAddrs, r.TypedSpec().Address)
 		})
 
@@ -101,18 +100,12 @@ func (ctrl *NodeAddressController) Run(ctx context.Context, r controller.Runtime
 		}
 
 		if err = safe.WriterModify(ctx, r, network.NewNodeAddress(network.NamespaceName, network.NodeAddressDefaultID), func(r *network.NodeAddress) error {
-			addrs := make([]netip.Prefix, 0, addresses.Len())
-
-			addresses.ForEach(func(r *network.AddressSpec) {
-				addrs = append(addrs, r.TypedSpec().Address)
-			})
-
-			r.TypedSpec().Addresses = addrs
+			r.TypedSpec().Addresses = realAddrs
 
 			_, err = safe.StateUpdateWithConflicts(
 				ctx, ctrl.GlobalState, emu.NewMachineStatus(emu.NamespaceName, ctrl.MachineID).Metadata(),
 				func(cm *emu.MachineStatus) error {
-					cm.TypedSpec().Value.Addresses = xslices.Map(addrs, func(p netip.Prefix) string {
+					cm.TypedSpec().Value.Addresses = xslices.Map(realAddrs, func(p netip.Prefix) string {
 						return p.Addr().String()
 					})
 
@@ -126,15 +119,9 @@ func (ctrl *NodeAddressController) Run(ctx context.Context, r controller.Runtime
 		}
 
 		if err = safe.WriterModify(ctx, r, k8s.NewNodeIP(k8s.NamespaceName, k8s.KubeletID), func(r *k8s.NodeIP) error {
-			addrs := make([]netip.Addr, 0, addresses.Len())
+			r.TypedSpec().Addresses = xslices.Map(realAddrs, netip.Prefix.Addr)
 
-			addresses.ForEach(func(r *network.AddressSpec) {
-				addrs = append(addrs, r.TypedSpec().Address.Addr())
-			})
-
-			r.TypedSpec().Addresses = addrs
-
-			return err
+			return nil
 		}); err != nil {
 			return err
 		}

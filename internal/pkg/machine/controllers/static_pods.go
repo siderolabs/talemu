@@ -127,6 +127,10 @@ func (ctrl *StaticPodController) reconcile(ctx context.Context, r controller.Run
 		return err
 	}
 
+	if len(address.TypedSpec().Addresses) == 0 {
+		return nil
+	}
+
 	nodename, err := safe.ReaderGetByID[*k8s.Nodename](ctx, r, k8s.NodenameID)
 	if err != nil {
 		if state.IsNotFoundError(err) {
