@@ -41,12 +41,16 @@ func ParseKernelArgs(kernelArgs string) (*SideroLinkParams, error) {
 		eventsEndpoint = *s
 	}
 
+	var rawEndpoint string
+
 	if s := cmdline.Get(constants.KernelParamSideroLink).Get(0); s != nil {
 		endpoint, err := parseSiderolinkEndpoint(*s)
 		if err != nil {
 			return nil, err
 		}
 
+		// keep the raw URL too: like in Talos, the scheme decides whether the tunnel dials with TLS
+		rawEndpoint = *s
 		apiEndpoint = endpoint.apiEndpoint
 		insecure = endpoint.insecure
 		tunnelMode = endpoint.tunnelMode
@@ -62,7 +66,7 @@ func ParseKernelArgs(kernelArgs string) (*SideroLinkParams, error) {
 
 	return &SideroLinkParams{
 		Host:           apiEndpoint,
-		APIEndpoint:    apiEndpoint,
+		APIEndpoint:    rawEndpoint,
 		JoinToken:      joinToken,
 		Insecure:       insecure,
 		EventsEndpoint: eventsEndpoint,

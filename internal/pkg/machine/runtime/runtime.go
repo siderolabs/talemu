@@ -91,6 +91,7 @@ func NewRuntime(ctx context.Context, logger *zap.Logger, slot int, id string, gl
 		&controllers.LinkSpecController{
 			NC: nc,
 		},
+		&controllers.UserspaceWireguardController{},
 		&controllers.LinkStatusController{
 			NC: nc,
 		},

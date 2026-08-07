@@ -48,6 +48,14 @@ type ManagerController struct {
 }
 
 func (ctrl *ManagerController) interfaceName() string {
+	// Like in Talos, the tunnel interface has its own name, so a mode switch never tries to reuse an
+	// existing interface of the wrong kind. Talos's full tunnel name plus the slot would exceed the
+	// kernel's 15 character interface name limit, so only a "t" marks the tunnel. The name keeps the
+	// plain SideroLink prefix, which consumers use to find the interface.
+	if ctrl.pd.grpcPeerAddrPort != "" {
+		return fmt.Sprintf("%st%d", constants.SideroLinkName, ctrl.Slot)
+	}
+
 	return fmt.Sprintf("%s%d", constants.SideroLinkName, ctrl.Slot)
 }
 

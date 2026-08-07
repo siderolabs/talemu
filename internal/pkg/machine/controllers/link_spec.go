@@ -6,7 +6,6 @@ package controllers
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net"
 	"net/netip"
@@ -46,6 +45,13 @@ func (ctrl *LinkSpecController) Inputs() []controller.Input {
 			Namespace: network.NamespaceName,
 			Type:      network.LinkSpecType,
 			Kind:      controller.InputStrong,
+		},
+		{
+			// re-sync when a link appears or changes: the WireGuard over gRPC tunnel device is created
+			// outside this controller, and its spec can only be applied once the interface exists
+			Namespace: network.NamespaceName,
+			Type:      network.LinkStatusType,
+			Kind:      controller.InputWeak,
 		},
 	}
 }
@@ -295,7 +301,7 @@ func (ctrl *LinkSpecController) syncLink(ctx context.Context, r controller.Runti
 
 					return nil
 				}); err != nil {
-					return errors.New("error bumping link refresh")
+					return fmt.Errorf("error bumping link refresh: %w", err)
 				}
 			}
 		}
