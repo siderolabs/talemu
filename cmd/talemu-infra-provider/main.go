@@ -11,6 +11,7 @@ import (
 	"errors"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -30,7 +31,6 @@ import (
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 
-	emuconst "github.com/siderolabs/talemu/internal/pkg/constants"
 	emuruntime "github.com/siderolabs/talemu/internal/pkg/emu"
 	"github.com/siderolabs/talemu/internal/pkg/factory"
 	"github.com/siderolabs/talemu/internal/pkg/kubefactory"
@@ -149,13 +149,29 @@ var rootCmd = &cobra.Command{
 		}
 
 		imageFactoryBaseURL := featuresConfig.TypedSpec().Value.GetImageFactoryBaseUrl()
-		if imageFactoryBaseURL == "" {
-			imageFactoryBaseURL = emuconst.DefaultImageFactoryBaseURL
+
+		auth, err := safe.ReaderGetByID[*omniresources.ImageFactoryAuth](
+			cmd.Context(),
+			omniClient.Omni().State(),
+			strings.TrimRight(imageFactoryBaseURL, "/"),
+		)
+		if err != nil && !state.IsNotFoundError(err) {
+			return err
+		}
+
+		var (
+			factoryUsername string
+			factoryPassword string
+		)
+
+		if auth != nil {
+			factoryUsername = auth.TypedSpec().Value.GetUsername()
+			factoryPassword = auth.TypedSpec().Value.GetPassword()
 		}
 
 		schematicService, err := schematic.NewService(
 			cfg.schematicCacheDir, imageFactoryBaseURL,
-			os.Getenv(emuconst.ImageFactoryUsernameEnv), os.Getenv(emuconst.ImageFactoryPasswordEnv),
+			factoryUsername, factoryPassword,
 			logger.With(zap.String("component", "schematic_service")),
 		)
 		if err != nil {
