@@ -17,7 +17,9 @@ import (
 	"github.com/siderolabs/omni/client/pkg/constants"
 	"github.com/siderolabs/omni/client/pkg/panichandler"
 	clientv3 "go.etcd.io/etcd/client/v3"
+	"go.etcd.io/etcd/pkg/v3/featuregate"
 	"go.etcd.io/etcd/server/v3/embed"
+	"go.etcd.io/etcd/server/v3/features"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 )
@@ -50,8 +52,10 @@ func NewEmbeddedEtcd(ctx context.Context, path string, logger *zap.Logger) (*Etc
 	cfg.AuthToken = ""
 	cfg.AutoCompactionMode = "periodic"
 	cfg.AutoCompactionRetention = "5h"
-	cfg.ExperimentalCompactHashCheckEnabled = true
-	cfg.ExperimentalInitialCorruptCheck = true
+	cfg.ServerFeatureGate.(featuregate.MutableFeatureGate).SetFromMap(map[string]bool{ //nolint:errcheck,forcetypeassert
+		string(features.CompactHashCheck):    true,
+		string(features.InitialCorruptCheck): true,
+	})
 
 	// run the emulator etcd on a different port to avoid clashing with Omni etcd
 	caddr, _ := url.Parse("http://localhost:2400") //nolint:errcheck

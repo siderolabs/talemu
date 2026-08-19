@@ -70,6 +70,7 @@ func extraDisks(count int) []resource.Resource {
 		disk.TypedSpec().Transport = "virtio"
 		disk.TypedSpec().Rotational = true
 		disk.TypedSpec().BusPath = fmt.Sprintf("/pci0000:00/0000:00:05.0/0000:01:01.0/virtio2/host2/target2:0:0/2:0:%d:0/", i+1)
+		disk.TypedSpec().DevPath = devPath
 
 		discovered := block.NewDiscoveredVolume(block.NamespaceName, name)
 		discovered.TypedSpec().Type = "disk"
@@ -266,6 +267,7 @@ func (m *Machine) Run(ctx context.Context, siderolinkParams *SideroLinkParams, s
 	disk.TypedSpec().Transport = "virtio"
 	disk.TypedSpec().Rotational = true
 	disk.TypedSpec().BusPath = "/pci0000:00/0000:00:05.0/0000:01:01.0/virtio2/host2/target2:0:0/2:0:0:0/"
+	disk.TypedSpec().DevPath = diskDevPath
 
 	discoveredDisk := block.NewDiscoveredVolume(block.NamespaceName, diskDevName)
 	discoveredDisk.TypedSpec().Type = "disk"
