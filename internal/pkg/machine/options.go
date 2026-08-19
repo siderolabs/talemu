@@ -15,7 +15,7 @@ type Options struct {
 	nc                   *network.Client
 	talosVersion         string
 	schematic            string
-	bootFactoryURL       string
+	bootFactoryHost      string
 	extensions           []string
 	extraDisks           int
 	secureBoot           bool
@@ -66,11 +66,15 @@ func WithNodeProxyingDisabled(value bool) Option {
 	}
 }
 
-// WithBootFactoryURL sets the base URL of the image factory the machine's boot media is
-// pretended to come from. Empty means the configured image factory.
-func WithBootFactoryURL(value string) Option {
+// WithBootFactoryHost sets the host of the image factory the machine's boot media is pretended to come
+// from. It decides the machine identity (enterprise-ness, FIPS state) until an install or an upgrade
+// replaces the image.
+//
+// Empty means no image factory built the media, so the machine reports a community identity until an install or
+// an upgrade replaces the image.
+func WithBootFactoryHost(value string) Option {
 	return func(o *Options) {
-		o.bootFactoryURL = value
+		o.bootFactoryHost = value
 	}
 }
 

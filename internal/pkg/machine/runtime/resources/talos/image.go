@@ -6,6 +6,7 @@ package talos
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/cosi-project/runtime/pkg/resource"
@@ -32,8 +33,8 @@ type ImageRef struct {
 	Host string
 
 	// Schematic is the image factory schematic ID. It is only recoverable when the reference
-	// points at the image factory host, since only those references carry it as the repository
-	// path segment.
+	// points at one of the known image factory hosts, since only those references carry it as the
+	// repository path segment.
 	Schematic string
 
 	// Version is the image tag.
@@ -42,7 +43,7 @@ type ImageRef struct {
 
 // ParseImageRef splits an installer image reference into its registry host, schematic id and
 // Talos version.
-func ParseImageRef(imageFactoryHost, imageRef string) (ImageRef, error) {
+func ParseImageRef(factoryHosts []string, imageRef string) (ImageRef, error) {
 	ref := imageRef
 
 	if at := strings.IndexByte(ref, '@'); at != -1 {
@@ -64,7 +65,7 @@ func ParseImageRef(imageFactoryHost, imageRef string) (ImageRef, error) {
 		parsed.Host = parts[0]
 	}
 
-	if parsed.Host != "" && parsed.Host == imageFactoryHost {
+	if parsed.Host != "" && slices.Contains(factoryHosts, parsed.Host) {
 		parsed.Schematic = schematicCandidate
 	}
 

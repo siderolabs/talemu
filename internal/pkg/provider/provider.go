@@ -8,21 +8,19 @@ package provider
 import (
 	"github.com/cosi-project/runtime/pkg/controller"
 
+	"github.com/siderolabs/talemu/internal/pkg/bootmedia"
 	"github.com/siderolabs/talemu/internal/pkg/emu"
 	"github.com/siderolabs/talemu/internal/pkg/kubefactory"
-	machinecontrollers "github.com/siderolabs/talemu/internal/pkg/machine/controllers"
 	"github.com/siderolabs/talemu/internal/pkg/machine/network"
 	"github.com/siderolabs/talemu/internal/pkg/provider/controllers"
-	"github.com/siderolabs/talemu/internal/pkg/schematic"
 )
 
 // RegisterControllers registers additional controllers required for the infra provider.
 func RegisterControllers(
-	runtime *emu.Runtime, kubernetes *kubefactory.Kubernetes, nc *network.Client, schematicService *schematic.Service,
-	enterpriseChecker machinecontrollers.EnterpriseChecker, nodeProxyingDisabled bool,
+	runtime *emu.Runtime, kubernetes *kubefactory.Kubernetes, nc *network.Client, source bootmedia.Source, nodeProxyingDisabled bool,
 ) error {
 	controllers := []controller.Controller{
-		controllers.NewMachineController(runtime.State(), kubernetes, nc, schematicService, enterpriseChecker, nodeProxyingDisabled),
+		controllers.NewMachineController(runtime.State(), kubernetes, nc, source, nodeProxyingDisabled),
 	}
 
 	for _, ctrl := range controllers {

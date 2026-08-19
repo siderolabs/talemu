@@ -49,7 +49,7 @@ func newMachineService(t *testing.T) *services.MachineService {
 		"test-machine-id",
 		state.WrapCore(namespaced.NewState(inmem.Build)),
 		state.WrapCore(namespaced.NewState(inmem.Build)),
-		"factory.talos.dev",
+		[]string{"factory.talos.dev"},
 		zaptest.NewLogger(t),
 		nil,
 	)
@@ -77,7 +77,7 @@ url: "tcp://[fdae:41e4:649b:9303::1]:8092"`
 	apidState := state.WrapCore(namespaced.NewState(inmem.Build))
 	globalState := state.WrapCore(namespaced.NewState(inmem.Build))
 	logger := zaptest.NewLogger(t)
-	machineService := services.NewMachineService("test-machine-id", apidState, globalState, "factory.talos.dev", logger, nil)
+	machineService := services.NewMachineService("test-machine-id", apidState, globalState, []string{"factory.talos.dev"}, logger, nil)
 
 	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 	t.Cleanup(cancel)

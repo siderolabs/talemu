@@ -55,12 +55,12 @@ type MachineService struct {
 	logger             *zap.Logger
 	sharedMachineState *machineState
 	machineID          string
-	imageFactoryHost   string
+	factoryHosts       []string
 }
 
 // NewMachineService creates a new MachineService. sharedMachineState is the per-machine emulator state held
 // across apid restarts; when nil (e.g. in tests) a fresh one is allocated.
-func NewMachineService(machineID string, state, globalState state.State, imageFactoryHost string, logger *zap.Logger, sharedMachineState *machineState) *MachineService {
+func NewMachineService(machineID string, state, globalState state.State, factoryHosts []string, logger *zap.Logger, sharedMachineState *machineState) *MachineService {
 	if sharedMachineState == nil {
 		sharedMachineState = newMachineState()
 	}
@@ -70,7 +70,7 @@ func NewMachineService(machineID string, state, globalState state.State, imageFa
 		globalState:        globalState,
 		logger:             logger,
 		machineID:          machineID,
-		imageFactoryHost:   imageFactoryHost,
+		factoryHosts:       factoryHosts,
 		startTime:          time.Now(),
 		sharedMachineState: sharedMachineState,
 	}
@@ -360,7 +360,7 @@ func (c *MachineService) Upgrade(ctx context.Context, req *machine.UpgradeReques
 		return nil, err
 	}
 
-	changed, err := setImage(ctx, c.state, c.imageFactoryHost, req.Image)
+	changed, err := setImage(ctx, c.state, c.factoryHosts, req.Image)
 	if err != nil {
 		return nil, err
 	}
@@ -1048,8 +1048,8 @@ func (c *MachineService) Processes(_ context.Context, _ *emptypb.Empty) (*machin
 
 // setImage records the target Talos image and reports whether it changed, so a redundant upgrade to
 // the running image can skip the reboot.
-func setImage(ctx context.Context, st state.State, imageFactoryHost, imageRef string) (bool, error) {
-	parsed, err := talos.ParseImageRef(imageFactoryHost, imageRef)
+func setImage(ctx context.Context, st state.State, factoryHosts []string, imageRef string) (bool, error) {
+	parsed, err := talos.ParseImageRef(factoryHosts, imageRef)
 	if err != nil {
 		return false, status.Errorf(codes.InvalidArgument, "%s", err.Error())
 	}

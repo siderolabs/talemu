@@ -6,57 +6,55 @@ package controllers
 
 import (
 	"context"
-	"net/url"
 
+	"github.com/siderolabs/image-factory/pkg/schematic"
 	"github.com/siderolabs/talos/pkg/machinery/resources/config"
+	"go.uber.org/zap"
 
 	"github.com/siderolabs/talemu/internal/pkg/machine/runtime/resources/talos"
 )
 
-// EnterpriseChecker detects whether an image factory is an enterprise instance.
-type EnterpriseChecker interface {
-	IsEnterprise(ctx context.Context, baseURL string) (bool, error)
+// BootMediaSource answers what the emulated machine booted from.
+type BootMediaSource interface {
+	GetSchematicByID(ctx context.Context, id, talosVersion, factoryHost string) (*schematic.Schematic, error)
+	FactoryHosts() []string
+	IsEnterprise(ctx context.Context, talosVersion, factoryHost string) (bool, error)
 }
 
-// resolveImageSourceURL returns the base URL of the image factory the machine's current Talos
-// image comes from, or an empty string when the image is not a factory one (a community build).
+// currentImage returns the reference of the Talos image the machine runs.
 //
-// The precedence follows the resource state, not value emptiness: the installed image decides if
-// it exists, then the config install image, and only a machine with neither (maintenance mode,
-// nothing installed) takes the boot media identity. An image ref without a host, as well as an
-// unparseable one, resolves to community.
-func resolveImageSourceURL(image *talos.Image, cfg *config.MachineConfig, imageFactoryHost, bootFactoryURL string) string {
+// The precedence follows the resource state, not value emptiness: the installed image decides if it exists,
+// then the config install image, and a machine with neither (maintenance mode, nothing installed) has no
+// image at all. The boot media needs no case of its own, since it is seeded as the installed image.
+func currentImage(image *talos.Image, cfg *config.MachineConfig, factoryHosts []string) (talos.ImageRef, error) {
 	switch {
 	case image != nil:
-		return factoryURLForHost(image.TypedSpec().Value.Host, bootFactoryURL)
+		return talos.ImageRef{
+			Host:      image.TypedSpec().Value.Host,
+			Schematic: image.TypedSpec().Value.Schematic,
+			Version:   image.TypedSpec().Value.Version,
+		}, nil
 	case cfg != nil:
 		installImage := cfg.Container().RawV1Alpha1().Machine().Install().Image()
 		if installImage == "" {
-			return ""
+			return talos.ImageRef{}, nil
 		}
 
-		parsed, err := talos.ParseImageRef(imageFactoryHost, installImage)
-		if err != nil {
-			return ""
-		}
-
-		return factoryURLForHost(parsed.Host, bootFactoryURL)
+		return talos.ParseImageRef(factoryHosts, installImage)
 	default:
-		return bootFactoryURL
+		return talos.ImageRef{}, nil
 	}
 }
 
-// factoryURLForHost builds the base URL to probe for the given image host. Image refs carry no
-// scheme, so the URL defaults to HTTPS, except when the host is the boot factory itself: then its
-// configured base URL is used as-is, keeping a plain-HTTP boot factory working.
-func factoryURLForHost(host, bootFactoryURL string) string {
-	if host == "" {
-		return ""
+// currentImageOrNone wraps currentImage for the controllers that have to keep reconciling: a reference it
+// cannot parse is reported as no image at all, which is what a machine running a non-factory build looks like.
+func currentImageOrNone(image *talos.Image, cfg *config.MachineConfig, factoryHosts []string, logger *zap.Logger) talos.ImageRef {
+	ref, err := currentImage(image, cfg, factoryHosts)
+	if err != nil {
+		logger.Warn("failed to parse the current image, reporting the machine as running no factory image", zap.Error(err))
+
+		return talos.ImageRef{}
 	}
 
-	if parsed, err := url.Parse(bootFactoryURL); err == nil && parsed.Host == host {
-		return bootFactoryURL
-	}
-
-	return "https://" + host
+	return ref
 }

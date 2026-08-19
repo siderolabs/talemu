@@ -16,7 +16,9 @@ import (
 func TestParseImageRef(t *testing.T) {
 	t.Parallel()
 
-	const factoryHost = "factory.talos.dev"
+	// Omni can be configured with two image factories, and it serves a machine from whichever one holds its
+	// Talos version, so a reference from either has to keep its schematic ID.
+	factoryHosts := []string{"factory.talos.dev", "factory-enterprise.staging.talos.dev"}
 
 	for _, test := range []struct { //nolint:govet
 		name     string
@@ -43,10 +45,37 @@ func TestParseImageRef(t *testing.T) {
 			},
 		},
 		{
-			name: "foreign factory keeps host, drops schematic",
+			name: "secondary factory installer",
 			ref:  "factory-enterprise.staging.talos.dev/metal-installer/abcd1234:v1.13.6",
 			expected: talos.ImageRef{
-				Host:    "factory-enterprise.staging.talos.dev",
+				Host:      "factory-enterprise.staging.talos.dev",
+				Schematic: "abcd1234",
+				Version:   "v1.13.6",
+			},
+		},
+		{
+			name: "secure boot installer",
+			ref:  "factory.talos.dev/metal-installer-secureboot/abcd1234:v1.13.6",
+			expected: talos.ImageRef{
+				Host:      "factory.talos.dev",
+				Schematic: "abcd1234",
+				Version:   "v1.13.6",
+			},
+		},
+		{
+			name: "pre 1.10 installer without the platform prefix",
+			ref:  "factory.talos.dev/installer/abcd1234:v1.9.5",
+			expected: talos.ImageRef{
+				Host:      "factory.talos.dev",
+				Schematic: "abcd1234",
+				Version:   "v1.9.5",
+			},
+		},
+		{
+			name: "unknown factory keeps host, drops schematic",
+			ref:  "factory.example.com/metal-installer/abcd1234:v1.13.6",
+			expected: talos.ImageRef{
+				Host:    "factory.example.com",
 				Version: "v1.13.6",
 			},
 		},
@@ -82,7 +111,7 @@ func TestParseImageRef(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
-			parsed, err := talos.ParseImageRef(factoryHost, test.ref)
+			parsed, err := talos.ParseImageRef(factoryHosts, test.ref)
 			if test.wantErr {
 				require.Error(t, err)
 

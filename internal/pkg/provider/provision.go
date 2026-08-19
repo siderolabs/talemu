@@ -7,17 +7,19 @@ package provider
 import (
 	"context"
 	"fmt"
-	"net/url"
 	"strings"
 	"time"
 
 	"github.com/cosi-project/runtime/pkg/safe"
 	"github.com/cosi-project/runtime/pkg/state"
+	"github.com/siderolabs/omni/client/pkg/imagefactory"
 	"github.com/siderolabs/omni/client/pkg/infra/provision"
 	"github.com/siderolabs/omni/client/pkg/omni/resources/infra"
+	talosconstants "github.com/siderolabs/talos/pkg/machinery/constants"
 	"go.uber.org/zap"
 
 	"github.com/siderolabs/talemu/api/specs"
+	emuconstants "github.com/siderolabs/talemu/internal/pkg/constants"
 	"github.com/siderolabs/talemu/internal/pkg/machine/runtime/resources/emu"
 	"github.com/siderolabs/talemu/internal/pkg/provider/resources"
 )
@@ -37,12 +39,8 @@ func NewProvisioner(state state.State) *Provisioner {
 }
 
 type providerData struct {
-	UUID string `yaml:"uuid"`
-	// BootFactoryURL is the base URL of the image factory the machine's boot media is pretended
-	// to come from, empty to use the provider's configured factory. The machine identity
-	// (enterprise-ness, FIPS state) follows it until something is installed.
-	BootFactoryURL string `yaml:"boot_factory_url"`
-	SecureBoot     bool   `yaml:"secure_boot"`
+	UUID       string `yaml:"uuid"`
+	SecureBoot bool   `yaml:"secure_boot"`
 }
 
 // ProvisionSteps implements infra.Provisioner.
@@ -59,14 +57,6 @@ func (p *Provisioner) ProvisionSteps() []provision.Step[*resources.Machine] {
 			err = pctx.UnmarshalProviderData(&pd)
 			if err != nil {
 				return fmt.Errorf("failed to unmarshal provider data: %w", err)
-			}
-
-			if pd.BootFactoryURL != "" {
-				var bootFactoryURL *url.URL
-
-				if bootFactoryURL, err = url.Parse(pd.BootFactoryURL); err != nil || bootFactoryURL.Scheme == "" || bootFactoryURL.Host == "" {
-					return fmt.Errorf("invalid provider data: boot_factory_url %q is not a valid base URL", pd.BootFactoryURL)
-				}
 			}
 
 			// the machine is already provisioned, so no need to do anything, just return the current machine state
@@ -94,10 +84,23 @@ func (p *Provisioner) ProvisionSteps() []provision.Step[*resources.Machine] {
 					machine.TypedSpec().Value.Uuid = fmt.Sprintf("%06d03-c798-4da7-a410-f09abb48c8d8", machine.TypedSpec().Value.Slot)
 				}
 
-				machine.TypedSpec().Value.Schematic, err = pctx.GenerateSchematicID(ctx, logger, provision.WithoutConnectionParams())
-				if err != nil {
-					return fmt.Errorf("failed to generate schematic: %w", err)
+				asset, assetErr := pctx.EnsureBootAsset(ctx, logger, provision.BootAssetSpec{
+					AssetSpec: imagefactory.AssetSpec{
+						Kind:         imagefactory.BootAssetKindISO,
+						Platform:     talosconstants.PlatformMetal,
+						Architecture: emuconstants.EmulatedArchitecture,
+						SecureBoot:   pd.SecureBoot,
+					},
+				}, provision.WithoutConnectionParams())
+				if assetErr != nil {
+					return fmt.Errorf("failed to ensure the boot asset of the machine: %w", assetErr)
 				}
+
+				machine.TypedSpec().Value.Schematic = asset.SchematicID
+
+				// The factory that actually built this asset, which is where its schematic is and what decides
+				// the machine identity until an install or an upgrade replaces the image.
+				machine.TypedSpec().Value.BootFactoryHost = asset.ImageFactoryHost
 
 				machine.TypedSpec().Value.TalosVersion = pctx.GetTalosVersion()
 			}
@@ -107,13 +110,13 @@ func (p *Provisioner) ProvisionSteps() []provision.Step[*resources.Machine] {
 			ms := machine.TypedSpec().Value
 
 			machineTask.TypedSpec().Value = &specs.MachineTaskSpec{
-				Slot:           ms.Slot,
-				Uuid:           ms.Uuid,
-				Schematic:      ms.Schematic,
-				TalosVersion:   ms.TalosVersion,
-				ConnectionArgs: strings.Join(pctx.ConnectionParams.KernelArgs, " "),
-				SecureBoot:     pd.SecureBoot,
-				BootFactoryUrl: pd.BootFactoryURL,
+				Slot:            ms.Slot,
+				Uuid:            ms.Uuid,
+				Schematic:       ms.Schematic,
+				TalosVersion:    ms.TalosVersion,
+				ConnectionArgs:  strings.Join(pctx.ConnectionParams.KernelArgs, " "),
+				SecureBoot:      pd.SecureBoot,
+				BootFactoryHost: ms.BootFactoryHost,
 			}
 
 			pctx.SetMachineInfraID(fmt.Sprintf("%d", machineTask.TypedSpec().Value.Slot))

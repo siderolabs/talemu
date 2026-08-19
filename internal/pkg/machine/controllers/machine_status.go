@@ -32,8 +32,9 @@ import (
 // MachineStatusController computes machine state from the existing resources.
 // Updates machine status resource.
 type MachineStatusController struct {
-	State            state.State
-	ImageFactoryHost string
+	State state.State
+	// FactoryHosts are the image factory hosts whose image references carry a schematic ID.
+	FactoryHosts []string
 }
 
 // Name implements controller.Controller interface.
@@ -257,7 +258,7 @@ func (ctrl *MachineStatusController) reconcile(ctx context.Context, r controller
 // talos.Image is owned by no controller (the services mutate it directly), so it is updated through
 // the raw state here rather than a controller output.
 func (ctrl *MachineStatusController) setInstalledImage(ctx context.Context, imageRef string) error {
-	parsed, err := talos.ParseImageRef(ctrl.ImageFactoryHost, imageRef)
+	parsed, err := talos.ParseImageRef(ctrl.FactoryHosts, imageRef)
 	if err != nil {
 		return err
 	}

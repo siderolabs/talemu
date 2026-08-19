@@ -77,6 +77,9 @@ message MachineSpec {
   string uuid = 2;
   string schematic = 3;
   string talos_version = 4;
+  // BootFactoryHost is the host of the image factory that built the machine's boot media, which is
+  // where its schematic is and what decides the machine identity until something is installed.
+  string boot_factory_host = 5;
 }
 
 // MachineTaskSpec is stored in the emulator state and the c.
@@ -87,7 +90,6 @@ message MachineTaskSpec {
   string talos_version = 4;
   string connection_args = 5;
   bool secure_boot = 6;
-  // BootFactoryUrl is the base URL of the image factory the machine's boot media is pretended
-  // to come from, empty to use the provider's configured factory.
-  string boot_factory_url = 7;
+  // BootFactoryHost is the host of the image factory that built the machine's boot media.
+  string boot_factory_host = 7;
 }

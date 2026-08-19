@@ -9,7 +9,6 @@ import (
 	"context"
 	"fmt"
 	"net/netip"
-	"net/url"
 
 	"github.com/cosi-project/runtime/pkg/resource"
 	"github.com/cosi-project/runtime/pkg/safe"
@@ -27,6 +26,7 @@ import (
 	"go.uber.org/zap/zapcore"
 	"golang.org/x/sync/errgroup"
 
+	"github.com/siderolabs/talemu/internal/pkg/bootmedia"
 	"github.com/siderolabs/talemu/internal/pkg/constants"
 	"github.com/siderolabs/talemu/internal/pkg/kubefactory"
 	"github.com/siderolabs/talemu/internal/pkg/machine/blocklayout"
@@ -36,7 +36,6 @@ import (
 	machinenetwork "github.com/siderolabs/talemu/internal/pkg/machine/network"
 	truntime "github.com/siderolabs/talemu/internal/pkg/machine/runtime"
 	"github.com/siderolabs/talemu/internal/pkg/machine/runtime/resources/talos"
-	"github.com/siderolabs/talemu/internal/pkg/schematic"
 )
 
 const (
@@ -115,26 +114,22 @@ func seedBootMedia(ctx context.Context, st state.State, image *talos.Image) erro
 
 // Machine is a single Talos machine.
 type Machine struct {
-	globalState       state.State
-	runtime           *truntime.Runtime
-	logger            *zap.Logger
-	shutdown          chan struct{}
-	schematicService  *schematic.Service
-	enterpriseChecker controllers.EnterpriseChecker
-	uuid              string
+	globalState state.State
+	runtime     *truntime.Runtime
+	logger      *zap.Logger
+	shutdown    chan struct{}
+	source      bootmedia.Source
+	uuid        string
 }
 
 // NewMachine creates a Machine.
-func NewMachine(uuid string, logger *zap.Logger, globalState state.State, schematicService *schematic.Service,
-	enterpriseChecker controllers.EnterpriseChecker,
-) (*Machine, error) {
+func NewMachine(uuid string, logger *zap.Logger, globalState state.State, source bootmedia.Source) (*Machine, error) {
 	return &Machine{
-		uuid:              uuid,
-		logger:            logger,
-		globalState:       globalState,
-		schematicService:  schematicService,
-		enterpriseChecker: enterpriseChecker,
-		shutdown:          make(chan struct{}, 1),
+		uuid:        uuid,
+		logger:      logger,
+		globalState: globalState,
+		source:      source,
+		shutdown:    make(chan struct{}, 1),
 	}, nil
 }
 
@@ -175,21 +170,14 @@ func (m *Machine) Run(ctx context.Context, siderolinkParams *SideroLinkParams, s
 
 	m.logger = zap.New(core).With(zap.String("machine", machineID), zap.String("uuid", m.uuid))
 
-	// the configured base URL is used as-is, so a plain-HTTP factory keeps working
-	bootFactoryURL := opts.bootFactoryURL
-	if bootFactoryURL == "" {
-		bootFactoryURL = m.schematicService.ImageFactoryBaseURL()
-	}
-
 	// The raw args are whatever the caller knows that the schematic does not carry.
 	// The provider passes connection args here because it conveys them separately from
 	// the boot media, while static mode reads everything from the schematic and passes
 	// nothing, so the two never double-count.
 	rt, err := truntime.NewRuntime(
 		ctx, m.logger, slot, machineID, m.globalState,
-		kubernetes, opts.nc, logSink, siderolinkParams.RawKernelArgs, m.schematicService,
-		m.enterpriseChecker, m.schematicService.ImageFactoryHost(), bootFactoryURL, opts.nodeProxyingDisabled,
-		opts.extensions,
+		kubernetes, opts.nc, logSink, siderolinkParams.RawKernelArgs, m.source,
+		opts.nodeProxyingDisabled, opts.extensions,
 	)
 	if err != nil {
 		return fmt.Errorf("COSI runtime creation failed: %w", err)
@@ -329,17 +317,10 @@ func (m *Machine) Run(ctx context.Context, siderolinkParams *SideroLinkParams, s
 		image.TypedSpec().Value.Schematic = opts.schematic
 		image.TypedSpec().Value.Version = opts.talosVersion
 
-		// the seeded image is the boot media, so it carries the boot factory host, making the
-		// machine identity (enterprise-ness, FIPS state) follow the boot media until an
-		// install/upgrade overwrites the image
-		var bootFactoryHost string
-
-		bootFactoryHost, err = hostOfURL(bootFactoryURL)
-		if err != nil {
-			return err
-		}
-
-		image.TypedSpec().Value.Host = bootFactoryHost
+		// The seeded image is the boot media, so it carries the boot factory host, making the machine
+		// identity (enterprise-ness, FIPS state) follow the boot media until an install or an upgrade
+		// overwrites the image. Empty means no factory built it, which only the caller can know.
+		image.TypedSpec().Value.Host = opts.bootFactoryHost
 
 		bootMedia = image
 	}
@@ -428,14 +409,4 @@ func (m *Machine) Cleanup(ctx context.Context) error {
 
 		return conn.Link.Delete(existing.Index)
 	})
-}
-
-// hostOfURL extracts the host part of a base URL.
-func hostOfURL(rawURL string) (string, error) {
-	parsed, err := url.Parse(rawURL)
-	if err != nil {
-		return "", fmt.Errorf("failed to parse URL %q: %w", rawURL, err)
-	}
-
-	return parsed.Host, nil
 }

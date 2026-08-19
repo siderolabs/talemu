@@ -29,15 +29,8 @@ import (
 // boot and UKI properties, and it must exist before the API serves requests), so this controller
 // only updates the FIPS state field, without taking ownership.
 type SecurityStateController struct {
-	// Checker detects whether the current image source is an enterprise image factory.
-	Checker EnterpriseChecker
-
-	// ImageFactoryHost is the host of the configured image factory.
-	ImageFactoryHost string
-
-	// BootFactoryURL is the base URL of the image factory the boot media is pretended to come
-	// from, deciding the machine identity before anything is installed.
-	BootFactoryURL string
+	// Source decides whether the image the machine runs is an enterprise build.
+	Source BootMediaSource
 }
 
 // Name implements controller.Controller interface.
@@ -103,9 +96,11 @@ func (ctrl *SecurityStateController) Run(ctx context.Context, r controller.Runti
 			return err
 		}
 
-		// on a probe failure the previously written state (or the seeded community default) stays
+		current := currentImageOrNone(image, config, ctrl.Source.FactoryHosts(), logger)
+
+		// on a lookup failure the previously written state (or the seeded community default) stays
 		// published, the error only arranges the backoff retry
-		enterprise, err := ctrl.Checker.IsEnterprise(ctx, resolveImageSourceURL(image, config, ctrl.ImageFactoryHost, ctrl.BootFactoryURL))
+		enterprise, err := ctrl.Source.IsEnterprise(ctx, current.Version, current.Host)
 		if err != nil {
 			logger.Warn("failed to determine the image factory kind, keeping the previously reported FIPS state", zap.Error(err))
 

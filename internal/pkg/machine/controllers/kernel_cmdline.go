@@ -19,19 +19,14 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/siderolabs/talemu/internal/pkg/machine/runtime/resources/talos"
-	schematicsvc "github.com/siderolabs/talemu/internal/pkg/schematic"
 )
 
 // KernelCmdlineController computes kernel args list from the configuration.
 type KernelCmdlineController struct {
-	SchematicService *schematicsvc.Service
-	ImageFactoryHost string
-	BaseKernelArgs   string
+	// Source resolves the schematic of the image the machine runs, which carries the extra kernel args.
+	Source BootMediaSource
 
-	// BootFactoryURL is the factory the machine booted from. It is the fallback for
-	// resolving which factory holds the current schematic, and stops applying once an
-	// install or an upgrade replaces the image.
-	BootFactoryURL string
+	BaseKernelArgs string
 }
 
 // Name implements controller.Controller interface.
@@ -76,18 +71,18 @@ func (ctrl *KernelCmdlineController) Run(ctx context.Context, r controller.Runti
 		case <-r.EventCh():
 		}
 
-		schematicID, factoryURL, err := readCurrentSchematic(ctx, r, ctrl.ImageFactoryHost, ctrl.BootFactoryURL)
+		image, err := readCurrentImage(ctx, r, ctrl.Source.FactoryHosts())
 		if err != nil {
-			return fmt.Errorf("failed to read current schematic ID: %w", err)
+			return fmt.Errorf("failed to read the current image: %w", err)
 		}
 
 		var extraKernelArgs []string
 
-		if schematicID != "" {
+		if image.Schematic != "" {
 			var sch *schematic.Schematic
 
-			if sch, err = ctrl.SchematicService.GetByID(ctx, schematicID, factoryURL); err != nil {
-				return fmt.Errorf("failed to get schematic by ID %q: %w", schematicID, err)
+			if sch, err = ctrl.Source.GetSchematicByID(ctx, image.Schematic, image.Version, image.Host); err != nil {
+				return fmt.Errorf("failed to get schematic by ID %q: %w", image.Schematic, err)
 			}
 
 			extraKernelArgs = sch.Customization.ExtraKernelArgs

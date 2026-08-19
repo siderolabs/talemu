@@ -52,17 +52,17 @@ type APID struct {
 	eg                   *errgroup.Group
 	sharedMachineState   *machineState
 	machineID            string
-	imageFactoryHost     string
+	factoryHosts         []string
 	nodeProxyingDisabled bool
 }
 
 // NewAPID creates new APID.
-func NewAPID(machineID string, state state.State, globalState state.State, imageFactoryHost string, localAddressProvider director.LocalAddressProvider, nodeProxyingDisabled bool) *APID {
+func NewAPID(machineID string, state state.State, globalState state.State, factoryHosts []string, localAddressProvider director.LocalAddressProvider, nodeProxyingDisabled bool) *APID {
 	return &APID{
 		machineID:            machineID,
 		state:                state,
 		globalState:          globalState,
-		imageFactoryHost:     imageFactoryHost,
+		factoryHosts:         factoryHosts,
 		localAddressProvider: localAddressProvider,
 		nodeProxyingDisabled: nodeProxyingDisabled,
 		sharedMachineState:   newMachineState(),
@@ -168,9 +168,9 @@ func (apid *APID) Run(ctx context.Context, endpoint netip.Prefix, logger *zap.Lo
 	}
 
 	recoveryOption := recovery.WithRecoveryHandler(recoveryHandler)
-	machineSrv := NewMachineService(apid.machineID, apid.state, apid.globalState, apid.imageFactoryHost, logger, apid.sharedMachineState)
+	machineSrv := NewMachineService(apid.machineID, apid.state, apid.globalState, apid.factoryHosts, logger, apid.sharedMachineState)
 	imageSrv := NewImageService(apid.state, logger)
-	lifecycleSrv := NewLifecycleService(apid.state, apid.imageFactoryHost, logger, apid.sharedMachineState)
+	lifecycleSrv := NewLifecycleService(apid.state, apid.factoryHosts, logger, apid.sharedMachineState)
 	localServer := grpc.NewServer(
 		grpc.Creds(insecure.NewCredentials()),
 		grpc.ForceServerCodecV2(proxy.Codec()),

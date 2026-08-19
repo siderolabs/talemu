@@ -522,13 +522,16 @@ func (*RebootStatusSpec) Descriptor() ([]byte, []int) {
 
 // MachineSpec is stored in Omni in the infra provisioner state.
 type MachineSpec struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Slot          int32                  `protobuf:"varint,1,opt,name=slot,proto3" json:"slot,omitempty"`
-	Uuid          string                 `protobuf:"bytes,2,opt,name=uuid,proto3" json:"uuid,omitempty"`
-	Schematic     string                 `protobuf:"bytes,3,opt,name=schematic,proto3" json:"schematic,omitempty"`
-	TalosVersion  string                 `protobuf:"bytes,4,opt,name=talos_version,json=talosVersion,proto3" json:"talos_version,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state        protoimpl.MessageState `protogen:"open.v1"`
+	Slot         int32                  `protobuf:"varint,1,opt,name=slot,proto3" json:"slot,omitempty"`
+	Uuid         string                 `protobuf:"bytes,2,opt,name=uuid,proto3" json:"uuid,omitempty"`
+	Schematic    string                 `protobuf:"bytes,3,opt,name=schematic,proto3" json:"schematic,omitempty"`
+	TalosVersion string                 `protobuf:"bytes,4,opt,name=talos_version,json=talosVersion,proto3" json:"talos_version,omitempty"`
+	// BootFactoryHost is the host of the image factory that built the machine's boot media, which is
+	// where its schematic is and what decides the machine identity until something is installed.
+	BootFactoryHost string `protobuf:"bytes,5,opt,name=boot_factory_host,json=bootFactoryHost,proto3" json:"boot_factory_host,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
 }
 
 func (x *MachineSpec) Reset() {
@@ -589,6 +592,13 @@ func (x *MachineSpec) GetTalosVersion() string {
 	return ""
 }
 
+func (x *MachineSpec) GetBootFactoryHost() string {
+	if x != nil {
+		return x.BootFactoryHost
+	}
+	return ""
+}
+
 // MachineTaskSpec is stored in the emulator state and the c.
 type MachineTaskSpec struct {
 	state          protoimpl.MessageState `protogen:"open.v1"`
@@ -598,11 +608,10 @@ type MachineTaskSpec struct {
 	TalosVersion   string                 `protobuf:"bytes,4,opt,name=talos_version,json=talosVersion,proto3" json:"talos_version,omitempty"`
 	ConnectionArgs string                 `protobuf:"bytes,5,opt,name=connection_args,json=connectionArgs,proto3" json:"connection_args,omitempty"`
 	SecureBoot     bool                   `protobuf:"varint,6,opt,name=secure_boot,json=secureBoot,proto3" json:"secure_boot,omitempty"`
-	// BootFactoryUrl is the base URL of the image factory the machine's boot media is pretended
-	// to come from, empty to use the provider's configured factory.
-	BootFactoryUrl string `protobuf:"bytes,7,opt,name=boot_factory_url,json=bootFactoryUrl,proto3" json:"boot_factory_url,omitempty"`
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
+	// BootFactoryHost is the host of the image factory that built the machine's boot media.
+	BootFactoryHost string `protobuf:"bytes,7,opt,name=boot_factory_host,json=bootFactoryHost,proto3" json:"boot_factory_host,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
 }
 
 func (x *MachineTaskSpec) Reset() {
@@ -677,9 +686,9 @@ func (x *MachineTaskSpec) GetSecureBoot() bool {
 	return false
 }
 
-func (x *MachineTaskSpec) GetBootFactoryUrl() string {
+func (x *MachineTaskSpec) GetBootFactoryHost() string {
 	if x != nil {
-		return x.BootFactoryUrl
+		return x.BootFactoryHost
 	}
 	return ""
 }
@@ -797,12 +806,13 @@ const file_specs_specs_proto_rawDesc = "" +
 	"\n" +
 	"RebootSpec\x125\n" +
 	"\bdowntime\x18\x01 \x01(\v2\x19.google.protobuf.DurationR\bdowntime\"\x12\n" +
-	"\x10RebootStatusSpec\"x\n" +
+	"\x10RebootStatusSpec\"\xa4\x01\n" +
 	"\vMachineSpec\x12\x12\n" +
 	"\x04slot\x18\x01 \x01(\x05R\x04slot\x12\x12\n" +
 	"\x04uuid\x18\x02 \x01(\tR\x04uuid\x12\x1c\n" +
 	"\tschematic\x18\x03 \x01(\tR\tschematic\x12#\n" +
-	"\rtalos_version\x18\x04 \x01(\tR\ftalosVersion\"\xf0\x01\n" +
+	"\rtalos_version\x18\x04 \x01(\tR\ftalosVersion\x12*\n" +
+	"\x11boot_factory_host\x18\x05 \x01(\tR\x0fbootFactoryHost\"\xf2\x01\n" +
 	"\x0fMachineTaskSpec\x12\x12\n" +
 	"\x04slot\x18\x01 \x01(\x05R\x04slot\x12\x12\n" +
 	"\x04uuid\x18\x02 \x01(\tR\x04uuid\x12\x1c\n" +
@@ -810,8 +820,8 @@ const file_specs_specs_proto_rawDesc = "" +
 	"\rtalos_version\x18\x04 \x01(\tR\ftalosVersion\x12'\n" +
 	"\x0fconnection_args\x18\x05 \x01(\tR\x0econnectionArgs\x12\x1f\n" +
 	"\vsecure_boot\x18\x06 \x01(\bR\n" +
-	"secureBoot\x12(\n" +
-	"\x10boot_factory_url\x18\a \x01(\tR\x0ebootFactoryUrlB(Z&github.com/siderolabs/talemu/api/specsb\x06proto3"
+	"secureBoot\x12*\n" +
+	"\x11boot_factory_host\x18\a \x01(\tR\x0fbootFactoryHostB(Z&github.com/siderolabs/talemu/api/specsb\x06proto3"
 
 var (
 	file_specs_specs_proto_rawDescOnce sync.Once

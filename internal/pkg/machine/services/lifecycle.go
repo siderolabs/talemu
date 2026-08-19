@@ -28,16 +28,16 @@ type LifecycleService struct {
 	state              state.State
 	logger             *zap.Logger
 	sharedMachineState *machineState
-	imageFactoryHost   string
+	factoryHosts       []string
 }
 
 // NewLifecycleService creates a new LifecycleService.
-func NewLifecycleService(st state.State, imageFactoryHost string, logger *zap.Logger, sharedMachineState *machineState) *LifecycleService {
+func NewLifecycleService(st state.State, factoryHosts []string, logger *zap.Logger, sharedMachineState *machineState) *LifecycleService {
 	if sharedMachineState == nil {
 		sharedMachineState = newMachineState()
 	}
 
-	return &LifecycleService{state: st, imageFactoryHost: imageFactoryHost, logger: logger, sharedMachineState: sharedMachineState}
+	return &LifecycleService{state: st, factoryHosts: factoryHosts, logger: logger, sharedMachineState: sharedMachineState}
 }
 
 // Install implements machine.LifecycleServiceServer.
@@ -72,7 +72,7 @@ func (s *LifecycleService) Install(req *machine.LifecycleServiceInstallRequest, 
 		return status.Error(codes.AlreadyExists, "Talos is already installed on disk")
 	}
 
-	if _, err = setImage(ctx, s.state, s.imageFactoryHost, image); err != nil {
+	if _, err = setImage(ctx, s.state, s.factoryHosts, image); err != nil {
 		return err
 	}
 
@@ -129,7 +129,7 @@ func (s *LifecycleService) Upgrade(req *machine.LifecycleServiceUpgradeRequest, 
 		return status.Error(codes.FailedPrecondition, "Talos is not installed on disk")
 	}
 
-	if _, err = setImage(ctx, s.state, s.imageFactoryHost, image); err != nil {
+	if _, err = setImage(ctx, s.state, s.factoryHosts, image); err != nil {
 		return err
 	}
 

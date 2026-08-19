@@ -17,6 +17,7 @@ import (
 	"github.com/siderolabs/talos/pkg/machinery/resources/runtime"
 	"go.uber.org/zap"
 
+	emuconstants "github.com/siderolabs/talemu/internal/pkg/constants"
 	"github.com/siderolabs/talemu/internal/pkg/machine/machineconfig"
 	"github.com/siderolabs/talemu/internal/pkg/machine/runtime/resources/talos"
 )
@@ -24,16 +25,8 @@ import (
 // VersionController computes the current Talos version and version name of the machine from its
 // current image source.
 type VersionController struct {
-	// Checker detects whether the current image source is an enterprise image factory.
-	Checker EnterpriseChecker
-
-	// ImageFactoryHost is the host of the configured image factory, used to recover schematic IDs
-	// from image refs.
-	ImageFactoryHost string
-
-	// BootFactoryURL is the base URL of the image factory the boot media is pretended to come
-	// from, deciding the machine identity before anything is installed.
-	BootFactoryURL string
+	// Source decides whether the image the machine runs is an enterprise build.
+	Source BootMediaSource
 }
 
 // Name implements controller.Controller interface.
@@ -107,21 +100,14 @@ func (ctrl *VersionController) reconcile(ctx context.Context, r controller.Runti
 	switch {
 	case image != nil:
 		source = "upgrade"
-
-		version = image.TypedSpec().Value.Version
 	case config != nil:
 		source = "install"
-
-		installImage := config.Container().RawV1Alpha1().Machine().Install().Image()
-
-		// an empty or unparseable install image falls back to the default version instead of
-		// erroring, as this write gates the machine boot readiness
-		if parsed, parseErr := talos.ParseImageRef(ctrl.ImageFactoryHost, installImage); parseErr == nil {
-			version = parsed.Version
-		} else {
-			logger.Warn("failed to parse the install image, using the default version", zap.Error(parseErr))
-		}
 	}
+
+	// an empty or unparseable install image falls back to the default version instead of erroring, as this
+	// write gates the machine boot readiness
+	current := currentImageOrNone(image, config, ctrl.Source.FactoryHosts(), logger)
+	version = current.Version
 
 	if version == "" {
 		version = "v" + constants.DefaultTalosVersion
@@ -139,14 +125,14 @@ func (ctrl *VersionController) reconcile(ctx context.Context, r controller.Runti
 		}
 
 		res.TypedSpec().Value.Value = version
-		res.TypedSpec().Value.Architecture = "amd64"
+		res.TypedSpec().Value.Architecture = emuconstants.EmulatedArchitecture
 
 		return nil
 	}); err != nil {
 		return err
 	}
 
-	enterprise, checkErr := ctrl.Checker.IsEnterprise(ctx, resolveImageSourceURL(image, config, ctrl.ImageFactoryHost, ctrl.BootFactoryURL))
+	enterprise, checkErr := ctrl.Source.IsEnterprise(ctx, current.Version, current.Host)
 	if checkErr != nil {
 		logger.Warn("failed to determine the image factory kind, keeping the previously reported name", zap.Error(checkErr))
 	}

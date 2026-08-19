@@ -11,7 +11,6 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
-	"strings"
 	"syscall"
 
 	"github.com/siderolabs/omni/client/pkg/constants"
@@ -23,13 +22,11 @@ import (
 
 	emuconst "github.com/siderolabs/talemu/internal/pkg/constants"
 	emuruntime "github.com/siderolabs/talemu/internal/pkg/emu"
-	"github.com/siderolabs/talemu/internal/pkg/factory"
 	"github.com/siderolabs/talemu/internal/pkg/kubefactory"
 	"github.com/siderolabs/talemu/internal/pkg/machine"
 	"github.com/siderolabs/talemu/internal/pkg/machine/network"
 	"github.com/siderolabs/talemu/internal/pkg/machine/runtime"
 	"github.com/siderolabs/talemu/internal/pkg/machine/runtime/resources/emu"
-	schematicsvc "github.com/siderolabs/talemu/internal/pkg/schematic"
 )
 
 // rootCmd represents the base command when called without any subcommands.
@@ -39,20 +36,8 @@ var rootCmd = &cobra.Command{
 	Long:         `Can simulate as many nodes as you want`,
 	SilenceUsage: true,
 	RunE: func(cmd *cobra.Command, _ []string) error {
-		if cfg.extraDisks < 0 || cfg.extraDisks > machine.MaxExtraDisks {
-			return fmt.Errorf("--extra-disks must be between 0 and %d, got %d", machine.MaxExtraDisks, cfg.extraDisks)
-		}
-
-		// A schematic describes the whole boot media, kernel args included, so taking
-		// both would mean deciding which one wins. Neither is required: SideroLink is
-		// optional in Talos, and machines given no boot media info at all simply run
-		// standalone and join nothing.
-		if cfg.schematicID != "" && cmd.Flags().Changed("kernel-args") {
-			return errors.New("--schematic-id and --kernel-args are mutually exclusive: a schematic already carries the kernel args of the media it describes")
-		}
-
-		if cfg.schematicID != "" && cmd.Flags().Changed("extensions") {
-			return errors.New("--schematic-id and --extensions are mutually exclusive: a schematic already lists the extensions of the media it describes")
+		if err := validateFlags(cmd); err != nil {
+			return err
 		}
 
 		eg, ctx := errgroup.WithContext(cmd.Context())
@@ -106,38 +91,12 @@ var rootCmd = &cobra.Command{
 
 		defer nc.Close() //nolint:errcheck
 
-		schematicService, err := schematicsvc.NewService(
-			cfg.schematicCacheDir, cfg.imageFactoryBaseURL,
-			os.Getenv(emuconst.ImageFactoryUsernameEnv), os.Getenv(emuconst.ImageFactoryPasswordEnv),
-			logger.With(zap.String("component", "schematic_service")),
-		)
+		media, err := resolveBootMedia(ctx, logger)
 		if err != nil {
 			return err
 		}
 
-		// Resolve the boot media the machines are pretending to have booted from.
-		//
-		// With a schematic ID, that media came from an image factory, so the factory
-		// is asked for it up front: it is the source of truth for the kernel args and
-		// the extensions, and a missing one is a mistake worth failing on now rather
-		// than leaving every machine to rediscover it forever.
-		//
-		// Real Talos would not need the round trip, since it runs the media and knows
-		// its own kernel args and extensions. The emulator does not run it, so
-		// fetching the schematic is how it recovers the same facts.
-		kernelArgs := cfg.kernelArgs
-
-		if cfg.schematicID != "" {
-			sch, schErr := schematicService.GetByID(ctx, cfg.schematicID, "")
-			if schErr != nil {
-				return fmt.Errorf("schematic %q could not be read from %s: %w",
-					cfg.schematicID, schematicService.ImageFactoryBaseURL(), schErr)
-			}
-
-			kernelArgs = strings.Join(sch.Customization.ExtraKernelArgs, " ")
-		}
-
-		params, err := machine.ParseKernelArgs(kernelArgs)
+		params, err := machine.ParseKernelArgs(media.kernelArgs)
 		if err != nil {
 			return err
 		}
@@ -146,14 +105,12 @@ var rootCmd = &cobra.Command{
 		// command line from the schematic too, so passing them on as well would report
 		// every argument twice. Only the caller knows this, which is why the shared
 		// machine code does not try to work it out.
-		if cfg.schematicID != "" {
+		if media.schematicID != "" {
 			params.RawKernelArgs = ""
 		}
 
-		enterpriseChecker := factory.NewEnterpriseChecker()
-
 		for i := range cfg.machinesCount {
-			m, err := machine.NewMachine(fmt.Sprintf("%04d1802-c798-4da7-a410-f09abb48c8d8", i+1000), logger, emulatorState, schematicService, enterpriseChecker)
+			m, err := machine.NewMachine(fmt.Sprintf("%04d1802-c798-4da7-a410-f09abb48c8d8", i+1000), logger, emulatorState, media.source)
 			if err != nil {
 				return err
 			}
@@ -162,9 +119,10 @@ var rootCmd = &cobra.Command{
 				return m.Run(ctx, params, i+1000, kubernetes,
 					machine.WithNetworkClient(nc),
 					machine.WithTalosVersion(cfg.talosVersion),
-					machine.WithSchematic(cfg.schematicID),
+					machine.WithSchematic(media.schematicID),
 					machine.WithExtensions(cfg.extensions),
 					machine.WithNodeProxyingDisabled(cfg.nodeProxyingDisabled),
+					machine.WithBootFactoryHost(media.factoryHost),
 					machine.WithExtraDisks(cfg.extraDisks))
 			})
 
@@ -225,6 +183,31 @@ var cfg struct {
 	machinesCount        int
 	extraDisks           int
 	nodeProxyingDisabled bool
+}
+
+// validateFlags rejects the flag combinations that describe more than one kind of boot media.
+//
+// A schematic describes the whole media, kernel args included, so taking kernel args as well would mean
+// deciding which one wins. Neither is required: SideroLink is optional in Talos, and machines given no boot
+// media info at all simply run standalone and join nothing.
+func validateFlags(cmd *cobra.Command) error {
+	if cfg.extraDisks < 0 || cfg.extraDisks > machine.MaxExtraDisks {
+		return fmt.Errorf("--extra-disks must be between 0 and %d, got %d", machine.MaxExtraDisks, cfg.extraDisks)
+	}
+
+	if cfg.schematicID == "" {
+		return nil
+	}
+
+	if cmd.Flags().Changed("kernel-args") {
+		return errors.New("--schematic-id and --kernel-args are mutually exclusive: a schematic already carries the kernel args of the media it describes")
+	}
+
+	if cmd.Flags().Changed("extensions") {
+		return errors.New("--schematic-id and --extensions are mutually exclusive: a schematic already lists the extensions of the media it describes")
+	}
+
+	return nil
 }
 
 func main() {

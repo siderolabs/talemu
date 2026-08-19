@@ -17,15 +17,14 @@ import (
 	"github.com/cosi-project/runtime/pkg/task"
 	"go.uber.org/zap"
 
+	"github.com/siderolabs/talemu/internal/pkg/bootmedia"
 	"github.com/siderolabs/talemu/internal/pkg/kubefactory"
 	"github.com/siderolabs/talemu/internal/pkg/machine"
-	"github.com/siderolabs/talemu/internal/pkg/machine/controllers"
 	"github.com/siderolabs/talemu/internal/pkg/machine/network"
 	"github.com/siderolabs/talemu/internal/pkg/machine/runtime"
 	"github.com/siderolabs/talemu/internal/pkg/machine/runtime/resources/emu"
 	machinetask "github.com/siderolabs/talemu/internal/pkg/provider/controllers/machine"
 	"github.com/siderolabs/talemu/internal/pkg/provider/resources"
-	"github.com/siderolabs/talemu/internal/pkg/schematic"
 )
 
 // MachineController runs a machine for each machine request.
@@ -34,24 +33,21 @@ type MachineController struct {
 	kubernetes           *kubefactory.Kubernetes
 	nc                   *network.Client
 	globalState          state.State
-	schematicService     *schematic.Service
-	enterpriseChecker    controllers.EnterpriseChecker
+	source               bootmedia.Source
 	nodeProxyingDisabled bool
 }
 
 // NewMachineController creates new machine controller.
 func NewMachineController(
 	globalState state.State, kubernetes *kubefactory.Kubernetes, nc *network.Client,
-	schematicService *schematic.Service, enterpriseChecker controllers.EnterpriseChecker,
-	nodeProxyingDisabled bool,
+	source bootmedia.Source, nodeProxyingDisabled bool,
 ) *MachineController {
 	return &MachineController{
 		runner:               task.NewEqualRunner[machinetask.TaskSpec](),
 		globalState:          globalState,
 		kubernetes:           kubernetes,
 		nc:                   nc,
-		schematicService:     schematicService,
-		enterpriseChecker:    enterpriseChecker,
+		source:               source,
 		nodeProxyingDisabled: nodeProxyingDisabled,
 	}
 }
@@ -124,8 +120,7 @@ func (ctrl *MachineController) Run(ctx context.Context, r controller.Runtime, lo
 			ctrl.runner.StartTask(ctx, logger, m.Metadata().ID(), machinetask.TaskSpec{
 				Machine:              m,
 				GlobalState:          ctrl.globalState,
-				SchematicService:     ctrl.schematicService,
-				EnterpriseChecker:    ctrl.enterpriseChecker,
+				Source:               ctrl.source,
 				Kubernetes:           ctrl.kubernetes,
 				Params:               params,
 				NC:                   ctrl.nc,

@@ -20,18 +20,12 @@ import (
 
 	emuconst "github.com/siderolabs/talemu/internal/pkg/constants"
 	"github.com/siderolabs/talemu/internal/pkg/machine/runtime/resources/talos"
-	"github.com/siderolabs/talemu/internal/pkg/schematic"
 )
 
 // ExtensionStatusController computes extensions list from the configuration.
 type ExtensionStatusController struct {
-	SchematicService *schematic.Service
-	ImageFactoryHost string
-
-	// BootFactoryURL is the factory the machine booted from. It is the fallback for
-	// resolving which factory holds the current schematic, and stops applying once an
-	// install or an upgrade replaces the image.
-	BootFactoryURL string
+	// Source resolves the schematic of the image the machine runs.
+	Source BootMediaSource
 
 	// LocalExtensions is reported when the machine has no schematic, which is the
 	// case for boot media that was not built by an image factory. Real Talos reads
@@ -84,9 +78,9 @@ func (ctrl *ExtensionStatusController) Run(ctx context.Context, r controller.Run
 		case <-r.EventCh():
 		}
 
-		schematicID, factoryURL, err := readCurrentSchematic(ctx, r, ctrl.ImageFactoryHost, ctrl.BootFactoryURL)
+		image, err := readCurrentImage(ctx, r, ctrl.Source.FactoryHosts())
 		if err != nil {
-			return fmt.Errorf("failed to read current schematic ID: %w", err)
+			return fmt.Errorf("failed to read the current image: %w", err)
 		}
 
 		touched := map[string]any{}
@@ -96,10 +90,10 @@ func (ctrl *ExtensionStatusController) Run(ctx context.Context, r controller.Run
 		// and no schematic ID extension, exactly like a Talos image that an image
 		// factory did not build. Otherwise the schematic is the source of truth, and
 		// the schematic ID is published as an extension the way a factory image does.
-		if schematicID != "" {
-			sch, schErr := ctrl.SchematicService.GetByID(ctx, schematicID, factoryURL)
+		if image.Schematic != "" {
+			sch, schErr := ctrl.Source.GetSchematicByID(ctx, image.Schematic, image.Version, image.Host)
 			if schErr != nil {
-				return fmt.Errorf("failed to get schematic by ID %q: %w", schematicID, schErr)
+				return fmt.Errorf("failed to get schematic by ID %q: %w", image.Schematic, schErr)
 			}
 
 			extensionList = sch.Customization.SystemExtensions.OfficialExtensions
@@ -115,7 +109,7 @@ func (ctrl *ExtensionStatusController) Run(ctx context.Context, r controller.Run
 
 			if err = safe.WriterModify(ctx, r, extensionStatus, func(res *runtime.ExtensionStatus) error {
 				res.TypedSpec().Metadata.Name = constants.SchematicIDExtensionName
-				res.TypedSpec().Metadata.Version = schematicID
+				res.TypedSpec().Metadata.Version = image.Schematic
 				res.TypedSpec().Metadata.ExtraInfo = string(data)
 
 				touched[res.Metadata().ID()] = struct{}{}

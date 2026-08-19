@@ -24,7 +24,7 @@ services:
 ```
 
 The schematic is read from the image factory at startup, and startup fails if it does not hold that schematic, since machines booted from media nobody has would never come up either.
-Use `--image-factory-base-url` for a factory other than the public one.
+Use `--image-factory-base-url` for a factory other than the public one, and `TALEMU_IMAGE_FACTORY_USERNAME` / `TALEMU_IMAGE_FACTORY_PASSWORD` for one that requires authentication.
 
 ### Without a factory
 
@@ -45,8 +45,11 @@ services:
 Those machines report no schematic, exactly as a locally built image does.
 `Copy Kernel Args` in the Omni UI gives a usable value for `--kernel-args`.
 
-`--schematic-id` and `--kernel-args` are mutually exclusive, and so are
-`--schematic-id` and `--extensions`, because a schematic already carries both.
+An install or an upgrade can still point such a machine at a factory image, and its schematic is read from `--image-factory-base-url` like any other, so the machine goes on reporting its extensions and kernel args across one.
+
+### Which flags go together
+
+`--schematic-id` is exclusive with `--kernel-args` and `--extensions`, because a schematic already carries both.
 Neither is required: SideroLink is optional in Talos, and machines given no boot media info at all simply run standalone and join nothing.
 
 Run `make docker-compose-up` command.
@@ -55,12 +58,15 @@ This will spawn one hundred fake Talos nodes.
 
 ## Infra Provider Mode
 
+An infra provider only works against Omni, so `--omni-api-endpoint` is required.
+Everything it needs from an image factory it asks Omni for, including the credentials, so it takes no factory endpoint of its own and follows Omni across both of the factories it may be configured with.
+
 ### Running as executable
 
-Run:
+Build the executable:
 
 ```bash
-make infra-provider
+make talemu-infra-provider
 ```
 
 Then run:

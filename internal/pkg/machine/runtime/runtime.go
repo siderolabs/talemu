@@ -29,7 +29,6 @@ import (
 	"github.com/siderolabs/talemu/internal/pkg/machine/runtime/resources/talos"
 	"github.com/siderolabs/talemu/internal/pkg/machine/services"
 	"github.com/siderolabs/talemu/internal/pkg/machine/services/apid/pkg/director"
-	"github.com/siderolabs/talemu/internal/pkg/schematic"
 )
 
 // Runtime handles COSI state setup and lifecycle.
@@ -44,10 +43,11 @@ type Runtime struct {
 
 // NewRuntime creates new runtime.
 func NewRuntime(ctx context.Context, logger *zap.Logger, slot int, id string, globalState state.State,
-	kubernetes *kubefactory.Kubernetes, nc *network.Client, logSink *logging.ZapCore, baseKernelArgs string, schematicService *schematic.Service,
-	enterpriseChecker controllers.EnterpriseChecker, imageFactoryHost, bootFactoryURL string, nodeProxyingDisabled bool,
-	localExtensions []string,
+	kubernetes *kubefactory.Kubernetes, nc *network.Client, logSink *logging.ZapCore, baseKernelArgs string,
+	source controllers.BootMediaSource, nodeProxyingDisabled bool, localExtensions []string,
 ) (*Runtime, error) {
+	factoryHosts := source.FactoryHosts()
+
 	stateDir := GetStateDir(id)
 
 	err := os.MkdirAll(stateDir, 0o755)
@@ -96,7 +96,7 @@ func NewRuntime(ctx context.Context, logger *zap.Logger, slot int, id string, gl
 			NC: nc,
 		},
 		&controllers.APIDController{
-			APID: services.NewAPID(id, st, globalState, imageFactoryHost, localAddressProvider, nodeProxyingDisabled),
+			APID: services.NewAPID(id, st, globalState, factoryHosts, localAddressProvider, nodeProxyingDisabled),
 		},
 		&controllers.AddressSpecController{
 			NC: nc,
@@ -116,27 +116,22 @@ func NewRuntime(ctx context.Context, logger *zap.Logger, slot int, id string, gl
 		&controllers.APICertSANsController{},
 		controllers.NewRootOSController(),
 		&controllers.ExtensionStatusController{
-			SchematicService: schematicService,
-			LocalExtensions:  localExtensions,
-			ImageFactoryHost: imageFactoryHost,
-			BootFactoryURL:   bootFactoryURL,
+			Source:          source,
+			LocalExtensions: localExtensions,
 		},
 		&controllers.KernelCmdlineController{
-			BaseKernelArgs:   baseKernelArgs,
-			SchematicService: schematicService,
-			ImageFactoryHost: imageFactoryHost,
-			BootFactoryURL:   bootFactoryURL,
+			BaseKernelArgs: baseKernelArgs,
+			Source:         source,
 		},
-		&controllers.MachineStatusController{State: st, ImageFactoryHost: imageFactoryHost},
+		&controllers.MachineStatusController{
+			State:        st,
+			FactoryHosts: factoryHosts,
+		},
 		&controllers.VersionController{
-			Checker:          enterpriseChecker,
-			ImageFactoryHost: imageFactoryHost,
-			BootFactoryURL:   bootFactoryURL,
+			Source: source,
 		},
 		&controllers.SecurityStateController{
-			Checker:          enterpriseChecker,
-			ImageFactoryHost: imageFactoryHost,
-			BootFactoryURL:   bootFactoryURL,
+			Source: source,
 		},
 		&controllers.NodeIdentityController{},
 		&controllers.NodenameController{},

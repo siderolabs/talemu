@@ -16,45 +16,23 @@ import (
 	"github.com/siderolabs/talemu/internal/pkg/machine/runtime/resources/talos"
 )
 
-// readCurrentSchematic returns the schematic of the machine's current Talos image
-// together with the base URL of the factory that holds it.
-//
-// The two travel together on purpose. A schematic only exists in the factory that
-// built it, and installing or upgrading replaces both the schematic and the
-// factory it came from, so resolving the current schematic against the factory the
-// machine originally booted from would ask the wrong one. The precedence over
-// installed image, config install image and boot media is shared with
-// resolveImageSourceURL.
-func readCurrentSchematic(ctx context.Context, r controller.Runtime, imageFactoryHost, bootFactoryURL string) (schematicID, factoryURL string, err error) {
-	schematicContent, err := machineconfig.GetComplete(ctx, r)
+// readCurrentImage returns the reference of the Talos image the machine currently runs, which carries the
+// schematic to resolve along with the factory host and the Talos version that locate it.
+func readCurrentImage(ctx context.Context, r controller.Runtime, factoryHosts []string) (talos.ImageRef, error) {
+	config, err := machineconfig.GetComplete(ctx, r)
 	if err != nil && !state.IsNotFoundError(err) {
-		return "", "", err
+		return talos.ImageRef{}, err
 	}
 
 	image, err := safe.ReaderGetByID[*talos.Image](ctx, r, talos.ImageID)
 	if err != nil && !state.IsNotFoundError(err) {
-		return "", "", err
+		return talos.ImageRef{}, err
 	}
 
-	if image == nil && schematicContent == nil {
-		return "", "", nil
-	}
-
-	factoryURL = resolveImageSourceURL(image, schematicContent, imageFactoryHost, bootFactoryURL)
-
-	if image != nil {
-		return image.TypedSpec().Value.Schematic, factoryURL, nil
-	}
-
-	installImage := schematicContent.Container().RawV1Alpha1().Machine().Install().Image()
-	if installImage == "" {
-		return "", "", nil
-	}
-
-	parsed, err := talos.ParseImageRef(imageFactoryHost, installImage)
+	ref, err := currentImage(image, config, factoryHosts)
 	if err != nil {
-		return "", "", fmt.Errorf("failed to parse schematic id from the install image: %w", err)
+		return talos.ImageRef{}, fmt.Errorf("failed to parse the current image: %w", err)
 	}
 
-	return parsed.Schematic, factoryURL, nil
+	return ref, nil
 }

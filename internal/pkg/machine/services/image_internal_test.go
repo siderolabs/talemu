@@ -24,19 +24,21 @@ func TestSetImage(t *testing.T) {
 
 	st := state.WrapCore(namespaced.NewState(inmem.Build))
 
-	const factoryHost = "factory.talos.dev"
+	// Both factories are known, so the switch below keeps its schematic ID and the change is a genuine
+	// cross-factory one rather than a schematic that went missing.
+	factoryHosts := []string{"factory.talos.dev", "factory-enterprise.staging.talos.dev"}
 
-	changed, err := setImage(ctx, st, factoryHost, "factory.talos.dev/metal-installer/abcd1234:v1.13.6")
+	changed, err := setImage(ctx, st, factoryHosts, "factory.talos.dev/metal-installer/abcd1234:v1.13.6")
 	require.NoError(t, err)
 	assert.True(t, changed)
 
 	// same ref again: no change
-	changed, err = setImage(ctx, st, factoryHost, "factory.talos.dev/metal-installer/abcd1234:v1.13.6")
+	changed, err = setImage(ctx, st, factoryHosts, "factory.talos.dev/metal-installer/abcd1234:v1.13.6")
 	require.NoError(t, err)
 	assert.False(t, changed)
 
 	// same version, different factory: must count as a change
-	changed, err = setImage(ctx, st, factoryHost, "factory-enterprise.staging.talos.dev/metal-installer/abcd1234:v1.13.6")
+	changed, err = setImage(ctx, st, factoryHosts, "factory-enterprise.staging.talos.dev/metal-installer/abcd1234:v1.13.6")
 	require.NoError(t, err)
 	assert.True(t, changed)
 }

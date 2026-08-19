@@ -235,6 +235,7 @@ func (m *MachineSpec) CloneVT() *MachineSpec {
 	r.Uuid = m.Uuid
 	r.Schematic = m.Schematic
 	r.TalosVersion = m.TalosVersion
+	r.BootFactoryHost = m.BootFactoryHost
 	if len(m.unknownFields) > 0 {
 		r.unknownFields = make([]byte, len(m.unknownFields))
 		copy(r.unknownFields, m.unknownFields)
@@ -257,7 +258,7 @@ func (m *MachineTaskSpec) CloneVT() *MachineTaskSpec {
 	r.TalosVersion = m.TalosVersion
 	r.ConnectionArgs = m.ConnectionArgs
 	r.SecureBoot = m.SecureBoot
-	r.BootFactoryUrl = m.BootFactoryUrl
+	r.BootFactoryHost = m.BootFactoryHost
 	if len(m.unknownFields) > 0 {
 		r.unknownFields = make([]byte, len(m.unknownFields))
 		copy(r.unknownFields, m.unknownFields)
@@ -540,6 +541,9 @@ func (this *MachineSpec) EqualVT(that *MachineSpec) bool {
 	if this.TalosVersion != that.TalosVersion {
 		return false
 	}
+	if this.BootFactoryHost != that.BootFactoryHost {
+		return false
+	}
 	return string(this.unknownFields) == string(that.unknownFields)
 }
 
@@ -574,7 +578,7 @@ func (this *MachineTaskSpec) EqualVT(that *MachineTaskSpec) bool {
 	if this.SecureBoot != that.SecureBoot {
 		return false
 	}
-	if this.BootFactoryUrl != that.BootFactoryUrl {
+	if this.BootFactoryHost != that.BootFactoryHost {
 		return false
 	}
 	return string(this.unknownFields) == string(that.unknownFields)
@@ -1141,6 +1145,13 @@ func (m *MachineSpec) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		i -= len(m.unknownFields)
 		copy(dAtA[i:], m.unknownFields)
 	}
+	if len(m.BootFactoryHost) > 0 {
+		i -= len(m.BootFactoryHost)
+		copy(dAtA[i:], m.BootFactoryHost)
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.BootFactoryHost)))
+		i--
+		dAtA[i] = 0x2a
+	}
 	if len(m.TalosVersion) > 0 {
 		i -= len(m.TalosVersion)
 		copy(dAtA[i:], m.TalosVersion)
@@ -1200,10 +1211,10 @@ func (m *MachineTaskSpec) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		i -= len(m.unknownFields)
 		copy(dAtA[i:], m.unknownFields)
 	}
-	if len(m.BootFactoryUrl) > 0 {
-		i -= len(m.BootFactoryUrl)
-		copy(dAtA[i:], m.BootFactoryUrl)
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.BootFactoryUrl)))
+	if len(m.BootFactoryHost) > 0 {
+		i -= len(m.BootFactoryHost)
+		copy(dAtA[i:], m.BootFactoryHost)
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.BootFactoryHost)))
 		i--
 		dAtA[i] = 0x3a
 	}
@@ -1472,6 +1483,10 @@ func (m *MachineSpec) SizeVT() (n int) {
 	if l > 0 {
 		n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
 	}
+	l = len(m.BootFactoryHost)
+	if l > 0 {
+		n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
+	}
 	n += len(m.unknownFields)
 	return n
 }
@@ -1504,7 +1519,7 @@ func (m *MachineTaskSpec) SizeVT() (n int) {
 	if m.SecureBoot {
 		n += 2
 	}
-	l = len(m.BootFactoryUrl)
+	l = len(m.BootFactoryHost)
 	if l > 0 {
 		n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
 	}
@@ -2954,6 +2969,38 @@ func (m *MachineSpec) UnmarshalVT(dAtA []byte) error {
 			}
 			m.TalosVersion = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
+		case 5:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field BootFactoryHost", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.BootFactoryHost = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
 			skippy, err := protohelpers.Skip(dAtA[iNdEx:])
@@ -3174,7 +3221,7 @@ func (m *MachineTaskSpec) UnmarshalVT(dAtA []byte) error {
 			m.SecureBoot = bool(v != 0)
 		case 7:
 			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field BootFactoryUrl", wireType)
+				return fmt.Errorf("proto: wrong wireType = %d for field BootFactoryHost", wireType)
 			}
 			var stringLen uint64
 			for shift := uint(0); ; shift += 7 {
@@ -3202,7 +3249,7 @@ func (m *MachineTaskSpec) UnmarshalVT(dAtA []byte) error {
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			m.BootFactoryUrl = string(dAtA[iNdEx:postIndex])
+			m.BootFactoryHost = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
 		default:
 			iNdEx = preIndex

@@ -19,20 +19,22 @@ import (
 	"github.com/siderolabs/go-api-signature/pkg/pgp"
 	"github.com/siderolabs/go-api-signature/pkg/serviceaccount"
 	"github.com/siderolabs/go-debug"
+	"github.com/siderolabs/image-factory/pkg/schematic"
 	"github.com/siderolabs/omni/client/pkg/access"
 	"github.com/siderolabs/omni/client/pkg/client"
+	omnicli "github.com/siderolabs/omni/client/pkg/client/omni"
+	"github.com/siderolabs/omni/client/pkg/imagefactory"
 	"github.com/siderolabs/omni/client/pkg/infra"
+	"github.com/siderolabs/omni/client/pkg/infra/provision"
 	"github.com/siderolabs/omni/client/pkg/omni/resources/auth"
 	infrares "github.com/siderolabs/omni/client/pkg/omni/resources/infra"
-	omniresources "github.com/siderolabs/omni/client/pkg/omni/resources/omni"
 	"github.com/siderolabs/omni/client/pkg/panichandler"
 	"github.com/spf13/cobra"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 
-	emuconst "github.com/siderolabs/talemu/internal/pkg/constants"
+	"github.com/siderolabs/talemu/internal/pkg/bootmedia"
 	emuruntime "github.com/siderolabs/talemu/internal/pkg/emu"
-	"github.com/siderolabs/talemu/internal/pkg/factory"
 	"github.com/siderolabs/talemu/internal/pkg/kubefactory"
 	"github.com/siderolabs/talemu/internal/pkg/machine/network"
 	"github.com/siderolabs/talemu/internal/pkg/machine/runtime"
@@ -40,7 +42,6 @@ import (
 	"github.com/siderolabs/talemu/internal/pkg/provider"
 	"github.com/siderolabs/talemu/internal/pkg/provider/clientconfig"
 	"github.com/siderolabs/talemu/internal/pkg/provider/meta"
-	"github.com/siderolabs/talemu/internal/pkg/schematic"
 	"github.com/siderolabs/talemu/internal/version"
 )
 
@@ -64,39 +65,36 @@ var rootCmd = &cobra.Command{
 			return err
 		}
 
-		config := clientconfig.New(cfg.omniAPIEndpoint)
+		// There is no infra provider without an Omni to serve, so this is required rather than defaulted.
+		if cfg.omniAPIEndpoint == "" {
+			return errors.New("--omni-api-endpoint is required: an infra provider only works against an Omni instance")
+		}
 
-		omniClient, err := config.GetClient()
+		if cfg.createServiceAccount {
+			if err = createServiceAccountWithRetries(cmd.Context(), logger); err != nil {
+				return err
+			}
+		}
+
+		if cfg.serviceAccountKey == "" {
+			return errors.New("no Omni service account key: pass --key, set OMNI_SERVICE_ACCOUNT_KEY, or use --create-service-account against an Omni debug build")
+		}
+
+		omniClient, err := client.New(
+			cfg.omniAPIEndpoint,
+			client.WithServiceAccount(cfg.serviceAccountKey),
+			client.WithInsecureSkipTLSVerify(true),
+			client.WithOmniClientOptions(omnicli.WithProviderID(meta.ProviderID)),
+		)
 		if err != nil {
 			return err
 		}
+
 		defer omniClient.Close() //nolint:errcheck
 
-		if cfg.createServiceAccount {
-			logger.Info("creating service account")
-
-			for {
-				err = createServiceAccount(cmd.Context(), omniClient, logger)
-				if err == nil {
-					break
-				}
-
-				logger.Error("failed to create service account", zap.Error(err))
-
-				select {
-				case <-cmd.Context().Done():
-					return err
-				case <-time.After(time.Second * 5):
-				}
-
-				// Close and re-open client to reset the gRPC backoff
-				omniClient.Close() //nolint:errcheck
-
-				omniClient, err = config.GetClient()
-				if err != nil {
-					return err
-				}
-			}
+		omniState, err := infra.NewState(omniClient)
+		if err != nil {
+			return err
 		}
 
 		if err = os.MkdirAll("_out/state", 0o755); err != nil && !errors.Is(err, os.ErrExist) {
@@ -143,38 +141,30 @@ var rootCmd = &cobra.Command{
 			return err
 		}
 
-		featuresConfig, err := safe.ReaderGetByID[*omniresources.FeaturesConfig](cmd.Context(), omniClient.Omni().State(), omniresources.FeaturesConfigID)
+		source, err := bootmedia.NewOmniSource(cmd.Context(), cfg.schematicCacheDir, omniClient,
+			logger.With(zap.String("component", "boot_media")))
 		if err != nil {
 			return err
 		}
 
-		imageFactoryBaseURL := featuresConfig.TypedSpec().Value.GetImageFactoryBaseUrl()
-		if imageFactoryBaseURL == "" {
-			imageFactoryBaseURL = emuconst.DefaultImageFactoryBaseURL
-		}
-
-		schematicService, err := schematic.NewService(
-			cfg.schematicCacheDir, imageFactoryBaseURL,
-			os.Getenv(emuconst.ImageFactoryUsernameEnv), os.Getenv(emuconst.ImageFactoryPasswordEnv),
-			logger.With(zap.String("component", "schematic_service")),
-		)
-		if err != nil {
-			return err
-		}
-
-		enterpriseChecker := factory.NewEnterpriseChecker()
-
-		if err = provider.RegisterControllers(runtime, kubernetes, nc, schematicService, enterpriseChecker, cfg.nodeProxyingDisabled); err != nil {
+		if err = provider.RegisterControllers(runtime, kubernetes, nc, source, cfg.nodeProxyingDisabled); err != nil {
 			return err
 		}
 
 		eg, ctx := panichandler.ErrGroupWithContext(cmd.Context())
 
 		eg.Go(func() error {
-			return ip.Run(ctx, logger, infra.WithOmniEndpoint(cfg.omniAPIEndpoint), infra.WithClientOptions(
-				client.WithServiceAccount(cfg.serviceAccountKey),
-				client.WithInsecureSkipTLSVerify(true),
-			), infra.WithEncodeRequestIDsIntoTokens(), infra.WithVersion(version.Tag))
+			// WithState hands the runtime the client built above instead of letting it open a second one.
+			// That leaves it without a way to reach Omni for boot assets, so the resolver it would have
+			// built for itself is supplied explicitly over the same client.
+			return ip.Run(ctx, logger,
+				infra.WithState(omniState.State()),
+				infra.WithBootAssetResolver(
+					func(ctx context.Context, talosVersion string, sch schematic.Schematic, spec provision.BootAssetSpec) (imagefactory.BootAsset, error) {
+						return infra.EnsureBootAsset(ctx, omniClient, talosVersion, sch, spec)
+					},
+				),
+				infra.WithEncodeRequestIDsIntoTokens(), infra.WithVersion(version.Tag))
 		})
 
 		eg.Go(func() error {
@@ -189,6 +179,41 @@ var rootCmd = &cobra.Command{
 
 		return eg.Wait()
 	},
+}
+
+// createServiceAccountWithRetries mints the provider's own service account and stores its key in the config.
+//
+// This runs over the debug bootstrap client, which registers a throwaway key for a test user and confirms it
+// with a header only an Omni built with the sidero.debug tag honors. The provider itself never uses that
+// client: everything after this point goes through the service account created here.
+func createServiceAccountWithRetries(ctx context.Context, logger *zap.Logger) error {
+	logger.Info("creating service account")
+
+	config := clientconfig.New(cfg.omniAPIEndpoint)
+
+	for {
+		rootClient, err := config.GetClient()
+		if err != nil {
+			return err
+		}
+
+		err = createServiceAccount(ctx, rootClient, logger)
+
+		// Closed and re-opened on every attempt to reset the gRPC backoff.
+		rootClient.Close() //nolint:errcheck
+
+		if err == nil {
+			return nil
+		}
+
+		logger.Error("failed to create service account", zap.Error(err))
+
+		select {
+		case <-ctx.Done():
+			return err
+		case <-time.After(time.Second * 5):
+		}
+	}
 }
 
 func createServiceAccount(ctx context.Context, rootClient *client.Client, logger *zap.Logger) error {
@@ -240,7 +265,6 @@ func createServiceAccount(ctx context.Context, rootClient *client.Client, logger
 var cfg struct {
 	omniAPIEndpoint      string
 	serviceAccountKey    string
-	kernelArgs           string
 	schematicCacheDir    string
 	createServiceAccount bool
 	nodeProxyingDisabled bool

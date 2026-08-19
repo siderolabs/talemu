@@ -20,13 +20,20 @@ const KubeletService = "kubelet"
 // DefaultImageFactoryBaseURL is the default URL for the Talos image factory.
 const DefaultImageFactoryBaseURL = "https://factory.talos.dev"
 
+// EmulatedArchitecture is the architecture the emulated machines claim, in the version they report and
+// in the boot media they are provisioned from. Nothing here runs a real image, so it is a claim rather
+// than a property of the host.
+const EmulatedArchitecture = "amd64"
+
 // OfficialExtensionPrefix is the prefix for official extensions.
 const OfficialExtensionPrefix = "siderolabs/"
 
-// ImageFactoryUsernameEnv is the environment variable carrying the optional basic auth username
-// for the image factory, needed for schematic reads against an enterprise image factory.
+// ImageFactoryUsernameEnv is the environment variable carrying the optional basic auth username for the
+// image factory, needed for schematic reads against an enterprise image factory.
+//
+// Only for the static mode that is pointed at a factory directly.
 const ImageFactoryUsernameEnv = "TALEMU_IMAGE_FACTORY_USERNAME"
 
-// ImageFactoryPasswordEnv is the environment variable carrying the optional basic auth password
-// for the image factory.
+// ImageFactoryPasswordEnv is the environment variable carrying the optional basic auth password for the
+// image factory. See [ImageFactoryUsernameEnv].
 const ImageFactoryPasswordEnv = "TALEMU_IMAGE_FACTORY_PASSWORD"

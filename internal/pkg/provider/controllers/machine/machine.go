@@ -12,12 +12,11 @@ import (
 	"github.com/cosi-project/runtime/pkg/task"
 	"go.uber.org/zap"
 
+	"github.com/siderolabs/talemu/internal/pkg/bootmedia"
 	"github.com/siderolabs/talemu/internal/pkg/kubefactory"
 	"github.com/siderolabs/talemu/internal/pkg/machine"
-	"github.com/siderolabs/talemu/internal/pkg/machine/controllers"
 	"github.com/siderolabs/talemu/internal/pkg/machine/network"
 	"github.com/siderolabs/talemu/internal/pkg/provider/resources"
-	"github.com/siderolabs/talemu/internal/pkg/schematic"
 )
 
 // TaskSpec runs fake machine.
@@ -26,8 +25,7 @@ type TaskSpec struct {
 
 	Machine              *resources.MachineTask
 	GlobalState          state.State
-	SchematicService     *schematic.Service
-	EnterpriseChecker    controllers.EnterpriseChecker
+	Source               bootmedia.Source
 	Params               *machine.SideroLinkParams
 	Kubernetes           *kubefactory.Kubernetes
 	NC                   *network.Client
@@ -46,7 +44,7 @@ func (s TaskSpec) Equal(other TaskSpec) bool {
 
 // RunTask implements task.TaskSpec.
 func (s TaskSpec) RunTask(ctx context.Context, logger *zap.Logger, _ any) error {
-	m, err := machine.NewMachine(s.Machine.TypedSpec().Value.Uuid, logger, s.GlobalState, s.SchematicService, s.EnterpriseChecker)
+	m, err := machine.NewMachine(s.Machine.TypedSpec().Value.Uuid, logger, s.GlobalState, s.Source)
 	if err != nil {
 		return err
 	}
@@ -63,6 +61,6 @@ func (s TaskSpec) RunTask(ctx context.Context, logger *zap.Logger, _ any) error 
 		machine.WithNetworkClient(s.NC),
 		machine.WithSecureBoot(s.Machine.TypedSpec().Value.SecureBoot),
 		machine.WithNodeProxyingDisabled(s.NodeProxyingDisabled),
-		machine.WithBootFactoryURL(s.Machine.TypedSpec().Value.BootFactoryUrl),
+		machine.WithBootFactoryHost(s.Machine.TypedSpec().Value.BootFactoryHost),
 	)
 }

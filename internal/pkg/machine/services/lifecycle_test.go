@@ -26,10 +26,9 @@ import (
 	"github.com/siderolabs/talemu/internal/pkg/machine/services"
 )
 
-const (
-	factoryHost    = "factory.talos.dev"
-	lifecycleImage = "factory.talos.dev/installer/abc123:v1.14.0"
-)
+const lifecycleImage = "factory.talos.dev/installer/abc123:v1.14.0"
+
+var factoryHosts = []string{"factory.talos.dev"}
 
 // blockingInstallServer blocks inside the first Send until released, keeping the install in flight.
 type blockingInstallServer struct {
@@ -76,7 +75,7 @@ func installRequest(disk string) *machine.LifecycleServiceInstallRequest {
 
 func TestLifecycleInstall(t *testing.T) {
 	st := newLifecycleState(t, false)
-	svc := services.NewLifecycleService(st, factoryHost, zaptest.NewLogger(t), nil)
+	svc := services.NewLifecycleService(st, factoryHosts, zaptest.NewLogger(t), nil)
 
 	srv := &recordingStream[*machine.LifecycleServiceInstallResponse]{ctx: t.Context()}
 	require.NoError(t, svc.Install(installRequest("/dev/sda"), srv))
@@ -93,7 +92,7 @@ func TestLifecycleInstall(t *testing.T) {
 
 func TestLifecycleInstallEmptyImage(t *testing.T) {
 	st := newLifecycleState(t, false)
-	svc := services.NewLifecycleService(st, factoryHost, zaptest.NewLogger(t), nil)
+	svc := services.NewLifecycleService(st, factoryHosts, zaptest.NewLogger(t), nil)
 
 	err := svc.Install(&machine.LifecycleServiceInstallRequest{
 		Source:      &machine.InstallArtifactsSource{ImageName: ""},
@@ -104,7 +103,7 @@ func TestLifecycleInstallEmptyImage(t *testing.T) {
 
 func TestLifecycleInstallEmptyDisk(t *testing.T) {
 	st := newLifecycleState(t, false)
-	svc := services.NewLifecycleService(st, factoryHost, zaptest.NewLogger(t), nil)
+	svc := services.NewLifecycleService(st, factoryHosts, zaptest.NewLogger(t), nil)
 
 	err := svc.Install(installRequest(""), &recordingStream[*machine.LifecycleServiceInstallResponse]{ctx: t.Context()})
 	require.Equal(t, codes.InvalidArgument, status.Code(err))
@@ -112,7 +111,7 @@ func TestLifecycleInstallEmptyDisk(t *testing.T) {
 
 func TestLifecycleInstallAlreadyInstalled(t *testing.T) {
 	st := newLifecycleState(t, false)
-	svc := services.NewLifecycleService(st, factoryHost, zaptest.NewLogger(t), nil)
+	svc := services.NewLifecycleService(st, factoryHosts, zaptest.NewLogger(t), nil)
 
 	require.NoError(t, svc.Install(installRequest("/dev/sda"), &recordingStream[*machine.LifecycleServiceInstallResponse]{ctx: t.Context()}))
 
@@ -122,7 +121,7 @@ func TestLifecycleInstallAlreadyInstalled(t *testing.T) {
 
 func TestLifecycleInstallSecureBootRejectsNonSecurebootImage(t *testing.T) {
 	st := newLifecycleState(t, true)
-	svc := services.NewLifecycleService(st, factoryHost, zaptest.NewLogger(t), nil)
+	svc := services.NewLifecycleService(st, factoryHosts, zaptest.NewLogger(t), nil)
 
 	err := svc.Install(installRequest("/dev/sda"), &recordingStream[*machine.LifecycleServiceInstallResponse]{ctx: t.Context()})
 	require.Equal(t, codes.InvalidArgument, status.Code(err))
@@ -130,7 +129,7 @@ func TestLifecycleInstallSecureBootRejectsNonSecurebootImage(t *testing.T) {
 
 func TestLifecycleUpgradeNotInstalled(t *testing.T) {
 	st := newLifecycleState(t, false)
-	svc := services.NewLifecycleService(st, factoryHost, zaptest.NewLogger(t), nil)
+	svc := services.NewLifecycleService(st, factoryHosts, zaptest.NewLogger(t), nil)
 
 	err := svc.Upgrade(&machine.LifecycleServiceUpgradeRequest{
 		Source: &machine.InstallArtifactsSource{ImageName: lifecycleImage},
@@ -140,7 +139,7 @@ func TestLifecycleUpgradeNotInstalled(t *testing.T) {
 
 func TestLifecycleUpgrade(t *testing.T) {
 	st := newLifecycleState(t, false)
-	svc := services.NewLifecycleService(st, factoryHost, zaptest.NewLogger(t), nil)
+	svc := services.NewLifecycleService(st, factoryHosts, zaptest.NewLogger(t), nil)
 
 	require.NoError(t, svc.Install(installRequest("/dev/sda"), &recordingStream[*machine.LifecycleServiceInstallResponse]{ctx: t.Context()}))
 
@@ -163,7 +162,7 @@ func TestLifecycleUpgrade(t *testing.T) {
 
 func TestLifecycleConcurrentOperationRejected(t *testing.T) {
 	st := newLifecycleState(t, false)
-	svc := services.NewLifecycleService(st, factoryHost, zaptest.NewLogger(t), nil)
+	svc := services.NewLifecycleService(st, factoryHosts, zaptest.NewLogger(t), nil)
 
 	blocking := &blockingInstallServer{
 		ctx:     t.Context(),
@@ -189,7 +188,7 @@ func TestLifecycleConcurrentOperationRejected(t *testing.T) {
 
 func TestLifecycleUpgradeSecureBootRejectsNonSecurebootImage(t *testing.T) {
 	st := newLifecycleState(t, true)
-	svc := services.NewLifecycleService(st, factoryHost, zaptest.NewLogger(t), nil)
+	svc := services.NewLifecycleService(st, factoryHosts, zaptest.NewLogger(t), nil)
 
 	err := svc.Upgrade(&machine.LifecycleServiceUpgradeRequest{
 		Source: &machine.InstallArtifactsSource{ImageName: lifecycleImage},
