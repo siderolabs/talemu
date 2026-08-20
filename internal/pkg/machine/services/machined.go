@@ -87,8 +87,12 @@ func (c *MachineService) ApplyConfiguration(ctx context.Context, request *machin
 	isPartialConfig := cfg.Config().Machine() == nil
 
 	if !isPartialConfig {
-		if err = validateInstaller(ctx, c.state, cfg.Config().Machine().Install().Image()); err != nil {
-			return nil, err
+		// Talos 1.14 dropped .machine.install from the generated config, so there is no installer image to
+		// check here. The install and upgrade paths carry the image explicitly and validate it themselves.
+		if installImage := cfg.Config().Machine().Install().Image(); installImage != "" {
+			if err = validateInstaller(ctx, c.state, installImage); err != nil {
+				return nil, err
+			}
 		}
 	}
 

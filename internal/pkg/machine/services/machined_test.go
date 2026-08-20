@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/cosi-project/runtime/pkg/safe"
 	"github.com/cosi-project/runtime/pkg/state"
 	"github.com/cosi-project/runtime/pkg/state/impl/inmem"
 	"github.com/cosi-project/runtime/pkg/state/impl/namespaced"
@@ -21,6 +22,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
+	"github.com/siderolabs/talemu/internal/pkg/machine/runtime/resources/emu"
 	"github.com/siderolabs/talemu/internal/pkg/machine/services"
 )
 
@@ -89,6 +91,93 @@ url: "tcp://[fdae:41e4:649b:9303::1]:8092"`
 	require.NoError(t, err)
 
 	require.Equal(t, machine.ApplyConfigurationRequest_NO_REBOOT, resp.Messages[0].Mode)
+}
+
+const (
+	testMachineID = "test-machine-id"
+	testClusterID = "TqxlaYi/ModMwxjC8OCOgYFSh+ODSt7eB/exsuyUpJs="
+)
+
+// completeConfig is a Talos 1.14 style config as Omni generates it: no .machine.install section, since the
+// install image reaches the machine through the install and upgrade APIs instead.
+const completeConfig = `version: v1alpha1
+machine:
+    type: worker
+cluster: {}
+---
+apiVersion: v1alpha1
+kind: DiscoveryIdentityConfig
+clusterID: TqxlaYi/ModMwxjC8OCOgYFSh+ODSt7eB/exsuyUpJs=
+clusterSecret: c2VjcmV0
+`
+
+// legacyConfigWithInstallImage is the pre-1.14 equivalent, which still carries the installer image.
+const legacyConfigWithInstallImage = `version: v1alpha1
+machine:
+    type: worker
+    install:
+        image: factory.talos.dev/metal-installer/abc123:v1.13.8
+cluster: {}
+---
+apiVersion: v1alpha1
+kind: DiscoveryIdentityConfig
+clusterID: TqxlaYi/ModMwxjC8OCOgYFSh+ODSt7eB/exsuyUpJs=
+clusterSecret: c2VjcmV0
+`
+
+// newMachineServiceWithSecurityState builds a MachineService over a state carrying the SecurityState that
+// validateInstaller reads, plus the global MachineStatus that applying a complete config updates.
+func newMachineServiceWithSecurityState(t *testing.T, secureBoot bool) (*services.MachineService, state.State) {
+	t.Helper()
+
+	globalState := state.WrapCore(namespaced.NewState(inmem.Build))
+
+	require.NoError(t, globalState.Create(t.Context(), emu.NewMachineStatus(emu.NamespaceName, testMachineID)))
+
+	return services.NewMachineService(
+		testMachineID,
+		newLifecycleState(t, secureBoot),
+		globalState,
+		factoryHosts,
+		zaptest.NewLogger(t),
+		nil,
+	), globalState
+}
+
+// TestApplyCompleteConfigWithoutInstallImage asserts a secure boot machine accepts a config that carries no
+// installer image, which is every config generated for Talos 1.14 and later.
+func TestApplyCompleteConfigWithoutInstallImage(t *testing.T) {
+	svc, globalState := newMachineServiceWithSecurityState(t, true)
+
+	resp, err := svc.ApplyConfiguration(t.Context(), &machine.ApplyConfigurationRequest{
+		Data: []byte(completeConfig),
+		Mode: machine.ApplyConfigurationRequest_AUTO,
+	})
+	require.NoError(t, err)
+	require.Equal(t, machine.ApplyConfigurationRequest_REBOOT, resp.Messages[0].Mode) //nolint:staticcheck
+
+	// the machine got allocated to the cluster the config identifies, which only happens once the apply runs
+	// all the way through
+	machineStatus, err := safe.ReaderGetByID[*emu.MachineStatus](t.Context(), globalState, testMachineID)
+	require.NoError(t, err)
+
+	cluster, _ := machineStatus.Metadata().Labels().Get(emu.LabelCluster)
+	require.Equal(t, testClusterID, cluster)
+
+	_, isWorker := machineStatus.Metadata().Labels().Get(emu.LabelWorkerRole)
+	require.True(t, isWorker)
+}
+
+// TestApplyCompleteConfigNonSecureBootInstallImage asserts that a config which does carry an installer image is
+// still checked against the secure boot state of the machine.
+func TestApplyCompleteConfigNonSecureBootInstallImage(t *testing.T) {
+	svc, _ := newMachineServiceWithSecurityState(t, true)
+
+	_, err := svc.ApplyConfiguration(t.Context(), &machine.ApplyConfigurationRequest{
+		Data: []byte(legacyConfigWithInstallImage),
+		Mode: machine.ApplyConfigurationRequest_AUTO,
+	})
+	require.Equal(t, codes.InvalidArgument, status.Code(err))
 }
 
 func TestReadBootID(t *testing.T) {
