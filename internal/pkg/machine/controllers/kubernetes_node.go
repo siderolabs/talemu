@@ -23,6 +23,7 @@ import (
 	"github.com/siderolabs/talos/pkg/machinery/resources/hardware"
 	"github.com/siderolabs/talos/pkg/machinery/resources/k8s"
 	"github.com/siderolabs/talos/pkg/machinery/resources/network"
+	"github.com/siderolabs/talos/pkg/machinery/resources/runtime"
 	"github.com/siderolabs/talos/pkg/machinery/resources/secrets"
 	"github.com/siderolabs/talos/pkg/machinery/resources/v1alpha1"
 	"go.uber.org/zap"
@@ -119,6 +120,12 @@ func (ctrl *KubernetesNodeController) Inputs() []controller.Input {
 		{
 			Namespace: hardware.NamespaceName,
 			Type:      hardware.ProcessorType,
+			Kind:      controller.InputWeak,
+		},
+		{
+			Namespace: runtime.NamespaceName,
+			Type:      runtime.KernelCmdlineType,
+			ID:        optional.Some(runtime.KernelCmdlineID),
 			Kind:      controller.InputWeak,
 		},
 	}
@@ -282,6 +289,18 @@ func (ctrl *KubernetesNodeController) computeNodeStatus(ctx context.Context, r c
 		Status:  v1.ConditionTrue,
 		Message: "kubelet is posting ready status",
 	}}
+
+	// A machine broken on purpose reports its node as not ready, like a real broken kubelet would.
+	stuck, err := stuckBooting(ctx, r)
+	if err != nil {
+		return nil, err
+	}
+
+	if stuck {
+		conditions[0].Reason = "KubeletNotReady"
+		conditions[0].Status = v1.ConditionFalse
+		conditions[0].Message = "kubelet is unhealthy: the boot media carries " + constants.StuckBootingKernelArg
+	}
 
 	systemInformation, err := safe.ReaderGetByID[*hardware.SystemInformation](ctx, r, hardware.SystemInformationID)
 	if err != nil && !state.IsNotFoundError(err) {

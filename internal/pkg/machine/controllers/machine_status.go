@@ -8,6 +8,8 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
+	"slices"
+	"strings"
 
 	"github.com/cosi-project/runtime/pkg/controller"
 	"github.com/cosi-project/runtime/pkg/resource"
@@ -69,6 +71,12 @@ func (ctrl *MachineStatusController) Inputs() []controller.Input {
 			Namespace: talos.NamespaceName,
 			ID:        optional.Some(talos.RebootID),
 			Type:      talos.RebootStatusType,
+			Kind:      controller.InputWeak,
+		},
+		{
+			Namespace: runtime.NamespaceName,
+			Type:      runtime.KernelCmdlineType,
+			ID:        optional.Some(runtime.KernelCmdlineID),
 			Kind:      controller.InputWeak,
 		},
 	}
@@ -152,6 +160,20 @@ func (ctrl *MachineStatusController) Run(ctx context.Context, r controller.Runti
 
 				return fmt.Errorf("failed to query %w", err)
 			}
+		}
+
+		stuck, err := stuckBooting(ctx, r)
+		if err != nil {
+			return err
+		}
+
+		if stuck {
+			stage = runtime.MachineStageBooting
+
+			unmetConditions = append(unmetConditions, runtime.UnmetCondition{
+				Name:   "serviceNotReady",
+				Reason: "kubelet is unhealthy: the boot media carries " + emuconst.StuckBootingKernelArg,
+			})
 		}
 
 		if reboot != nil {
@@ -316,4 +338,19 @@ func (ctrl *MachineStatusController) checkServicesReady(ctx context.Context, r c
 	}
 
 	return conditions, nil
+}
+
+// stuckBooting reports whether the emulated boot media carries the magic kernel arg that makes the
+// machine act broken (see [emuconst.StuckBootingKernelArg]).
+func stuckBooting(ctx context.Context, r controller.Runtime) (bool, error) {
+	cmdline, err := safe.ReaderGetByID[*runtime.KernelCmdline](ctx, r, runtime.KernelCmdlineID)
+	if err != nil {
+		if state.IsNotFoundError(err) {
+			return false, nil
+		}
+
+		return false, err
+	}
+
+	return slices.Contains(strings.Fields(cmdline.TypedSpec().Cmdline), emuconst.StuckBootingKernelArg), nil
 }
