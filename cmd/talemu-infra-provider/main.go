@@ -155,13 +155,13 @@ var rootCmd = &cobra.Command{
 
 		eg.Go(func() error {
 			// WithState hands the runtime the client built above instead of letting it open a second one.
-			// That leaves it without a way to reach Omni for boot assets, so the resolver it would have
-			// built for itself is supplied explicitly over the same client.
+			// That leaves it without a way to reach Omni for installation media, so the resolver it would
+			// have built for itself is supplied explicitly over the same client.
 			return ip.Run(ctx, logger,
 				infra.WithState(omniState.State()),
-				infra.WithBootAssetResolver(
-					func(ctx context.Context, talosVersion string, sch schematic.Schematic, spec provision.BootAssetSpec) (imagefactory.BootAsset, error) {
-						return infra.EnsureBootAsset(ctx, omniClient, talosVersion, sch, spec)
+				infra.WithInstallationMediaResolver(
+					func(ctx context.Context, talosVersion string, sch schematic.Schematic, spec provision.MediaSpec) (imagefactory.InstallationMedia, error) {
+						return infra.EnsureInstallationMedia(ctx, omniClient, talosVersion, sch, spec)
 					},
 				),
 				infra.WithEncodeRequestIDsIntoTokens(), infra.WithVersion(version.Tag))

@@ -84,23 +84,23 @@ func (p *Provisioner) ProvisionSteps() []provision.Step[*resources.Machine] {
 					machine.TypedSpec().Value.Uuid = fmt.Sprintf("%06d03-c798-4da7-a410-f09abb48c8d8", machine.TypedSpec().Value.Slot)
 				}
 
-				asset, assetErr := pctx.EnsureBootAsset(ctx, logger, provision.BootAssetSpec{
-					AssetSpec: imagefactory.AssetSpec{
-						Kind:         imagefactory.BootAssetKindISO,
+				media, mediaErr := pctx.EnsureInstallationMedia(ctx, logger, provision.MediaSpec{
+					MediaSpec: imagefactory.MediaSpec{
+						Kind:         imagefactory.InstallationMediaKindISO,
 						Platform:     talosconstants.PlatformMetal,
 						Architecture: emuconstants.EmulatedArchitecture,
 						SecureBoot:   pd.SecureBoot,
 					},
 				}, provision.WithoutConnectionParams())
-				if assetErr != nil {
-					return fmt.Errorf("failed to ensure the boot asset of the machine: %w", assetErr)
+				if mediaErr != nil {
+					return fmt.Errorf("failed to ensure the installation media of the machine: %w", mediaErr)
 				}
 
-				machine.TypedSpec().Value.Schematic = asset.SchematicID
+				machine.TypedSpec().Value.Schematic = media.SchematicID
 
-				// The factory that actually built this asset, which is where its schematic is and what decides
+				// The factory that actually built this medium, which is where its schematic is and what decides
 				// the machine identity until an install or an upgrade replaces the image.
-				machine.TypedSpec().Value.BootFactoryHost = asset.ImageFactoryHost
+				machine.TypedSpec().Value.BootFactoryHost = media.ImageFactoryHost
 
 				machine.TypedSpec().Value.TalosVersion = pctx.GetTalosVersion()
 			}

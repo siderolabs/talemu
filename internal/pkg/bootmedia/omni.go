@@ -25,7 +25,7 @@ import (
 //
 // Omni already knows which image factory serves which Talos version, and it holds the credentials for it,
 // so this source configures neither. It reads the endpoints from resources any signed client may read, and
-// it takes the credentials from a boot asset response, which is the one call that hands them to a caller
+// it takes the credentials from an installation media response, which is the one call that hands them to a caller
 // whose role cannot read them directly.
 type OmniSource struct {
 	client    *client.Client
@@ -162,14 +162,14 @@ func (o *OmniSource) headersFor(ctx context.Context, baseURL, schematicID, talos
 	return headers, nil
 }
 
-// fetchHeaders asks Omni for a boot asset and keeps only the headers it answers with.
+// fetchHeaders asks Omni for an installation medium and keeps only the headers it answers with.
 func (o *OmniSource) fetchHeaders(ctx context.Context, schematicID, talosVersion string) (http.Header, error) {
-	resp, err := o.client.Management().GetBootAssetURL(ctx, &management.BootAssetURLRequest{
-		TalosVersion:  talosVersion,
-		SchematicId:   schematicID,
-		BootAssetKind: management.BootAssetURLRequest_BOOT_ASSET_KIND_ISO,
-		Platform:      talosconstants.PlatformMetal,
-		Architecture:  emuconstants.EmulatedArchitecture,
+	resp, err := o.client.Management().GetInstallationMediaURL(ctx, &management.InstallationMediaURLRequest{
+		TalosVersion:          talosVersion,
+		SchematicId:           schematicID,
+		InstallationMediaKind: management.InstallationMediaURLRequest_INSTALLATION_MEDIA_KIND_ISO,
+		Platform:              talosconstants.PlatformMetal,
+		Architecture:          emuconstants.EmulatedArchitecture,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to get the image factory credentials from Omni: %w", err)
@@ -185,7 +185,7 @@ func (o *OmniSource) fetchHeaders(ctx context.Context, schematicID, talosVersion
 }
 
 // withHeaders sends the given headers with every request, which is how the image factory credentials Omni
-// hands out in a boot asset response reach the factory.
+// hands out in an installation media response reach the factory.
 func withHeaders(headers http.Header) factoryclient.Option {
 	return func(o *factoryclient.Options) {
 		if len(headers) == 0 {
