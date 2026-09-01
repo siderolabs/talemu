@@ -19,6 +19,7 @@ import (
 	"go.uber.org/zap/zapcore"
 	"k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apiserver/pkg/server"
+	"k8s.io/client-go/tools/cache"
 	"k8s.io/klog/v2"
 	"k8s.io/kubernetes/cmd/kube-apiserver/app"
 	"k8s.io/kubernetes/cmd/kube-apiserver/app/options"
@@ -85,6 +86,21 @@ func (k *Kubernetes) RunAPIService(ctx context.Context, address, iface, machineI
 	certsDir := filepath.Join("_out/state/machines", machineID, "certs")
 
 	s := options.NewServerRunOptions()
+
+	// Since Kubernetes 1.37 the kube-apiserver registers an informer name in a process-global
+	// registry, defaulting to a hardcoded "kube-apiserver" when unset. talemu runs one embedded
+	// apiserver per emulated control plane machine in a single process, so the name has to be
+	// made unique per machine, otherwise only the first apiserver to start ever comes up and all
+	// others fail with `informer name "kube-apiserver" is already registered`.
+	informerName, err := cache.NewInformerName("kube-apiserver-" + machineID)
+	if err != nil {
+		return err
+	}
+
+	// Release the name so that a restart of the same machine can reclaim it.
+	defer informerName.Release()
+
+	s.InformerName = informerName
 
 	s.ServiceAccountSigningKeyFile = filepath.Join(certsDir, "service-account.key")
 
