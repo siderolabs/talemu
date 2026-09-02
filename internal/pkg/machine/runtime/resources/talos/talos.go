@@ -88,6 +88,7 @@ func Register(ctx context.Context, state state.State) error {
 		&files.EtcFileSpec{},
 		&files.EtcFileStatus{},
 		&hardware.Processor{},
+		&hardware.CPUCore{},
 		&hardware.MemoryModule{},
 		&hardware.SystemInformation{},
 		&hardware.PCIDevice{},

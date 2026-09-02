@@ -9,6 +9,7 @@ import (
 	"context"
 	"fmt"
 	"net/netip"
+	"strconv"
 
 	"github.com/cosi-project/runtime/pkg/resource"
 	"github.com/cosi-project/runtime/pkg/safe"
@@ -218,6 +219,20 @@ func (m *Machine) Run(ctx context.Context, siderolinkParams *SideroLinkParams, s
 	processorInfo.TypedSpec().MaxSpeed = 4000
 	processorInfo.TypedSpec().ProductName = "Fake CPU"
 	processorInfo.TypedSpec().ThreadCount = 2
+
+	// the Linux kernel view of the same CPU: one resource per core, two hardware threads each
+	for core := range processorInfo.TypedSpec().CoreCount {
+		cpuCore := hardware.NewCPUCore(fmt.Sprintf("0-%d", core))
+		cpuCore.TypedSpec().Socket = "0"
+		cpuCore.TypedSpec().CoreID = strconv.Itoa(int(core))
+		cpuCore.TypedSpec().LogicalCPUs = []uint32{core, core + processorInfo.TypedSpec().CoreCount}
+		cpuCore.TypedSpec().VendorID = "qemu"
+		cpuCore.TypedSpec().ModelName = "Fake CPU"
+		cpuCore.TypedSpec().CoresPerSocket = processorInfo.TypedSpec().CoreCount
+		cpuCore.TypedSpec().ThreadsPerSocket = 2 * processorInfo.TypedSpec().CoreCount
+
+		resources = append(resources, cpuCore)
+	}
 
 	securityState := runtime.NewSecurityStateSpec(runtime.NamespaceName)
 	securityState.TypedSpec().SecureBoot = opts.secureBoot
