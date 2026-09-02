@@ -3,8 +3,8 @@ module github.com/siderolabs/talemu
 go 1.26.7
 
 replace (
-	go.yaml.in/yaml/v4 => github.com/oguzkilcan/go-yaml/v4 v4.0.0-20260711085733-86003acec573
-	gopkg.in/yaml.v3 => github.com/unix4ever/yaml v0.0.0-20220527175918-f17b0f05cf2c
+	go.yaml.in/yaml/v4 => github.com/oguzkilcan/go-yaml/v4 c4a5514d019f
+	gopkg.in/yaml.v3 => github.com/unix4ever/yaml/v2 v2.4.0
 	k8s.io/api => k8s.io/api v0.37.0
 	k8s.io/apiextensions-apiserver => k8s.io/apiextensions-apiserver v0.37.0
 	k8s.io/apimachinery => k8s.io/apimachinery v0.37.0
@@ -36,13 +36,13 @@ replace (
 require (
 	github.com/adrg/xdg v0.5.3
 	github.com/akutz/memconn v0.1.0
-	github.com/cenkalti/backoff/v4 v4.3.0
+	github.com/cenkalti/backoff/v7 v7.0.0
 	github.com/cosi-project/runtime v1.16.3
 	github.com/go-logr/zapr v1.3.0
 	github.com/google/uuid v1.6.0
 	github.com/grpc-ecosystem/go-grpc-middleware/v2 v2.3.4
 	github.com/hashicorp/go-multierror v1.1.1
-	github.com/jsimonetti/rtnetlink v1.4.2
+	github.com/jsimonetti/rtnetlink/v2 v2.2.0
 	github.com/jxskiss/base62 v1.1.0
 	github.com/martinlindhe/base36 v1.1.1
 	github.com/mdlayher/arp v0.0.0-20260528070854-93566ba168e9
@@ -65,7 +65,7 @@ require (
 	github.com/siderolabs/grpc-proxy v0.5.2
 	github.com/siderolabs/image-factory v1.6.0
 	github.com/siderolabs/net v0.4.0
-	github.com/siderolabs/omni/client v1.10.0-beta.0.0.20260901120855-92d72412e313
+	github.com/siderolabs/omni/client v1.10.5
 	github.com/siderolabs/siderolink v0.3.17
 	github.com/siderolabs/talos/pkg/machinery v1.14.0-rc.2.0.20260825161121-322de8bf2974
 	github.com/spf13/cobra v1.10.2
