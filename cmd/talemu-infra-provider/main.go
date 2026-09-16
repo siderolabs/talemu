@@ -141,7 +141,7 @@ var rootCmd = &cobra.Command{
 			return err
 		}
 
-		source, err := bootmedia.NewOmniSource(cmd.Context(), cfg.schematicCacheDir, omniClient,
+		source, err := bootmedia.NewOmniSource(cmd.Context(), cfg.schematicCacheDir, omniClient, bootmedia.CredentialsFromEnv(),
 			logger.With(zap.String("component", "boot_media")))
 		if err != nil {
 			return err

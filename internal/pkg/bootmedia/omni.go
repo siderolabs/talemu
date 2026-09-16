@@ -23,10 +23,15 @@ import (
 
 // OmniSource is boot media resolved through the Omni instance the emulator is connected to.
 //
-// Omni already knows which image factory serves which Talos version, and it holds the credentials for it,
-// so this source configures neither. It reads the endpoints from resources any signed client may read, and
-// it takes the credentials from an installation media response, which is the one call that hands them to a caller
-// whose role cannot read them directly.
+// Omni already knows which image factory serves which Talos version, so this source configures no factory.
+// It reads the endpoints from resources any signed client may read.
+//
+// The credentials to read a schematic with come from one of two places. Given explicitly, they are sent to
+// the factory Omni serves the Talos version from, the way the standalone emulator sends them to its
+// configured factory. Otherwise they are taken from an installation media response, which is the one call
+// that hands credentials to a caller whose role cannot read them directly - although a factory Omni holds an
+// API token for authenticates the download inside the URL and hands out no headers at all, so against such a
+// factory only the explicit credentials can read a schematic.
 type OmniSource struct {
 	client    *client.Client
 	factories factoryDirectory
@@ -35,8 +40,12 @@ type OmniSource struct {
 
 	// headers caches the credentials per factory base URL. They are derived from what Omni holds for that
 	// factory, so currently they change only when those credentials are rotated, and re-asking per schematic read
-	// would be a round trip per read.
+	// would be a round trip per read. Unused when credentials are given explicitly.
 	headers map[string]http.Header
+
+	// clientOptions authenticate a client to the factory Omni serves a Talos version from. Empty when no
+	// credentials were given, in which case headers are used.
+	clientOptions []factoryclient.Option
 
 	// probe asks a factory whether it is an enterprise build, which is the only thing here that the factory
 	// itself is the authority on.
@@ -48,9 +57,16 @@ type OmniSource struct {
 }
 
 // NewOmniSource creates a source backed by Omni.
-func NewOmniSource(ctx context.Context, cacheDir string, c *client.Client, logger *zap.Logger) (*OmniSource, error) {
+//
+// The credentials are optional: see OmniSource for what they are used for, and what happens without them.
+func NewOmniSource(ctx context.Context, cacheDir string, c *client.Client, creds Credentials, logger *zap.Logger) (*OmniSource, error) {
 	if logger == nil {
 		logger = zap.NewNop()
+	}
+
+	clientOptions, err := creds.clientOptions()
+	if err != nil {
+		return nil, err
 	}
 
 	clients, err := imagefactory.NewClientsFromState(ctx, c.Omni().State())
@@ -63,19 +79,28 @@ func NewOmniSource(ctx context.Context, cacheDir string, c *client.Client, logge
 	hosts := factories.hosts()
 
 	source := &OmniSource{
-		client:    c,
-		factories: factories,
-		logger:    logger,
-		headers:   map[string]http.Header{},
-		probe:     newEnterpriseProbe(),
-		hosts:     hosts,
+		client:        c,
+		factories:     factories,
+		logger:        logger,
+		headers:       map[string]http.Header{},
+		clientOptions: clientOptions,
+		probe:         newEnterpriseProbe(),
+		hosts:         hosts,
 	}
 
-	if source.reader, err = newSchematicReader(cacheDir, source.clientFor, source.staleCredentials, logger); err != nil {
+	// Explicit credentials cannot go stale under this source, so there is nothing to refetch on a 401 - the
+	// same as the standalone emulator's source.
+	var stale staleCredentialsFunc
+	if len(clientOptions) == 0 {
+		stale = source.staleCredentials
+	}
+
+	if source.reader, err = newSchematicReader(cacheDir, source.clientFor, stale, logger); err != nil {
 		return nil, err
 	}
 
-	logger.Info("resolved the image factories Omni is configured with", zap.Strings("hosts", hosts))
+	logger.Info("resolved the image factories Omni is configured with",
+		zap.Strings("hosts", hosts), zap.Bool("explicit_credentials", len(clientOptions) > 0))
 
 	return source, nil
 }
@@ -103,14 +128,15 @@ func (o *OmniSource) IsEnterprise(ctx context.Context, _, factoryHost string) (b
 	return o.probe.isEnterprise(ctx, o.factories.probeURLFor(factoryHost))
 }
 
-// clientFor returns a client for the factory the image came from, authenticated with what Omni hands out for it.
+// clientFor returns a client for the factory the image came from, authenticated with the explicit credentials
+// when there are any, and with what Omni hands out for it otherwise.
 //
 // Routed by the host on the image reference, which is where the schematic actually is. Routing by Talos version
 // instead would follow Omni to whichever factory serves that version today, and a machine whose image was built
 // before Omni moved the version would be asked of a factory that never had its schematic.
 //
-// Credentials can only be requested per version though, so they are sent only to the factory Omni serves this
-// version from. Any other factory gets an anonymous client, which is also all the old code ever had, and a
+// Either kind of credential belongs to the factory Omni serves this version from, so that is the only one they
+// are sent to. Any other factory gets an anonymous client, which is also all the old code ever had, and a
 // schematic ID is a content hash so any factory holding it holds the same content.
 func (o *OmniSource) clientFor(ctx context.Context, id, talosVersion, factoryHost string) (*factoryclient.Client, error) {
 	serving, err := o.factories.forTalosVersion(ctx, talosVersion)
@@ -119,6 +145,10 @@ func (o *OmniSource) clientFor(ctx context.Context, id, talosVersion, factoryHos
 	}
 
 	if factoryHost == "" || factoryHost == serving.host {
+		if len(o.clientOptions) > 0 {
+			return factoryclient.New(serving.baseURL, o.clientOptions...)
+		}
+
 		headers, headersErr := o.headersFor(ctx, serving.baseURL, id, talosVersion)
 		if headersErr != nil {
 			return nil, headersErr

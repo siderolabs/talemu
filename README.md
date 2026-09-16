@@ -59,7 +59,7 @@ This will spawn one hundred fake Talos nodes.
 ## Infra Provider Mode
 
 An infra provider only works against Omni, so `--omni-api-endpoint` is required.
-Everything it needs from an image factory it asks Omni for, including the credentials, so it takes no factory endpoint of its own and follows Omni across both of the factories it may be configured with.
+Everything it needs from an image factory it asks Omni for, so it takes no factory endpoint of its own and follows Omni across both of the factories it may be configured with.
 
 ### Running as executable
 
@@ -74,6 +74,9 @@ Then run:
 ```bash
 sudo -E _out/talemu-infra-provider-linux-amd64 --create-service-account --omni-api-endpoint=https://localhost:8099
 ```
+
+If Omni is configured with an enterprise image factory, hand the emulator the same token through `TALEMU_IMAGE_FACTORY_TOKEN` (or the `TALEMU_IMAGE_FACTORY_USERNAME` / `TALEMU_IMAGE_FACTORY_PASSWORD` pair).
+An infra provider normally needs no factory credentials, but the emulator stands in for Talos and reads schematics to report the extensions and kernel args a real machine would, which an enterprise factory only answers to a full credential.
 
 ### Running in docker
 

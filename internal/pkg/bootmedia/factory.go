@@ -27,13 +27,6 @@ type FactorySource struct {
 	host    string
 }
 
-// Credentials authenticate the schematic reads: an API token or a basic auth pair, both optional.
-type Credentials struct {
-	Username string
-	Password string
-	Token    string
-}
-
 // NewFactorySource creates a source reading from the image factory at the given base URL.
 func NewFactorySource(cacheDir, baseURL string, creds Credentials, logger *zap.Logger) (*FactorySource, error) {
 	parsed, err := url.Parse(baseURL)
@@ -45,19 +38,9 @@ func NewFactorySource(cacheDir, baseURL string, creds Credentials, logger *zap.L
 		return nil, fmt.Errorf("invalid image factory URL %q: scheme and host are required", baseURL)
 	}
 
-	var opts []factoryclient.Option
-
-	switch {
-	case creds.Token != "" && (creds.Username != "" || creds.Password != ""):
-		return nil, fmt.Errorf("either an image factory API token or a basic auth pair is expected, not both")
-	case creds.Token != "":
-		opts = append(opts, factoryclient.WithBearerToken(creds.Token))
-	case creds.Username != "" || creds.Password != "":
-		if creds.Username == "" || creds.Password == "" {
-			return nil, fmt.Errorf("both username and password are required when using image factory basic auth")
-		}
-
-		opts = append(opts, factoryclient.WithBasicAuth(creds.Username, creds.Password))
+	opts, err := creds.clientOptions()
+	if err != nil {
+		return nil, err
 	}
 
 	client, err := factoryclient.New(baseURL, opts...)
