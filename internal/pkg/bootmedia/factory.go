@@ -55,7 +55,7 @@ func NewFactorySource(cacheDir, baseURL string, creds Credentials, logger *zap.L
 		probe:   newEnterpriseProbe(),
 	}
 
-	if source.reader, err = newSchematicReader(cacheDir, source.clientFor, nil, logger); err != nil {
+	if source.reader, err = newSchematicReader(cacheDir, source.clientFor, logger); err != nil {
 		return nil, err
 	}
 

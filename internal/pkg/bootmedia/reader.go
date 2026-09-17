@@ -9,7 +9,6 @@ import (
 	"crypto/sha256"
 	"errors"
 	"fmt"
-	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -27,21 +26,16 @@ const readTimeout = 30 * time.Second
 // clientFunc returns a client able to read the given schematic.
 type clientFunc func(ctx context.Context, id, talosVersion, factoryHost string) (*factoryclient.Client, error)
 
-// staleCredentialsFunc drops whatever credentials a source has cached, so that the next client it builds
-// fetches them again. Nil for a source whose credentials cannot go stale under it.
-type staleCredentialsFunc func()
-
 // schematicReader reads schematics from an image factory, coalescing concurrent reads of the same one and
 // caching what it reads on disk.
 type schematicReader struct {
-	clientFor        clientFunc
-	staleCredentials staleCredentialsFunc
-	logger           *zap.Logger
-	sf               singleflight.Group
-	cacheDir         string
+	clientFor clientFunc
+	logger    *zap.Logger
+	sf        singleflight.Group
+	cacheDir  string
 }
 
-func newSchematicReader(cacheDir string, clientFor clientFunc, staleCredentials staleCredentialsFunc, logger *zap.Logger) (*schematicReader, error) {
+func newSchematicReader(cacheDir string, clientFor clientFunc, logger *zap.Logger) (*schematicReader, error) {
 	if cacheDir == "" {
 		userCacheDir, err := os.UserCacheDir()
 		if err != nil {
@@ -56,10 +50,9 @@ func newSchematicReader(cacheDir string, clientFor clientFunc, staleCredentials 
 	}
 
 	return &schematicReader{
-		cacheDir:         cacheDir,
-		clientFor:        clientFor,
-		staleCredentials: staleCredentials,
-		logger:           logger,
+		cacheDir:  cacheDir,
+		clientFor: clientFor,
+		logger:    logger,
 	}, nil
 }
 
@@ -122,25 +115,10 @@ func (r *schematicReader) readUncoalesced(ctx context.Context, id, talosVersion,
 	return sch, nil
 }
 
-// get reads the schematic from the factory, retrying once with fresh credentials when it does not accept them.
+// get reads the schematic from the factory.
 func (r *schematicReader) get(ctx context.Context, id, talosVersion, factoryHost string) (*schematic.Schematic, error) {
-	sch, err := r.getOnce(ctx, id, talosVersion, factoryHost)
-	if err == nil || r.staleCredentials == nil || !isUnauthenticated(err) {
-		return sch, err
-	}
-
-	r.logger.Info("image factory rejected the credentials, fetching them again",
-		zap.String("id", id), zap.String("factory_host", factoryHost))
-
-	r.staleCredentials()
-
-	return r.getOnce(ctx, id, talosVersion, factoryHost)
-}
-
-func (r *schematicReader) getOnce(ctx context.Context, id, talosVersion, factoryHost string) (*schematic.Schematic, error) {
 	// Resolving the client counts against the same cap as the read: a source may go to Omni to work out which
-	// factory holds the schematic and to ask for the credentials to reach it, so the factory is not the only
-	// thing here that can stop responding.
+	// factory holds the schematic, so the factory is not the only thing here that can stop responding.
 	ctx, cancel := context.WithTimeout(ctx, readTimeout)
 	defer cancel()
 
@@ -155,17 +133,6 @@ func (r *schematicReader) getOnce(ctx context.Context, id, talosVersion, factory
 	}
 
 	return sch, nil
-}
-
-// isUnauthenticated reports whether the factory did not accept the credentials, as opposed to accepting them
-// and refusing the request anyway.
-//
-// Deliberately not 403. A rotated password answers 401, which a fresh set fixes. A 403 means the credentials
-// were accepted and may not do this, which is what a token scoped to image downloads would answer for a
-// schematic read, and refetching the same scope would be refused the same way on every reconcile of every
-// machine. The enterprise image factory already offers Bearer alongside Basic.
-func isUnauthenticated(err error) bool {
-	return factoryclient.IsHTTPErrorCode(err, http.StatusUnauthorized)
 }
 
 // schematicIDLength is how long a schematic ID is: the image factory derives one as the hex encoding of the

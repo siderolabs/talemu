@@ -42,7 +42,7 @@ func TestReaderCachesByID(t *testing.T) {
 	}))
 	t.Cleanup(factory.Close)
 
-	reader, err := newSchematicReader(t.TempDir(), clientForServer(map[string]string{"one": factory.URL}), nil, zaptest.NewLogger(t))
+	reader, err := newSchematicReader(t.TempDir(), clientForServer(map[string]string{"one": factory.URL}), zaptest.NewLogger(t))
 	require.NoError(t, err)
 
 	const id = "1111111111111111111111111111111111111111111111111111111111111111"
@@ -94,7 +94,7 @@ func TestReaderCoalescesPerFactory(t *testing.T) {
 	reader, err := newSchematicReader(t.TempDir(), clientForServer(map[string]string{
 		"missing": notFoundFactory.URL,
 		"holding": holdingFactory.URL,
-	}), nil, zaptest.NewLogger(t))
+	}), zaptest.NewLogger(t))
 	require.NoError(t, err)
 
 	missingResult := make(chan error, 1)
@@ -121,85 +121,6 @@ func TestReaderCoalescesPerFactory(t *testing.T) {
 }
 
 // TestReaderRefreshesStaleCredentials asserts that a factory turning the read away for its credentials makes
-// the reader drop them and try once more, which is what a rotated image factory password looks like.
-func TestReaderRefreshesStaleCredentials(t *testing.T) {
-	t.Parallel()
-
-	var hits atomic.Int64
-
-	factory := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		hits.Add(1)
-
-		if r.Header.Get("Authorization") != "Basic fresh" {
-			w.WriteHeader(http.StatusUnauthorized)
-
-			return
-		}
-
-		w.Write([]byte(schematicBody)) //nolint:errcheck
-	}))
-	t.Cleanup(factory.Close)
-
-	var (
-		credentials atomic.Value
-		staleCalls  atomic.Int64
-	)
-
-	credentials.Store("Basic stale")
-
-	clientFor := func(_ context.Context, _, _, _ string) (*factoryclient.Client, error) {
-		headers := http.Header{}
-		headers.Set("Authorization", credentials.Load().(string)) //nolint:forcetypeassert,errcheck
-
-		return factoryclient.New(factory.URL, withHeaders(headers))
-	}
-
-	staleCredentials := func() {
-		staleCalls.Add(1)
-		credentials.Store("Basic fresh")
-	}
-
-	reader, err := newSchematicReader(t.TempDir(), clientFor, staleCredentials, zaptest.NewLogger(t))
-	require.NoError(t, err)
-
-	got, err := reader.read(t.Context(), "4444444444444444444444444444444444444444444444444444444444444444", "v1.14.0", "one")
-	require.NoError(t, err)
-	assert.Equal(t, []string{"foo=bar"}, got.Customization.ExtraKernelArgs)
-
-	assert.Equal(t, int64(1), staleCalls.Load(), "the credentials should have been dropped exactly once")
-	assert.Equal(t, int64(2), hits.Load(), "the rejected read and the retry")
-}
-
-// TestReaderGivesUpAfterOneRetry asserts that a factory rejecting the fresh credentials too is reported
-// rather than retried forever.
-func TestReaderGivesUpAfterOneRetry(t *testing.T) {
-	t.Parallel()
-
-	var hits atomic.Int64
-
-	factory := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		hits.Add(1)
-
-		w.WriteHeader(http.StatusUnauthorized)
-	}))
-	t.Cleanup(factory.Close)
-
-	var staleCalls atomic.Int64
-
-	reader, err := newSchematicReader(t.TempDir(),
-		clientForServer(map[string]string{"one": factory.URL}),
-		func() { staleCalls.Add(1) },
-		zaptest.NewLogger(t))
-	require.NoError(t, err)
-
-	_, err = reader.read(t.Context(), "5555555555555555555555555555555555555555555555555555555555555555", "v1.14.0", "one")
-	require.Error(t, err)
-
-	assert.Equal(t, int64(1), staleCalls.Load())
-	assert.Equal(t, int64(2), hits.Load(), "one retry, not a loop")
-}
-
-// TestReaderTimesOutResolvingTheClient asserts the read cap is already in place when the client is resolved.
 // Resolving one can go to Omni, both for the factory holding the schematic and for the credentials to reach
 // it, and neither call has a timeout of its own.
 func TestReaderTimesOutResolvingTheClient(t *testing.T) {
@@ -226,7 +147,7 @@ func TestReaderTimesOutResolvingTheClient(t *testing.T) {
 		return factoryclient.New(factory.URL)
 	}
 
-	reader, err := newSchematicReader(t.TempDir(), clientFor, nil, zaptest.NewLogger(t))
+	reader, err := newSchematicReader(t.TempDir(), clientFor, zaptest.NewLogger(t))
 	require.NoError(t, err)
 
 	_, err = reader.read(t.Context(), "6666666666666666666666666666666666666666666666666666666666666666", "v1.14.0", "one")
@@ -254,7 +175,7 @@ func TestReaderReplacesAnUnreadableCacheEntry(t *testing.T) {
 
 	cacheDir := t.TempDir()
 
-	reader, err := newSchematicReader(cacheDir, clientForServer(map[string]string{"one": factory.URL}), nil, zaptest.NewLogger(t))
+	reader, err := newSchematicReader(cacheDir, clientForServer(map[string]string{"one": factory.URL}), zaptest.NewLogger(t))
 	require.NoError(t, err)
 
 	const id = "7777777777777777777777777777777777777777777777777777777777777777"
@@ -302,7 +223,7 @@ func TestReaderRejectsUnusableSchematicID(t *testing.T) {
 
 	cacheDir := t.TempDir()
 
-	reader, err := newSchematicReader(cacheDir, clientForServer(map[string]string{"one": factory.URL}), nil, zaptest.NewLogger(t))
+	reader, err := newSchematicReader(cacheDir, clientForServer(map[string]string{"one": factory.URL}), zaptest.NewLogger(t))
 	require.NoError(t, err)
 
 	// what an image factory produces: the hex SHA-256 of the schematic's canonical form
@@ -341,32 +262,3 @@ func TestReaderRejectsUnusableSchematicID(t *testing.T) {
 }
 
 // TestReaderDoesNotRefetchOnForbidden asserts a 403 fails at once instead of dropping the credentials and
-// asking for them again. A 403 means the factory accepted them and will not allow this, so the same set
-// refetched is refused the same way, on every reconcile of every machine. A token scoped to image downloads
-// answers exactly that for a schematic read.
-func TestReaderDoesNotRefetchOnForbidden(t *testing.T) {
-	t.Parallel()
-
-	var hits atomic.Int64
-
-	factory := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		hits.Add(1)
-
-		w.WriteHeader(http.StatusForbidden)
-	}))
-	t.Cleanup(factory.Close)
-
-	var staleCalls atomic.Int64
-
-	reader, err := newSchematicReader(t.TempDir(),
-		clientForServer(map[string]string{"one": factory.URL}),
-		func() { staleCalls.Add(1) },
-		zaptest.NewLogger(t))
-	require.NoError(t, err)
-
-	_, err = reader.read(t.Context(), "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "v1.14.0", "one")
-	require.Error(t, err)
-
-	assert.Zero(t, staleCalls.Load(), "the credentials were accepted, so there is nothing to refresh")
-	assert.Equal(t, int64(1), hits.Load(), "and nothing to ask a second time")
-}
