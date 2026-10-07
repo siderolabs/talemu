@@ -187,10 +187,8 @@ func (ctrl *StaticPodController) reconcile(ctx context.Context, r controller.Run
 	}
 
 	serviceAccount := v1.ServiceAccount{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "default",
-			Namespace: ns,
-		},
+		Name:      "default",
+		Namespace: ns,
 	}
 
 	_, err = client.CoreV1().ServiceAccounts(serviceAccount.Namespace).Get(ctx, serviceAccount.Name, metav1.GetOptions{})

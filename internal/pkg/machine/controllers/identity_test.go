@@ -241,7 +241,7 @@ func TestMachineIdentityConfigInstall(t *testing.T) {
 	provider, err := container.New(&configv1alpha1.Config{
 		ConfigVersion: "v1alpha1",
 		MachineConfig: &configv1alpha1.MachineConfig{
-			MachineInstall: &configv1alpha1.InstallConfig{
+			MachineInstall: &configv1alpha1.InstallConfig{ //nolint:staticcheck // legacy config
 				InstallImage: "ghcr.io/siderolabs/installer:v1.13.6",
 			},
 		},
@@ -263,7 +263,7 @@ func TestMachineIdentityConfigInstall(t *testing.T) {
 	enterpriseInstall, err := container.New(&configv1alpha1.Config{
 		ConfigVersion: "v1alpha1",
 		MachineConfig: &configv1alpha1.MachineConfig{
-			MachineInstall: &configv1alpha1.InstallConfig{
+			MachineInstall: &configv1alpha1.InstallConfig{ //nolint:staticcheck // legacy config
 				InstallImage: enterpriseFactoryHost + "/metal-installer/abcd1234:v1.14.0",
 			},
 		},
@@ -321,7 +321,7 @@ func TestMachineIdentityUnparseableInstallImage(t *testing.T) {
 	provider, err := container.New(&configv1alpha1.Config{
 		ConfigVersion: "v1alpha1",
 		MachineConfig: &configv1alpha1.MachineConfig{
-			MachineInstall: &configv1alpha1.InstallConfig{
+			MachineInstall: &configv1alpha1.InstallConfig{ //nolint:staticcheck // legacy config
 				InstallImage: "ghcr.io/siderolabs/installer@sha256:" + strings.Repeat("a", 64),
 			},
 		},

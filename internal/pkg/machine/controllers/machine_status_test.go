@@ -67,12 +67,12 @@ func TestMachineStatusStuckBooting(t *testing.T) {
 		ConfigVersion: "v1alpha1",
 		MachineConfig: &configv1alpha1.MachineConfig{
 			MachineType: "worker",
-			MachineInstall: &configv1alpha1.InstallConfig{
+			MachineInstall: &configv1alpha1.InstallConfig{ //nolint:staticcheck // legacy config
 				InstallDisk:  "/dev/vda",
 				InstallImage: "factory.talos.dev/installer/abc123:v1.14.0",
 			},
 		},
-		ClusterConfig: &configv1alpha1.ClusterConfig{ClusterID: "test-cluster"},
+		ClusterConfig: &configv1alpha1.ClusterConfig{ClusterID: "test-cluster"}, //nolint:staticcheck // legacy config
 	})
 	require.NoError(t, err)
 

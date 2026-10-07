@@ -228,10 +228,8 @@ func (ctrl *KubernetesNodeController) Run(ctx context.Context, r controller.Runt
 
 		if node.Name == "" {
 			node = &v1.Node{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:   nodename.TypedSpec().Nodename,
-					Labels: labels,
-				},
+				Name:   nodename.TypedSpec().Nodename,
+				Labels: labels,
 				Spec:   spec,
 				Status: *status,
 			}

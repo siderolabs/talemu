@@ -38,7 +38,7 @@ func TestCurrentImage(t *testing.T) {
 		provider, err := container.New(&configv1alpha1.Config{
 			ConfigVersion: "v1alpha1",
 			MachineConfig: &configv1alpha1.MachineConfig{
-				MachineInstall: &configv1alpha1.InstallConfig{InstallImage: installImage},
+				MachineInstall: &configv1alpha1.InstallConfig{InstallImage: installImage}, //nolint:staticcheck // legacy config
 			},
 			ClusterConfig: &configv1alpha1.ClusterConfig{},
 		})

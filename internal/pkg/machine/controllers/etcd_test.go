@@ -166,12 +166,12 @@ func controlPlaneConfig(t *testing.T, clusterID string) *config.MachineConfig {
 		ConfigVersion: "v1alpha1",
 		MachineConfig: &configv1alpha1.MachineConfig{
 			MachineType: "controlplane",
-			MachineInstall: &configv1alpha1.InstallConfig{
+			MachineInstall: &configv1alpha1.InstallConfig{ //nolint:staticcheck // legacy config
 				InstallImage: "factory.talos.dev/installer/abc123:v1.14.0",
 			},
 		},
 		ClusterConfig: &configv1alpha1.ClusterConfig{
-			ClusterID: clusterID,
+			ClusterID: clusterID, //nolint:staticcheck // legacy config
 		},
 	})
 	require.NoError(t, err)

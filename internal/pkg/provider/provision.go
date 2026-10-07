@@ -85,12 +85,10 @@ func (p *Provisioner) ProvisionSteps() []provision.Step[*resources.Machine] {
 				}
 
 				media, mediaErr := pctx.EnsureInstallationMedia(ctx, logger, provision.MediaSpec{
-					MediaSpec: imagefactory.MediaSpec{
-						Kind:         imagefactory.InstallationMediaKindISO,
-						Platform:     talosconstants.PlatformMetal,
-						Architecture: emuconstants.EmulatedArchitecture,
-						SecureBoot:   pd.SecureBoot,
-					},
+					Kind:         imagefactory.InstallationMediaKindISO,
+					Platform:     talosconstants.PlatformMetal,
+					Architecture: emuconstants.EmulatedArchitecture,
+					SecureBoot:   pd.SecureBoot,
 				}, provision.WithoutConnectionParams())
 				if mediaErr != nil {
 					return fmt.Errorf("failed to ensure the installation media of the machine: %w", mediaErr)
