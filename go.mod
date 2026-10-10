@@ -3,8 +3,8 @@ module github.com/siderolabs/talemu
 go 1.27.1
 
 replace (
-	go.yaml.in/yaml/v4 => github.com/oguzkilcan/go-yaml/v4 v4.0.0-20260711085733-86003acec573
-	gopkg.in/yaml.v3 => github.com/unix4ever/yaml v0.0.0-20220527175918-f17b0f05cf2c
+	go.yaml.in/yaml/v4 => github.com/oguzkilcan/go-yaml/v4 c4a5514d019f
+	gopkg.in/yaml.v3 => github.com/unix4ever/yaml/v2 v2.4.0
 	k8s.io/api => k8s.io/api v0.37.1
 	k8s.io/apiextensions-apiserver => k8s.io/apiextensions-apiserver v0.37.1
 	k8s.io/apimachinery => k8s.io/apimachinery v0.37.1
@@ -36,13 +36,13 @@ replace (
 require (
 	github.com/adrg/xdg v0.5.3
 	github.com/akutz/memconn v0.1.0
-	github.com/cenkalti/backoff/v4 v4.3.0
+	github.com/cenkalti/backoff/v7 v7.0.1
 	github.com/cosi-project/runtime v1.16.3
 	github.com/go-logr/zapr v1.3.0
 	github.com/google/uuid v1.6.0
 	github.com/grpc-ecosystem/go-grpc-middleware/v2 v2.3.4
 	github.com/hashicorp/go-multierror v1.1.1
-	github.com/jsimonetti/rtnetlink v1.4.2
+	github.com/jsimonetti/rtnetlink/v2 v2.2.0
 	github.com/jxskiss/base62 v1.1.0
 	github.com/martinlindhe/base36 v1.1.1
 	github.com/mdlayher/arp v0.0.0-20260923112748-e9ee4960293e
@@ -65,7 +65,7 @@ require (
 	github.com/siderolabs/grpc-proxy v0.5.2
 	github.com/siderolabs/image-factory v1.7.2
 	github.com/siderolabs/net v0.4.0
-	github.com/siderolabs/omni/client v1.12.3
+	github.com/siderolabs/omni/client v1.12.4
 	github.com/siderolabs/siderolink v0.3.18
 	github.com/siderolabs/talos/pkg/machinery v1.15.0-alpha.0.0.20260908133727-5c5fd29e95f7
 	github.com/spf13/cobra v1.10.2
@@ -77,11 +77,11 @@ require (
 	go.uber.org/multierr v1.11.0
 	go.uber.org/zap v1.28.0
 	go4.org/netipx v0.0.0-20260823151212-3075585bcbeb
-	golang.org/x/sync v0.23.0
-	golang.org/x/sys v0.48.0
+	golang.org/x/sync v0.24.0
+	golang.org/x/sys v0.49.0
 	golang.org/x/time v0.16.0
 	golang.zx2c4.com/wireguard/wgctrl v0.0.0-20241231184526-a9ab2273dd10
-	google.golang.org/grpc v1.83.2
+	google.golang.org/grpc v1.84.0
 	google.golang.org/protobuf v1.36.12
 	k8s.io/api v0.37.1
 	k8s.io/apimachinery v0.37.1
