@@ -25,6 +25,7 @@ import (
 	"github.com/siderolabs/talos/pkg/machinery/api/storage"
 	talosconfig "github.com/siderolabs/talos/pkg/machinery/config"
 	"github.com/siderolabs/talos/pkg/machinery/config/configloader"
+	talosconstants "github.com/siderolabs/talos/pkg/machinery/constants"
 	"github.com/siderolabs/talos/pkg/machinery/meta"
 	"github.com/siderolabs/talos/pkg/machinery/resources/block"
 	"github.com/siderolabs/talos/pkg/machinery/resources/config"
@@ -96,29 +97,37 @@ func (c *MachineService) ApplyConfiguration(ctx context.Context, request *machin
 		}
 	}
 
-	existingCompleteConfig, err := machineconfig.GetComplete(ctx, c.state)
+	c.sharedMachineState.configMu.Lock()
+	defer c.sharedMachineState.configMu.Unlock()
+
+	existingConfig, err := safe.ReaderGetByID[*config.MachineConfig](ctx, c.state, config.ActiveID)
 	if err != nil && !state.IsNotFoundError(err) {
 		return nil, err
 	}
 
-	if err = c.state.Create(ctx, cfg); err != nil {
-		if !state.IsConflictError(err) {
-			return nil, err
-		}
+	var existingCompleteConfig *config.MachineConfig
 
-		var r resource.Resource
+	if existingConfig != nil && existingConfig.Config().Machine() != nil {
+		existingCompleteConfig = existingConfig
+	}
 
-		// update config
-		r, err = c.state.Get(ctx, cfg.Metadata())
-		if err != nil {
-			return nil, err
-		}
+	tryMode := request.GetMode() == machine.ApplyConfigurationRequest_TRY
+	if tryMode && existingConfig == nil {
+		return nil, status.Error(codes.FailedPrecondition, "try mode requires an active config to roll back to")
+	}
 
-		cfg.Metadata().SetVersion(r.Metadata().Version())
+	if err = c.storeConfig(ctx, cfg); err != nil {
+		return nil, err
+	}
 
-		if err = c.state.Update(ctx, cfg); err != nil {
-			return nil, err
-		}
+	c.sharedMachineState.configGeneration++
+
+	if tryMode {
+		c.rollBackConfigAfter(ctx, existingConfig.Provider(), tryModeTimeout(request))
+
+		return &machine.ApplyConfigurationResponse{
+			Messages: []*machine.ApplyConfiguration{{Mode: machine.ApplyConfigurationRequest_TRY}},
+		}, nil
 	}
 
 	allocated := existingCompleteConfig == nil && !isPartialConfig
@@ -156,6 +165,54 @@ func (c *MachineService) ApplyConfiguration(ctx context.Context, request *machin
 			},
 		},
 	}, nil
+}
+
+// storeConfig creates or updates the active machine config.
+func (c *MachineService) storeConfig(ctx context.Context, cfg *config.MachineConfig) error {
+	err := c.state.Create(ctx, cfg)
+	if err == nil || !state.IsConflictError(err) {
+		return err
+	}
+
+	existing, err := c.state.Get(ctx, cfg.Metadata())
+	if err != nil {
+		return err
+	}
+
+	cfg.Metadata().SetVersion(existing.Metadata().Version())
+
+	return c.state.Update(ctx, cfg)
+}
+
+// rollBackConfigAfter restores the previous config when no other config is applied before the try mode timeout expires.
+func (c *MachineService) rollBackConfigAfter(ctx context.Context, previous talosconfig.Provider, timeout time.Duration) {
+	generation := c.sharedMachineState.configGeneration
+	ctx = context.WithoutCancel(ctx)
+
+	time.AfterFunc(timeout, func() {
+		c.sharedMachineState.configMu.Lock()
+		defer c.sharedMachineState.configMu.Unlock()
+
+		if c.sharedMachineState.configGeneration != generation {
+			return
+		}
+
+		if err := c.storeConfig(ctx, config.NewMachineConfig(previous)); err != nil {
+			c.logger.Error("failed to roll back the config applied in try mode", zap.Error(err))
+
+			return
+		}
+
+		c.logger.Info("rolled back the config applied in try mode")
+	})
+}
+
+func tryModeTimeout(request *machine.ApplyConfigurationRequest) time.Duration {
+	if timeout := request.GetTryModeTimeout().AsDuration(); timeout > 0 {
+		return timeout
+	}
+
+	return talosconstants.ConfigTryTimeout
 }
 
 // registerClusterMachine counts the machine into the emulator-global status of its cluster, creating the status
@@ -244,6 +301,12 @@ func (c *MachineService) Reset(ctx context.Context, request *machine.ResetReques
 	}) == -1 {
 		return nil, status.Errorf(codes.Unimplemented, "this reset mode is not supported")
 	}
+
+	c.sharedMachineState.configMu.Lock()
+	defer c.sharedMachineState.configMu.Unlock()
+
+	// a reset wipes STATE, which also discards a pending try mode rollback
+	c.sharedMachineState.configGeneration++
 
 	cfg, err := machineconfig.GetComplete(ctx, c.state)
 	if err != nil {
@@ -1095,9 +1158,9 @@ func (c *MachineService) requestReboot(ctx context.Context) error {
 		return err
 	}
 
-	c.rotateBootID()
+	c.sharedMachineState.bootID.rotate()
 
-	return nil
+	return storeBootID(ctx, c.state, c.currentBootID())
 }
 
 // currentBootID returns the current kernel boot ID.
@@ -1105,9 +1168,13 @@ func (c *MachineService) currentBootID() string {
 	return c.sharedMachineState.bootID.get()
 }
 
-// rotateBootID assigns a fresh kernel boot ID.
-func (c *MachineService) rotateBootID() {
-	c.sharedMachineState.bootID.rotate()
+// storeBootID writes the boot ID into the BootID resource, which Talos 1.14 and later serve.
+func storeBootID(ctx context.Context, st state.State, bootID string) error {
+	return safe.StateModify(ctx, st, runtime.NewBootID(), func(r *runtime.BootID) error {
+		r.TypedSpec().BootID = bootID
+
+		return nil
+	})
 }
 
 // errLifecycleInProgress is returned when a lifecycle install or upgrade is already running.
@@ -1121,6 +1188,10 @@ var errSequenceInProgress = status.Error(codes.FailedPrecondition, "another sequ
 // the services observe the same boot ID and serialize operations within each Talos lock domain.
 type machineState struct {
 	bootID *kernelBootID
+	// configMu serializes the config applies and the try mode rollbacks.
+	configMu sync.Mutex
+	// configGeneration is incremented on every config apply, so that a rollback skips a try that is already replaced.
+	configGeneration uint64
 	// lifecycleMu serializes LifecycleService.Install and Upgrade, mirroring the lifecycle lock.
 	lifecycleMu sync.Mutex
 	// sequenceMu serializes the machine service's sequence operations (Upgrade and Reboot), lightly mirroring the sequencer lock.

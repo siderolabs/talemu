@@ -16,11 +16,14 @@ import (
 	"github.com/cosi-project/runtime/pkg/state/impl/namespaced"
 	"github.com/siderolabs/talos/pkg/machinery/api/common"
 	"github.com/siderolabs/talos/pkg/machinery/api/machine"
+	"github.com/siderolabs/talos/pkg/machinery/resources/config"
+	"github.com/siderolabs/talos/pkg/machinery/resources/runtime"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap/zaptest"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/durationpb"
 
 	"github.com/siderolabs/talemu/internal/pkg/machine/runtime/resources/emu"
 	"github.com/siderolabs/talemu/internal/pkg/machine/services"
@@ -213,4 +216,164 @@ func TestRebootRotatesBootID(t *testing.T) {
 	require.NoError(t, err)
 
 	require.NotEqual(t, before, read())
+}
+
+func TestRebootUpdatesBootIDResource(t *testing.T) {
+	st := state.WrapCore(namespaced.NewState(inmem.Build))
+	svc := services.NewMachineService(testMachineID, st, state.WrapCore(namespaced.NewState(inmem.Build)), factoryHosts, zaptest.NewLogger(t), nil)
+
+	_, err := svc.Reboot(t.Context(), &machine.RebootRequest{})
+	require.NoError(t, err)
+
+	srv := &recordingStream[*common.Data]{ctx: t.Context()}
+	require.NoError(t, svc.Read(&machine.ReadRequest{Path: services.BootIDPath}, srv))
+
+	bootID, err := safe.ReaderGetByID[*runtime.BootID](t.Context(), st, runtime.BootIDID)
+	require.NoError(t, err)
+	require.Equal(t, strings.TrimSpace(string(srv.sent[0].GetBytes())), bootID.TypedSpec().BootID)
+}
+
+// triedConfig is completeConfig with an extra document, so that it can be told apart from completeConfig.
+const triedConfig = completeConfig + `---
+apiVersion: v1alpha1
+kind: KmsgLogConfig
+name: omni-kmsg
+url: "tcp://[fdae:41e4:649b:9303::1]:8092"
+`
+
+// newInstalledMachineService returns a MachineService whose machine already runs completeConfig, and the state it stores the config in.
+func newInstalledMachineService(t *testing.T) (*services.MachineService, state.State) {
+	t.Helper()
+
+	st := newLifecycleState(t, true)
+	globalState := state.WrapCore(namespaced.NewState(inmem.Build))
+
+	require.NoError(t, globalState.Create(t.Context(), emu.NewMachineStatus(emu.NamespaceName, testMachineID)))
+
+	svc := services.NewMachineService(testMachineID, st, globalState, factoryHosts, zaptest.NewLogger(t), nil)
+
+	_, err := svc.ApplyConfiguration(t.Context(), &machine.ApplyConfigurationRequest{
+		Data: []byte(completeConfig),
+		Mode: machine.ApplyConfigurationRequest_AUTO,
+	})
+	require.NoError(t, err)
+
+	return svc, st
+}
+
+func activeConfigDocuments(t *testing.T, st state.State) int {
+	t.Helper()
+
+	cfg, err := safe.ReaderGetByID[*config.MachineConfig](t.Context(), st, config.ActiveID)
+	require.NoError(t, err)
+
+	return len(cfg.Provider().Documents())
+}
+
+func TestApplyTryModeRollsBack(t *testing.T) {
+	svc, st := newInstalledMachineService(t)
+	documents := activeConfigDocuments(t, st)
+
+	resp, err := svc.ApplyConfiguration(t.Context(), &machine.ApplyConfigurationRequest{
+		Data:           []byte(triedConfig),
+		Mode:           machine.ApplyConfigurationRequest_TRY,
+		TryModeTimeout: durationpb.New(100 * time.Millisecond),
+	})
+	require.NoError(t, err)
+	require.Equal(t, machine.ApplyConfigurationRequest_TRY, resp.Messages[0].Mode)
+	require.Equal(t, documents+1, activeConfigDocuments(t, st))
+
+	require.Eventually(t, func() bool {
+		return activeConfigDocuments(t, st) == documents
+	}, 5*time.Second, 50*time.Millisecond, "the tried config should be rolled back")
+}
+
+func TestApplyTryModeConfirmed(t *testing.T) {
+	svc, st := newInstalledMachineService(t)
+	documents := activeConfigDocuments(t, st)
+
+	_, err := svc.ApplyConfiguration(t.Context(), &machine.ApplyConfigurationRequest{
+		Data:           []byte(triedConfig),
+		Mode:           machine.ApplyConfigurationRequest_TRY,
+		TryModeTimeout: durationpb.New(100 * time.Millisecond),
+	})
+	require.NoError(t, err)
+
+	_, err = svc.ApplyConfiguration(t.Context(), &machine.ApplyConfigurationRequest{
+		Data: []byte(triedConfig),
+		Mode: machine.ApplyConfigurationRequest_NO_REBOOT,
+	})
+	require.NoError(t, err)
+
+	require.Never(t, func() bool {
+		return activeConfigDocuments(t, st) != documents+1
+	}, 500*time.Millisecond, 50*time.Millisecond, "the confirmed config should not be rolled back")
+}
+
+func TestResetCancelsTryModeRollback(t *testing.T) {
+	svc, st := newInstalledMachineService(t)
+
+	_, err := svc.ApplyConfiguration(t.Context(), &machine.ApplyConfigurationRequest{
+		Data:           []byte(triedConfig),
+		Mode:           machine.ApplyConfigurationRequest_TRY,
+		TryModeTimeout: durationpb.New(100 * time.Millisecond),
+	})
+	require.NoError(t, err)
+
+	_, err = svc.Reset(t.Context(), &machine.ResetRequest{
+		SystemPartitionsToWipe: []*machine.ResetPartitionSpec{{Label: "STATE"}},
+	})
+	require.NoError(t, err)
+
+	require.Never(t, func() bool {
+		_, getErr := safe.ReaderGetByID[*config.MachineConfig](t.Context(), st, config.ActiveID)
+
+		return !state.IsNotFoundError(getErr)
+	}, 500*time.Millisecond, 50*time.Millisecond, "the reset machine should not get the previous config back")
+}
+
+func TestApplyTryModeWithoutConfig(t *testing.T) {
+	svc, _ := newMachineServiceWithSecurityState(t, true)
+
+	_, err := svc.ApplyConfiguration(t.Context(), &machine.ApplyConfigurationRequest{
+		Data: []byte(completeConfig),
+		Mode: machine.ApplyConfigurationRequest_TRY,
+	})
+	require.Equal(t, codes.FailedPrecondition, status.Code(err))
+}
+
+const maintenanceConfig = `apiVersion: v1alpha1
+kind: EventSinkConfig
+endpoint: "[fdae:41e4:649b:9303::1]:8090"
+`
+
+const triedMaintenanceConfig = maintenanceConfig + `---
+apiVersion: v1alpha1
+kind: KmsgLogConfig
+name: omni-kmsg
+url: "tcp://[fdae:41e4:649b:9303::1]:8092"
+`
+
+func TestApplyTryModeInMaintenanceRollsBack(t *testing.T) {
+	st := newLifecycleState(t, true)
+	svc := services.NewMachineService(testMachineID, st, state.WrapCore(namespaced.NewState(inmem.Build)), factoryHosts, zaptest.NewLogger(t), nil)
+
+	_, err := svc.ApplyConfiguration(t.Context(), &machine.ApplyConfigurationRequest{
+		Data: []byte(maintenanceConfig),
+		Mode: machine.ApplyConfigurationRequest_AUTO,
+	})
+	require.NoError(t, err)
+
+	resp, err := svc.ApplyConfiguration(t.Context(), &machine.ApplyConfigurationRequest{
+		Data:           []byte(triedMaintenanceConfig),
+		Mode:           machine.ApplyConfigurationRequest_TRY,
+		TryModeTimeout: durationpb.New(100 * time.Millisecond),
+	})
+	require.NoError(t, err)
+	require.Equal(t, machine.ApplyConfigurationRequest_TRY, resp.Messages[0].Mode)
+	require.Equal(t, 2, activeConfigDocuments(t, st))
+
+	require.Eventually(t, func() bool {
+		return activeConfigDocuments(t, st) == 1
+	}, 5*time.Second, 50*time.Millisecond, "the tried maintenance config should be rolled back")
 }

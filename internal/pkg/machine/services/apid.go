@@ -77,6 +77,10 @@ func (apid *APID) Run(ctx context.Context, endpoint netip.Prefix, logger *zap.Lo
 
 	apid.shutdown = make(chan bool, 1)
 
+	if err := storeBootID(ctx, apid.state, apid.sharedMachineState.bootID.get()); err != nil {
+		return err
+	}
+
 	resourceState := server.NewState(apid.state)
 
 	logger.Info("starting APID", zap.String("endpoint", endpoint.Addr().String()), zap.String("interface", iface), zap.Bool("insecure", apiCerts == nil))
