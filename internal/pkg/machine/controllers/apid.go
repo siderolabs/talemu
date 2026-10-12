@@ -21,6 +21,7 @@ import (
 	"go.uber.org/zap"
 
 	emuconst "github.com/siderolabs/talemu/internal/pkg/constants"
+	"github.com/siderolabs/talemu/internal/pkg/machine/machineconfig"
 	"github.com/siderolabs/talemu/internal/pkg/machine/runtime/resources/talos"
 	"github.com/siderolabs/talemu/internal/pkg/machine/services"
 )
@@ -143,16 +144,24 @@ func (ctrl *APIDController) reconcile(ctx context.Context, r controller.Runtime,
 		return err
 	}
 
+	config, err := machineconfig.GetComplete(ctx, r)
+	if err != nil && !state.IsNotFoundError(err) {
+		return err
+	}
+
 	insecure := apiCerts == nil
 
 	running = true
 	healthy = true
 
-	// When config has arrived but apiCerts haven't been generated yet, we used to stop
-	// APID — the resulting "connection refused" window let Omni controllers back off and
-	// race the cluster-scaling state machine. Now we leave the existing insecure listener
-	// running; clients see at worst a brief TLS handshake failure against the self-signed
-	// cert and succeed on retry once apiCerts arrive and APID is restarted in secure mode.
+	if insecure && config != nil {
+		logger.Info("the machine is configured but the certs are not ready yet")
+
+		ctrl.address = netip.Prefix{}
+
+		return ctrl.APID.GracefulStop()
+	}
+
 	if ctrl.address == address && ctrl.insecure == insecure {
 		return nil
 	}

@@ -48,7 +48,7 @@ type APID struct {
 	state                state.State
 	globalState          state.State
 	localAddressProvider director.LocalAddressProvider
-	shutdown             chan struct{}
+	shutdown             chan bool
 	eg                   *errgroup.Group
 	sharedMachineState   *machineState
 	machineID            string
@@ -71,11 +71,11 @@ func NewAPID(machineID string, state state.State, globalState state.State, facto
 
 // Run creates COSI runtime, generates certs, registers gRPC services.
 func (apid *APID) Run(ctx context.Context, endpoint netip.Prefix, logger *zap.Logger, apiCerts *secrets.API, iface string) error {
-	if err := apid.Stop(); err != nil {
+	if err := apid.stop(false); err != nil {
 		return err
 	}
 
-	apid.shutdown = make(chan struct{}, 1)
+	apid.shutdown = make(chan bool, 1)
 
 	resourceState := server.NewState(apid.state)
 
@@ -212,15 +212,14 @@ func (apid *APID) Run(ctx context.Context, endpoint netip.Prefix, logger *zap.Lo
 	})
 
 	eg.Go(func() error {
-		var reboot bool
+		var force bool
 
 		select {
 		case <-ctx.Done():
-		case <-apid.shutdown:
-			reboot = true
+		case force = <-apid.shutdown:
 		}
 
-		if reboot {
+		if force {
 			// Force-stop the servers so clients observe the reboot instead of a graceful drain.
 			s.Stop()
 			localServer.Stop()
@@ -240,8 +239,17 @@ func (apid *APID) Run(ctx context.Context, endpoint netip.Prefix, logger *zap.Lo
 	return nil
 }
 
-// Stop shuts down the runtime and gRPC services.
+// Stop force-stops the gRPC services, so that the clients observe a reboot.
 func (apid *APID) Stop() error {
+	return apid.stop(true)
+}
+
+// GracefulStop stops the gRPC services, giving the in-flight calls a short time to finish.
+func (apid *APID) GracefulStop() error {
+	return apid.stop(false)
+}
+
+func (apid *APID) stop(force bool) error {
 	if apid.shutdown == nil || apid.eg == nil {
 		return nil
 	}
@@ -251,7 +259,7 @@ func (apid *APID) Stop() error {
 		apid.eg = nil
 	}()
 
-	apid.shutdown <- struct{}{}
+	apid.shutdown <- force
 
 	return apid.eg.Wait()
 }
