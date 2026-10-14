@@ -34,6 +34,7 @@ import (
 	"github.com/siderolabs/talemu/internal/pkg/machine/controllers"
 	"github.com/siderolabs/talemu/internal/pkg/machine/events"
 	"github.com/siderolabs/talemu/internal/pkg/machine/logging"
+	"github.com/siderolabs/talemu/internal/pkg/machine/machineconfig"
 	machinenetwork "github.com/siderolabs/talemu/internal/pkg/machine/network"
 	truntime "github.com/siderolabs/talemu/internal/pkg/machine/runtime"
 	"github.com/siderolabs/talemu/internal/pkg/machine/runtime/resources/talos"
@@ -354,6 +355,16 @@ func (m *Machine) Run(ctx context.Context, siderolinkParams *SideroLinkParams, s
 		if err = seedBootMedia(ctx, rt.State(), bootMedia); err != nil {
 			return err
 		}
+	}
+
+	// a restart is a reboot, which drops a config applied in try mode that is not confirmed yet
+	restored, err := machineconfig.RestorePersistent(ctx, rt.State())
+	if err != nil {
+		return fmt.Errorf("failed to restore the persistent machine config: %w", err)
+	}
+
+	if restored {
+		m.logger.Info("rolled back the config applied in try mode")
 	}
 
 	sink, err := events.NewHandler(rt.State())

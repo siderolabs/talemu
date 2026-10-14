@@ -2,14 +2,16 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-// Package machineconfig provides a utility method to retrieve complete machine config.
+// Package machineconfig provides utility methods to read and store the machine config.
 package machineconfig
 
 import (
 	"context"
 
 	"github.com/cosi-project/runtime/pkg/controller"
+	"github.com/cosi-project/runtime/pkg/resource"
 	"github.com/cosi-project/runtime/pkg/safe"
+	"github.com/cosi-project/runtime/pkg/state"
 	talosconfig "github.com/siderolabs/talos/pkg/machinery/config"
 	"github.com/siderolabs/talos/pkg/machinery/resources/config"
 )
@@ -36,6 +38,58 @@ func GetComplete(ctx context.Context, st controller.Reader) (*config.MachineConf
 	}
 
 	return conf, nil
+}
+
+// Store creates or updates the given machine config.
+func Store(ctx context.Context, st state.State, cfg *config.MachineConfig) error {
+	err := st.Create(ctx, cfg)
+	if err == nil || !state.IsConflictError(err) {
+		return err
+	}
+
+	existing, err := st.Get(ctx, cfg.Metadata())
+	if err != nil {
+		return err
+	}
+
+	cfg.Metadata().SetVersion(existing.Metadata().Version())
+
+	return st.Update(ctx, cfg)
+}
+
+// RestorePersistent replaces the active config with the persistent one and destroys the persistent one.
+//
+// The persistent config only exists while a config applied in try mode is not confirmed yet.
+func RestorePersistent(ctx context.Context, st state.State) (bool, error) {
+	persistent, err := safe.StateGetByID[*config.MachineConfig](ctx, st, config.PersistentID)
+	if err != nil {
+		if state.IsNotFoundError(err) {
+			return false, nil
+		}
+
+		return false, err
+	}
+
+	if err = Store(ctx, st, config.NewMachineConfig(persistent.Provider())); err != nil {
+		return false, err
+	}
+
+	if err = DestroyPersistent(ctx, st); err != nil {
+		return false, err
+	}
+
+	return true, nil
+}
+
+// DestroyPersistent destroys the persistent config, if there is one.
+func DestroyPersistent(ctx context.Context, st state.State) error {
+	md := resource.NewMetadata(config.NamespaceName, config.MachineConfigType, config.PersistentID, resource.VersionUndefined)
+
+	if err := st.Destroy(ctx, md); err != nil && !state.IsNotFoundError(err) {
+		return err
+	}
+
+	return nil
 }
 
 // ClusterID returns the cluster ID of the given machine config.

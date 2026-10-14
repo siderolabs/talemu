@@ -111,24 +111,30 @@ func (c *MachineService) ApplyConfiguration(ctx context.Context, request *machin
 		existingCompleteConfig = existingConfig
 	}
 
-	tryMode := request.GetMode() == machine.ApplyConfigurationRequest_TRY
-	if tryMode && existingConfig == nil {
-		return nil, status.Error(codes.FailedPrecondition, "try mode requires an active config to roll back to")
-	}
+	if request.GetMode() == machine.ApplyConfigurationRequest_TRY {
+		if existingConfig == nil {
+			return nil, status.Error(codes.FailedPrecondition, "try mode requires an active config to roll back to")
+		}
 
-	if err = c.storeConfig(ctx, cfg); err != nil {
-		return nil, err
-	}
-
-	c.sharedMachineState.configGeneration++
-
-	if tryMode {
-		c.rollBackConfigAfter(ctx, existingConfig.Provider(), tryModeTimeout(request))
+		if err = c.applyTry(ctx, existingConfig, cfg, tryModeTimeout(request)); err != nil {
+			return nil, err
+		}
 
 		return &machine.ApplyConfigurationResponse{
 			Messages: []*machine.ApplyConfiguration{{Mode: machine.ApplyConfigurationRequest_TRY}},
 		}, nil
 	}
+
+	if err = machineconfig.Store(ctx, c.state, cfg); err != nil {
+		return nil, err
+	}
+
+	// a failure up to the generation bump keeps a pending try, so that it is still rolled back
+	if err = machineconfig.DestroyPersistent(ctx, c.state); err != nil {
+		return nil, err
+	}
+
+	c.sharedMachineState.configGeneration++
 
 	allocated := existingCompleteConfig == nil && !isPartialConfig
 	if !allocated {
@@ -167,25 +173,28 @@ func (c *MachineService) ApplyConfiguration(ctx context.Context, request *machin
 	}, nil
 }
 
-// storeConfig creates or updates the active machine config.
-func (c *MachineService) storeConfig(ctx context.Context, cfg *config.MachineConfig) error {
-	err := c.state.Create(ctx, cfg)
-	if err == nil || !state.IsConflictError(err) {
+// applyTry stores the config applied in try mode and schedules its rollback to the persistent config.
+func (c *MachineService) applyTry(ctx context.Context, existingConfig, cfg *config.MachineConfig, timeout time.Duration) error {
+	// a repeated try keeps the config from before the first try
+	persistentConfig := config.NewMachineConfigWithID(existingConfig.Provider(), config.PersistentID)
+
+	if err := c.state.Create(ctx, persistentConfig); err != nil && !state.IsConflictError(err) {
 		return err
 	}
 
-	existing, err := c.state.Get(ctx, cfg.Metadata())
-	if err != nil {
+	if err := machineconfig.Store(ctx, c.state, cfg); err != nil {
 		return err
 	}
 
-	cfg.Metadata().SetVersion(existing.Metadata().Version())
+	c.sharedMachineState.configGeneration++
 
-	return c.state.Update(ctx, cfg)
+	c.rollBackConfigAfter(ctx, timeout)
+
+	return nil
 }
 
-// rollBackConfigAfter restores the previous config when no other config is applied before the try mode timeout expires.
-func (c *MachineService) rollBackConfigAfter(ctx context.Context, previous talosconfig.Provider, timeout time.Duration) {
+// rollBackConfigAfter restores the persistent config when no other config is applied before the try mode timeout expires.
+func (c *MachineService) rollBackConfigAfter(ctx context.Context, timeout time.Duration) {
 	generation := c.sharedMachineState.configGeneration
 	ctx = context.WithoutCancel(ctx)
 
@@ -197,13 +206,16 @@ func (c *MachineService) rollBackConfigAfter(ctx context.Context, previous talos
 			return
 		}
 
-		if err := c.storeConfig(ctx, config.NewMachineConfig(previous)); err != nil {
+		restored, err := machineconfig.RestorePersistent(ctx, c.state)
+		if err != nil {
 			c.logger.Error("failed to roll back the config applied in try mode", zap.Error(err))
 
 			return
 		}
 
-		c.logger.Info("rolled back the config applied in try mode")
+		if restored {
+			c.logger.Info("rolled back the config applied in try mode")
+		}
 	})
 }
 
@@ -305,9 +317,6 @@ func (c *MachineService) Reset(ctx context.Context, request *machine.ResetReques
 	c.sharedMachineState.configMu.Lock()
 	defer c.sharedMachineState.configMu.Unlock()
 
-	// a reset wipes STATE, which also discards a pending try mode rollback
-	c.sharedMachineState.configGeneration++
-
 	cfg, err := machineconfig.GetComplete(ctx, c.state)
 	if err != nil {
 		if state.IsNotFoundError(err) {
@@ -317,9 +326,16 @@ func (c *MachineService) Reset(ctx context.Context, request *machine.ResetReques
 		return nil, err
 	}
 
+	if err = machineconfig.DestroyPersistent(ctx, c.state); err != nil {
+		return nil, err
+	}
+
 	if err = destroyResourceByID[*config.MachineConfig](ctx, c.state, cfg.Metadata().ID()); err != nil {
 		return nil, err
 	}
+
+	// a reset wipes STATE, which also discards a pending try mode rollback
+	c.sharedMachineState.configGeneration++
 
 	id := machineconfig.ClusterID(cfg.Provider())
 
@@ -1150,6 +1166,10 @@ func (c *MachineService) requestReboot(ctx context.Context) error {
 	reboot := talos.NewReboot(talos.NamespaceName, talos.RebootID)
 	reboot.TypedSpec().Value.Downtime = durationpb.New(time.Second * 2)
 
+	if err := c.restorePersistentConfig(ctx); err != nil {
+		return err
+	}
+
 	if err := destroyResourceByID[*talos.Reboot](ctx, c.state, talos.RebootID); err != nil && !state.IsNotFoundError(err) {
 		return err
 	}
@@ -1161,6 +1181,23 @@ func (c *MachineService) requestReboot(ctx context.Context) error {
 	c.sharedMachineState.bootID.rotate()
 
 	return storeBootID(ctx, c.state, c.currentBootID())
+}
+
+// restorePersistentConfig rolls back a config applied in try mode that is not confirmed yet, as a reboot does on Talos.
+func (c *MachineService) restorePersistentConfig(ctx context.Context) error {
+	c.sharedMachineState.configMu.Lock()
+	defer c.sharedMachineState.configMu.Unlock()
+
+	restored, err := machineconfig.RestorePersistent(ctx, c.state)
+	if err != nil {
+		return err
+	}
+
+	if restored {
+		c.logger.Info("rolled back the config applied in try mode")
+	}
+
+	return nil
 }
 
 // currentBootID returns the current kernel boot ID.

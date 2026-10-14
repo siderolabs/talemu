@@ -19,12 +19,14 @@ import (
 	"github.com/siderolabs/talos/pkg/machinery/resources/config"
 	"github.com/siderolabs/talos/pkg/machinery/resources/runtime"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/durationpb"
 
+	"github.com/siderolabs/talemu/internal/pkg/machine/machineconfig"
 	"github.com/siderolabs/talemu/internal/pkg/machine/runtime/resources/emu"
 	"github.com/siderolabs/talemu/internal/pkg/machine/services"
 )
@@ -242,6 +244,8 @@ url: "tcp://[fdae:41e4:649b:9303::1]:8092"
 `
 
 // newInstalledMachineService returns a MachineService whose machine already runs completeConfig, and the state it stores the config in.
+//
+// It logs nowhere, as the try mode rollback timer logs after the test returns.
 func newInstalledMachineService(t *testing.T) (*services.MachineService, state.State) {
 	t.Helper()
 
@@ -250,7 +254,7 @@ func newInstalledMachineService(t *testing.T) (*services.MachineService, state.S
 
 	require.NoError(t, globalState.Create(t.Context(), emu.NewMachineStatus(emu.NamespaceName, testMachineID)))
 
-	svc := services.NewMachineService(testMachineID, st, globalState, factoryHosts, zaptest.NewLogger(t), nil)
+	svc := services.NewMachineService(testMachineID, st, globalState, factoryHosts, zap.NewNop(), nil)
 
 	_, err := svc.ApplyConfiguration(t.Context(), &machine.ApplyConfigurationRequest{
 		Data: []byte(completeConfig),
@@ -259,6 +263,22 @@ func newInstalledMachineService(t *testing.T) (*services.MachineService, state.S
 	require.NoError(t, err)
 
 	return svc, st
+}
+
+// isRolledBack reports whether the active config has the given number of documents and the persistent config is destroyed.
+func isRolledBack(t *testing.T, st state.State, documents int) bool {
+	t.Helper()
+
+	_, err := safe.ReaderGetByID[*config.MachineConfig](t.Context(), st, config.PersistentID)
+
+	return state.IsNotFoundError(err) && activeConfigDocuments(t, st) == documents
+}
+
+func requireNoPersistentConfig(t *testing.T, st state.State) {
+	t.Helper()
+
+	_, err := safe.ReaderGetByID[*config.MachineConfig](t.Context(), st, config.PersistentID)
+	require.True(t, state.IsNotFoundError(err), "the persistent config should be destroyed, got: %v", err)
 }
 
 func activeConfigDocuments(t *testing.T, st state.State) int {
@@ -284,7 +304,7 @@ func TestApplyTryModeRollsBack(t *testing.T) {
 	require.Equal(t, documents+1, activeConfigDocuments(t, st))
 
 	require.Eventually(t, func() bool {
-		return activeConfigDocuments(t, st) == documents
+		return isRolledBack(t, st, documents)
 	}, 5*time.Second, 50*time.Millisecond, "the tried config should be rolled back")
 }
 
@@ -308,6 +328,89 @@ func TestApplyTryModeConfirmed(t *testing.T) {
 	require.Never(t, func() bool {
 		return activeConfigDocuments(t, st) != documents+1
 	}, 500*time.Millisecond, 50*time.Millisecond, "the confirmed config should not be rolled back")
+
+	requireNoPersistentConfig(t, st)
+}
+
+func TestApplyTryModeConfirmedKeptAfterRestart(t *testing.T) {
+	svc, st := newInstalledMachineService(t)
+	documents := activeConfigDocuments(t, st)
+
+	_, err := svc.ApplyConfiguration(t.Context(), &machine.ApplyConfigurationRequest{
+		Data:           []byte(triedConfig),
+		Mode:           machine.ApplyConfigurationRequest_TRY,
+		TryModeTimeout: durationpb.New(time.Hour),
+	})
+	require.NoError(t, err)
+
+	_, err = svc.ApplyConfiguration(t.Context(), &machine.ApplyConfigurationRequest{
+		Data: []byte(triedConfig),
+		Mode: machine.ApplyConfigurationRequest_NO_REBOOT,
+	})
+	require.NoError(t, err)
+
+	restored, err := machineconfig.RestorePersistent(t.Context(), st)
+	require.NoError(t, err)
+	require.False(t, restored)
+	require.Equal(t, documents+1, activeConfigDocuments(t, st))
+}
+
+func TestApplyTryModeRepeatedRollsBackToConfigBeforeFirstTry(t *testing.T) {
+	svc, st := newInstalledMachineService(t)
+	documents := activeConfigDocuments(t, st)
+
+	for range 2 {
+		_, err := svc.ApplyConfiguration(t.Context(), &machine.ApplyConfigurationRequest{
+			Data:           []byte(triedConfig),
+			Mode:           machine.ApplyConfigurationRequest_TRY,
+			TryModeTimeout: durationpb.New(100 * time.Millisecond),
+		})
+		require.NoError(t, err)
+	}
+
+	require.Eventually(t, func() bool {
+		return isRolledBack(t, st, documents)
+	}, 5*time.Second, 50*time.Millisecond, "the config from before the first try should be restored")
+}
+
+func TestApplyTryModeRolledBackAfterRestart(t *testing.T) {
+	svc, st := newInstalledMachineService(t)
+	documents := activeConfigDocuments(t, st)
+
+	_, err := svc.ApplyConfiguration(t.Context(), &machine.ApplyConfigurationRequest{
+		Data:           []byte(triedConfig),
+		Mode:           machine.ApplyConfigurationRequest_TRY,
+		TryModeTimeout: durationpb.New(time.Hour),
+	})
+	require.NoError(t, err)
+	require.Equal(t, documents+1, activeConfigDocuments(t, st))
+
+	// the machine runs this on startup, the rollback timer is lost with the restart
+	restored, err := machineconfig.RestorePersistent(t.Context(), st)
+	require.NoError(t, err)
+	require.True(t, restored)
+	require.Equal(t, documents, activeConfigDocuments(t, st))
+
+	requireNoPersistentConfig(t, st)
+}
+
+func TestRebootRollsBackTryMode(t *testing.T) {
+	svc, st := newInstalledMachineService(t)
+	documents := activeConfigDocuments(t, st)
+
+	_, err := svc.ApplyConfiguration(t.Context(), &machine.ApplyConfigurationRequest{
+		Data:           []byte(triedConfig),
+		Mode:           machine.ApplyConfigurationRequest_TRY,
+		TryModeTimeout: durationpb.New(time.Hour),
+	})
+	require.NoError(t, err)
+	require.Equal(t, documents+1, activeConfigDocuments(t, st))
+
+	_, err = svc.Reboot(t.Context(), &machine.RebootRequest{})
+	require.NoError(t, err)
+	require.Equal(t, documents, activeConfigDocuments(t, st))
+
+	requireNoPersistentConfig(t, st)
 }
 
 func TestResetCancelsTryModeRollback(t *testing.T) {
@@ -330,6 +433,8 @@ func TestResetCancelsTryModeRollback(t *testing.T) {
 
 		return !state.IsNotFoundError(getErr)
 	}, 500*time.Millisecond, 50*time.Millisecond, "the reset machine should not get the previous config back")
+
+	requireNoPersistentConfig(t, st)
 }
 
 func TestApplyTryModeWithoutConfig(t *testing.T) {
@@ -356,7 +461,7 @@ url: "tcp://[fdae:41e4:649b:9303::1]:8092"
 
 func TestApplyTryModeInMaintenanceRollsBack(t *testing.T) {
 	st := newLifecycleState(t, true)
-	svc := services.NewMachineService(testMachineID, st, state.WrapCore(namespaced.NewState(inmem.Build)), factoryHosts, zaptest.NewLogger(t), nil)
+	svc := services.NewMachineService(testMachineID, st, state.WrapCore(namespaced.NewState(inmem.Build)), factoryHosts, zap.NewNop(), nil)
 
 	_, err := svc.ApplyConfiguration(t.Context(), &machine.ApplyConfigurationRequest{
 		Data: []byte(maintenanceConfig),
@@ -374,6 +479,33 @@ func TestApplyTryModeInMaintenanceRollsBack(t *testing.T) {
 	require.Equal(t, 2, activeConfigDocuments(t, st))
 
 	require.Eventually(t, func() bool {
-		return activeConfigDocuments(t, st) == 1
+		return isRolledBack(t, st, 1)
 	}, 5*time.Second, 50*time.Millisecond, "the tried maintenance config should be rolled back")
+}
+
+func TestFailedResetKeepsTryModeRollback(t *testing.T) {
+	st := newLifecycleState(t, true)
+	svc := services.NewMachineService(testMachineID, st, state.WrapCore(namespaced.NewState(inmem.Build)), factoryHosts, zap.NewNop(), nil)
+
+	_, err := svc.ApplyConfiguration(t.Context(), &machine.ApplyConfigurationRequest{
+		Data: []byte(maintenanceConfig),
+		Mode: machine.ApplyConfigurationRequest_AUTO,
+	})
+	require.NoError(t, err)
+
+	_, err = svc.ApplyConfiguration(t.Context(), &machine.ApplyConfigurationRequest{
+		Data:           []byte(triedMaintenanceConfig),
+		Mode:           machine.ApplyConfigurationRequest_TRY,
+		TryModeTimeout: durationpb.New(100 * time.Millisecond),
+	})
+	require.NoError(t, err)
+
+	_, err = svc.Reset(t.Context(), &machine.ResetRequest{
+		SystemPartitionsToWipe: []*machine.ResetPartitionSpec{{Label: "STATE"}},
+	})
+	require.Equal(t, codes.InvalidArgument, status.Code(err))
+
+	require.Eventually(t, func() bool {
+		return isRolledBack(t, st, 1)
+	}, 5*time.Second, 50*time.Millisecond, "the tried maintenance config should be rolled back after a failed reset")
 }
