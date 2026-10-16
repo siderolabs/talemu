@@ -19,8 +19,11 @@ import (
 	"github.com/cosi-project/runtime/pkg/state"
 	"github.com/jsimonetti/rtnetlink"
 	"github.com/mdlayher/ethtool"
+	"github.com/siderolabs/gen/optional"
 	"github.com/siderolabs/talos/pkg/machinery/constants"
 	"github.com/siderolabs/talos/pkg/machinery/nethelpers"
+	"github.com/siderolabs/talos/pkg/machinery/resources/config"
+	"github.com/siderolabs/talos/pkg/machinery/resources/kubespan"
 	"github.com/siderolabs/talos/pkg/machinery/resources/network"
 	"go.uber.org/zap"
 	"golang.zx2c4.com/wireguard/wgctrl"
@@ -50,6 +53,12 @@ func (ctrl *LinkStatusController) Inputs() []controller.Input {
 		{
 			Namespace: network.NamespaceName,
 			Type:      network.LinkRefreshType,
+			Kind:      controller.InputWeak,
+		},
+		{
+			Namespace: config.NamespaceName,
+			Type:      kubespan.ConfigType,
+			ID:        optional.Some(kubespan.ConfigID),
 			Kind:      controller.InputWeak,
 		},
 	}
@@ -136,6 +145,36 @@ func (ctrl *LinkStatusController) reconcile(
 		return nil
 	}); err != nil {
 		return err
+	}
+
+	// fake kubespan interface, present while KubeSpan is enabled in the machine config
+	kubeSpanConfig, err := safe.ReaderGetByID[*kubespan.Config](ctx, r, kubespan.ConfigID)
+	if err != nil && !state.IsNotFoundError(err) {
+		return fmt.Errorf("error getting kubespan config: %w", err)
+	}
+
+	if kubeSpanConfig != nil && kubeSpanConfig.TypedSpec().Enabled {
+		if err = safe.WriterModify(ctx, r, network.NewLinkStatus(network.NamespaceName, constants.KubeSpanLinkName), func(r *network.LinkStatus) error {
+			status := r.TypedSpec()
+
+			status.Index = 98
+			status.LinkIndex = 0
+			status.Type = nethelpers.LinkNone
+			status.Kind = network.LinkKindWireguard
+			status.MTU = kubeSpanConfig.TypedSpec().MTU
+			status.OperationalState = nethelpers.OperStateUnknown
+			status.LinkState = true
+
+			if status.MTU == 0 {
+				status.MTU = constants.KubeSpanLinkMTU
+			}
+
+			delete(itemsToDelete, constants.KubeSpanLinkName)
+
+			return nil
+		}); err != nil {
+			return err
+		}
 	}
 
 	// for every rtnetlink discovered link
