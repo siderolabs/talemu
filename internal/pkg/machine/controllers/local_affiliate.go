@@ -7,15 +7,19 @@ package controllers
 import (
 	"context"
 	"fmt"
+	"net/netip"
 
 	"github.com/cosi-project/runtime/pkg/controller"
 	"github.com/cosi-project/runtime/pkg/resource"
 	"github.com/cosi-project/runtime/pkg/safe"
 	"github.com/cosi-project/runtime/pkg/state"
 	"github.com/siderolabs/gen/optional"
+	"github.com/siderolabs/gen/xslices"
+	"github.com/siderolabs/talos/pkg/machinery/constants"
 	"github.com/siderolabs/talos/pkg/machinery/resources/cluster"
 	"github.com/siderolabs/talos/pkg/machinery/resources/config"
 	"github.com/siderolabs/talos/pkg/machinery/resources/k8s"
+	"github.com/siderolabs/talos/pkg/machinery/resources/kubespan"
 	"github.com/siderolabs/talos/pkg/machinery/resources/network"
 	"go.uber.org/zap"
 
@@ -78,6 +82,18 @@ func (ctrl *LocalAffiliateController) Inputs() []controller.Input {
 		{
 			Namespace: talos.NamespaceName,
 			Type:      talos.VersionType,
+			Kind:      controller.InputWeak,
+		},
+		{
+			Namespace: config.NamespaceName,
+			Type:      kubespan.ConfigType,
+			ID:        optional.Some(kubespan.ConfigID),
+			Kind:      controller.InputWeak,
+		},
+		{
+			Namespace: kubespan.NamespaceName,
+			Type:      kubespan.IdentityType,
+			ID:        optional.Some(kubespan.LocalIdentity),
 			Kind:      controller.InputWeak,
 		},
 	}
@@ -185,6 +201,17 @@ func (ctrl *LocalAffiliateController) Run(ctx context.Context, r controller.Runt
 			continue
 		}
 
+		// optional resources
+		kubespanIdentity, err := safe.ReaderGetByID[*kubespan.Identity](ctx, r, kubespan.LocalIdentity)
+		if err != nil && !state.IsNotFoundError(err) {
+			return fmt.Errorf("error getting kubespan identity: %w", err)
+		}
+
+		kubespanConfig, err := safe.ReaderGetByID[*kubespan.Config](ctx, r, kubespan.ConfigID)
+		if err != nil && !state.IsNotFoundError(err) {
+			return fmt.Errorf("error getting kubespan config: %w", err)
+		}
+
 		touchedIDs := map[resource.ID]struct{}{}
 
 		localID := identity.TypedSpec().NodeID
@@ -206,6 +233,22 @@ func (ctrl *LocalAffiliateController) Run(ctx context.Context, r controller.Runt
 				spec.Addresses = routedNodeIPs
 
 				spec.KubeSpan = cluster.KubeSpanAffiliateSpec{}
+
+				if kubespanIdentity != nil && kubespanConfig != nil {
+					spec.KubeSpan.Address = kubespanIdentity.TypedSpec().Address.Addr()
+					spec.KubeSpan.PublicKey = kubespanIdentity.TypedSpec().PublicKey
+					spec.KubeSpan.ExcludeAdvertisedNetworks = kubespanConfig.TypedSpec().ExcludeAdvertisedNetworks
+
+					// unlike Talos, SideroLink addresses are not skipped: they are the only addresses an emulated machine has
+					endpointIPs := xslices.Filter(routedNodeIPs, func(ip netip.Addr) bool {
+						// skip the kubespan local address
+						return ip != spec.KubeSpan.Address
+					})
+
+					spec.KubeSpan.Endpoints = xslices.Map(endpointIPs, func(addr netip.Addr) netip.AddrPort {
+						return netip.AddrPortFrom(addr, constants.KubeSpanDefaultPort)
+					})
+				}
 
 				return nil
 			}); err != nil {

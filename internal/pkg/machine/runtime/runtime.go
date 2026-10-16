@@ -145,6 +145,8 @@ func NewRuntime(ctx context.Context, logger *zap.Logger, slot int, id string, gl
 		&controllers.MemberController{},
 		controllers.NewClusterConfigController(),
 		controllers.NewKubeSpanConfigController(),
+		&controllers.KubeSpanIdentityController{},
+		&controllers.KubeSpanPeerStatusController{},
 		&controllers.AffiliateMergeController{},
 		&controllers.DiscoveryServiceController{},
 		&controllers.KubernetesSecretsController{},
