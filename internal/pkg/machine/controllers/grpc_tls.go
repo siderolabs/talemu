@@ -154,8 +154,12 @@ func (ctrl *GRPCTLSController) reconcile(ctx context.Context, r controller.Runti
 
 	r.QueueReconcile()
 
-	refreshTicker := time.NewTicker(x509.DefaultCertificateValidityDuration / 2)
+	// Talos re-issues the certificates on a clock jump. Talemu has no time sync, so it checks their age on the wall clock,
+	// as the ticker does not count the time the host sleeps.
+	refreshTicker := time.NewTicker(time.Minute)
 	defer refreshTicker.Stop()
+
+	var issuedAt time.Time
 
 	for {
 		select {
@@ -163,6 +167,9 @@ func (ctrl *GRPCTLSController) reconcile(ctx context.Context, r controller.Runti
 			return nil
 		case <-r.EventCh():
 		case <-refreshTicker.C:
+			if time.Now().Round(0).Sub(issuedAt) < x509.DefaultCertificateValidityDuration/2 {
+				continue
+			}
 		}
 
 		machineTypeRes, err := safe.ReaderGetByID[*config.MachineType](ctx, r, config.MachineTypeID)
@@ -252,6 +259,8 @@ func (ctrl *GRPCTLSController) reconcile(ctx context.Context, r controller.Runti
 				return err
 			}
 		}
+
+		issuedAt = time.Now().Round(0)
 
 		r.ResetRestartBackoff()
 	}
