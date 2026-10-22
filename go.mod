@@ -1,6 +1,6 @@
 module github.com/siderolabs/talemu
 
-go 1.27.2
+go 1.27.3
 
 replace (
 	go.yaml.in/yaml/v4 => github.com/oguzkilcan/go-yaml/v4 v4.0.0-20260711085733-86003acec573
