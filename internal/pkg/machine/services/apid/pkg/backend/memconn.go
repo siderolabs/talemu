@@ -19,7 +19,9 @@ func NewTransport(address string) *Transport {
 
 // Transport is transport for in-memory connection.
 type Transport struct {
-	address string
+	// Not the global registry: the apid of a reset machine can outlive it and keep the name taken for the new machine in its slot.
+	provider memconn.Provider
+	address  string
 }
 
 // Listener creates new listener.
@@ -28,7 +30,7 @@ func (l *Transport) Listener() (net.Listener, error) {
 		return nil, errors.New("address is not set")
 	}
 
-	return memconn.Listen("memu", l.address)
+	return l.provider.Listen("memu", l.address)
 }
 
 // DialContext creates a new connection.
@@ -37,7 +39,7 @@ func (l *Transport) DialContext(ctx context.Context) (net.Conn, error) {
 		return nil, errors.New("address is not set")
 	}
 
-	return memconn.DialContext(ctx, "memu", l.address)
+	return l.provider.DialContext(ctx, "memu", l.address)
 }
 
 // Address returns the address. Since this is a memory-based connection, the address is always "passthrough:" + address,
