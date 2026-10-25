@@ -101,6 +101,10 @@ var rootCmd = &cobra.Command{
 			return err
 		}
 
+		if err = params.ApplyConfig(media.embeddedConfig); err != nil {
+			return err
+		}
+
 		// With a schematic the args above came out of it, and the machines read the
 		// command line from the schematic too, so passing them on as well would report
 		// every argument twice. Only the caller knows this, which is why the shared

@@ -26,6 +26,8 @@ type bootMedia struct {
 
 	schematicID string
 	kernelArgs  string
+	// embeddedConfig is the machine configuration embedded in the media, empty when there is none.
+	embeddedConfig string
 }
 
 // resolveBootMedia works out which kind of media the flags describe and prepares it.
@@ -93,9 +95,10 @@ func factoryBootMedia(ctx context.Context, logger *zap.Logger) (*bootMedia, erro
 		zap.String("factory", source.BaseURL()), zap.String("schematic", cfg.schematicID))
 
 	return &bootMedia{
-		source:      source,
-		factoryHost: host,
-		schematicID: cfg.schematicID,
-		kernelArgs:  strings.Join(sch.Customization.ExtraKernelArgs, " "),
+		source:         source,
+		factoryHost:    host,
+		schematicID:    cfg.schematicID,
+		kernelArgs:     strings.Join(sch.Customization.ExtraKernelArgs, " "),
+		embeddedConfig: sch.Customization.EmbeddedMachineConfiguration,
 	}, nil
 }

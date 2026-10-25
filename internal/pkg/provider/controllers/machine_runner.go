@@ -110,10 +110,9 @@ func (ctrl *MachineController) Run(ctx context.Context, r controller.Runtime, lo
 				}
 			}
 
-			var params *machine.SideroLinkParams
+			params := &machine.SideroLinkParams{}
 
-			params, err = machine.ParseKernelArgs(m.TypedSpec().Value.ConnectionArgs)
-			if err != nil {
+			if err = params.ApplyConfig(m.TypedSpec().Value.JoinConfig); err != nil {
 				return err
 			}
 

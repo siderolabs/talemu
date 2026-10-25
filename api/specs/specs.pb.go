@@ -601,17 +601,18 @@ func (x *MachineSpec) GetBootFactoryHost() string {
 
 // MachineTaskSpec is stored in the emulator state and the c.
 type MachineTaskSpec struct {
-	state          protoimpl.MessageState `protogen:"open.v1"`
-	Slot           int32                  `protobuf:"varint,1,opt,name=slot,proto3" json:"slot,omitempty"`
-	Uuid           string                 `protobuf:"bytes,2,opt,name=uuid,proto3" json:"uuid,omitempty"`
-	Schematic      string                 `protobuf:"bytes,3,opt,name=schematic,proto3" json:"schematic,omitempty"`
-	TalosVersion   string                 `protobuf:"bytes,4,opt,name=talos_version,json=talosVersion,proto3" json:"talos_version,omitempty"`
-	ConnectionArgs string                 `protobuf:"bytes,5,opt,name=connection_args,json=connectionArgs,proto3" json:"connection_args,omitempty"`
-	SecureBoot     bool                   `protobuf:"varint,6,opt,name=secure_boot,json=secureBoot,proto3" json:"secure_boot,omitempty"`
+	state        protoimpl.MessageState `protogen:"open.v1"`
+	Slot         int32                  `protobuf:"varint,1,opt,name=slot,proto3" json:"slot,omitempty"`
+	Uuid         string                 `protobuf:"bytes,2,opt,name=uuid,proto3" json:"uuid,omitempty"`
+	Schematic    string                 `protobuf:"bytes,3,opt,name=schematic,proto3" json:"schematic,omitempty"`
+	TalosVersion string                 `protobuf:"bytes,4,opt,name=talos_version,json=talosVersion,proto3" json:"talos_version,omitempty"`
+	SecureBoot   bool                   `protobuf:"varint,6,opt,name=secure_boot,json=secureBoot,proto3" json:"secure_boot,omitempty"`
 	// BootFactoryHost is the host of the image factory that built the machine's boot media.
 	BootFactoryHost string `protobuf:"bytes,7,opt,name=boot_factory_host,json=bootFactoryHost,proto3" json:"boot_factory_host,omitempty"`
-	unknownFields   protoimpl.UnknownFields
-	sizeCache       protoimpl.SizeCache
+	// JoinConfig is the machine configuration the provider hands to the machine as user data, which is how it joins Omni.
+	JoinConfig    string `protobuf:"bytes,8,opt,name=join_config,json=joinConfig,proto3" json:"join_config,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *MachineTaskSpec) Reset() {
@@ -672,13 +673,6 @@ func (x *MachineTaskSpec) GetTalosVersion() string {
 	return ""
 }
 
-func (x *MachineTaskSpec) GetConnectionArgs() string {
-	if x != nil {
-		return x.ConnectionArgs
-	}
-	return ""
-}
-
 func (x *MachineTaskSpec) GetSecureBoot() bool {
 	if x != nil {
 		return x.SecureBoot
@@ -689,6 +683,13 @@ func (x *MachineTaskSpec) GetSecureBoot() bool {
 func (x *MachineTaskSpec) GetBootFactoryHost() string {
 	if x != nil {
 		return x.BootFactoryHost
+	}
+	return ""
+}
+
+func (x *MachineTaskSpec) GetJoinConfig() string {
+	if x != nil {
+		return x.JoinConfig
 	}
 	return ""
 }
@@ -812,16 +813,17 @@ const file_specs_specs_proto_rawDesc = "" +
 	"\x04uuid\x18\x02 \x01(\tR\x04uuid\x12\x1c\n" +
 	"\tschematic\x18\x03 \x01(\tR\tschematic\x12#\n" +
 	"\rtalos_version\x18\x04 \x01(\tR\ftalosVersion\x12*\n" +
-	"\x11boot_factory_host\x18\x05 \x01(\tR\x0fbootFactoryHost\"\xf2\x01\n" +
+	"\x11boot_factory_host\x18\x05 \x01(\tR\x0fbootFactoryHost\"\xf0\x01\n" +
 	"\x0fMachineTaskSpec\x12\x12\n" +
 	"\x04slot\x18\x01 \x01(\x05R\x04slot\x12\x12\n" +
 	"\x04uuid\x18\x02 \x01(\tR\x04uuid\x12\x1c\n" +
 	"\tschematic\x18\x03 \x01(\tR\tschematic\x12#\n" +
-	"\rtalos_version\x18\x04 \x01(\tR\ftalosVersion\x12'\n" +
-	"\x0fconnection_args\x18\x05 \x01(\tR\x0econnectionArgs\x12\x1f\n" +
+	"\rtalos_version\x18\x04 \x01(\tR\ftalosVersion\x12\x1f\n" +
 	"\vsecure_boot\x18\x06 \x01(\bR\n" +
 	"secureBoot\x12*\n" +
-	"\x11boot_factory_host\x18\a \x01(\tR\x0fbootFactoryHostB(Z&github.com/siderolabs/talemu/api/specsb\x06proto3"
+	"\x11boot_factory_host\x18\a \x01(\tR\x0fbootFactoryHost\x12\x1f\n" +
+	"\vjoin_config\x18\b \x01(\tR\n" +
+	"joinConfigJ\x04\b\x05\x10\x06B(Z&github.com/siderolabs/talemu/api/specsb\x06proto3"
 
 var (
 	file_specs_specs_proto_rawDescOnce sync.Once

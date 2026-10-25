@@ -10,7 +10,7 @@ So tell it which media they booted.
 
 ### From a factory schematic (the normal case)
 
-Talos boot media is built by an image factory, and its schematic is the media's identity: it carries both the extra kernel args the machine boots with, including how to reach Omni, and the extensions the machine has.
+Talos boot media is built by an image factory, and its schematic is the media's identity: it carries the extra kernel args the machine boots with, the extensions the machine has, and how to reach Omni (in the embedded machine config from Talos 1.12, in the kernel args below).
 Download an image for your Omni instance and pass the schematic ID of it:
 
 ```yaml

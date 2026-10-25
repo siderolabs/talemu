@@ -256,9 +256,9 @@ func (m *MachineTaskSpec) CloneVT() *MachineTaskSpec {
 	r.Uuid = m.Uuid
 	r.Schematic = m.Schematic
 	r.TalosVersion = m.TalosVersion
-	r.ConnectionArgs = m.ConnectionArgs
 	r.SecureBoot = m.SecureBoot
 	r.BootFactoryHost = m.BootFactoryHost
+	r.JoinConfig = m.JoinConfig
 	if len(m.unknownFields) > 0 {
 		r.unknownFields = make([]byte, len(m.unknownFields))
 		copy(r.unknownFields, m.unknownFields)
@@ -572,13 +572,13 @@ func (this *MachineTaskSpec) EqualVT(that *MachineTaskSpec) bool {
 	if this.TalosVersion != that.TalosVersion {
 		return false
 	}
-	if this.ConnectionArgs != that.ConnectionArgs {
-		return false
-	}
 	if this.SecureBoot != that.SecureBoot {
 		return false
 	}
 	if this.BootFactoryHost != that.BootFactoryHost {
+		return false
+	}
+	if this.JoinConfig != that.JoinConfig {
 		return false
 	}
 	return string(this.unknownFields) == string(that.unknownFields)
@@ -1211,6 +1211,13 @@ func (m *MachineTaskSpec) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		i -= len(m.unknownFields)
 		copy(dAtA[i:], m.unknownFields)
 	}
+	if len(m.JoinConfig) > 0 {
+		i -= len(m.JoinConfig)
+		copy(dAtA[i:], m.JoinConfig)
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.JoinConfig)))
+		i--
+		dAtA[i] = 0x42
+	}
 	if len(m.BootFactoryHost) > 0 {
 		i -= len(m.BootFactoryHost)
 		copy(dAtA[i:], m.BootFactoryHost)
@@ -1227,13 +1234,6 @@ func (m *MachineTaskSpec) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		}
 		i--
 		dAtA[i] = 0x30
-	}
-	if len(m.ConnectionArgs) > 0 {
-		i -= len(m.ConnectionArgs)
-		copy(dAtA[i:], m.ConnectionArgs)
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.ConnectionArgs)))
-		i--
-		dAtA[i] = 0x2a
 	}
 	if len(m.TalosVersion) > 0 {
 		i -= len(m.TalosVersion)
@@ -1512,14 +1512,14 @@ func (m *MachineTaskSpec) SizeVT() (n int) {
 	if l > 0 {
 		n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
 	}
-	l = len(m.ConnectionArgs)
-	if l > 0 {
-		n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
-	}
 	if m.SecureBoot {
 		n += 2
 	}
 	l = len(m.BootFactoryHost)
+	if l > 0 {
+		n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
+	}
+	l = len(m.JoinConfig)
 	if l > 0 {
 		n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
 	}
@@ -3167,38 +3167,6 @@ func (m *MachineTaskSpec) UnmarshalVT(dAtA []byte) error {
 			}
 			m.TalosVersion = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
-		case 5:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field ConnectionArgs", wireType)
-			}
-			var stringLen uint64
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return protohelpers.ErrIntOverflow
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				stringLen |= uint64(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			intStringLen := int(stringLen)
-			if intStringLen < 0 {
-				return protohelpers.ErrInvalidLength
-			}
-			postIndex := iNdEx + intStringLen
-			if postIndex < 0 {
-				return protohelpers.ErrInvalidLength
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.ConnectionArgs = string(dAtA[iNdEx:postIndex])
-			iNdEx = postIndex
 		case 6:
 			if wireType != 0 {
 				return fmt.Errorf("proto: wrong wireType = %d for field SecureBoot", wireType)
@@ -3250,6 +3218,38 @@ func (m *MachineTaskSpec) UnmarshalVT(dAtA []byte) error {
 				return io.ErrUnexpectedEOF
 			}
 			m.BootFactoryHost = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 8:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field JoinConfig", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.JoinConfig = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
 		default:
 			iNdEx = preIndex

@@ -84,12 +84,15 @@ message MachineSpec {
 
 // MachineTaskSpec is stored in the emulator state and the c.
 message MachineTaskSpec {
+  reserved 5;
+
   int32 slot = 1;
   string uuid = 2;
   string schematic = 3;
   string talos_version = 4;
-  string connection_args = 5;
   bool secure_boot = 6;
   // BootFactoryHost is the host of the image factory that built the machine's boot media.
   string boot_factory_host = 7;
+  // JoinConfig is the machine configuration the provider hands to the machine as user data, which is how it joins Omni.
+  string join_config = 8;
 }

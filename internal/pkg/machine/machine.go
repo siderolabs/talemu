@@ -172,10 +172,9 @@ func (m *Machine) Run(ctx context.Context, siderolinkParams *SideroLinkParams, s
 
 	m.logger = zap.New(core).With(zap.String("machine", machineID), zap.String("uuid", m.uuid))
 
-	// The raw args are whatever the caller knows that the schematic does not carry.
-	// The provider passes connection args here because it conveys them separately from
-	// the boot media, while static mode reads everything from the schematic and passes
-	// nothing, so the two never double-count.
+	// The raw args are whatever the caller knows that the schematic does not carry: only the
+	// --kernel-args of boot media that no image factory built. With a schematic the machines
+	// read the command line from it, and the provider passes its join config as user data.
 	rt, err := truntime.NewRuntime(
 		ctx, m.logger, slot, machineID, m.globalState,
 		kubernetes, opts.nc, logSink, siderolinkParams.RawKernelArgs, m.source,
@@ -209,6 +208,8 @@ func (m *Machine) Run(ctx context.Context, siderolinkParams *SideroLinkParams, s
 
 		resources = append(resources, siderolinkConfig)
 	}
+
+	resources = append(resources, bootMachineConfig(siderolinkParams)...)
 
 	platformMetadata := runtime.NewPlatformMetadataSpec(runtime.NamespaceName, runtime.PlatformMetadataID)
 	platformMetadata.TypedSpec().Platform = "metal"
@@ -435,4 +436,15 @@ func (m *Machine) Cleanup(ctx context.Context) error {
 
 		return conn.Link.Delete(existing.Index)
 	})
+}
+
+// bootMachineConfig returns the machine configuration the machine boots with as the machine's configuration.
+// Like in Talos, a machine without a configuration of its own runs with that one. An existing configuration wins,
+// since the creation of a resource that already exists is skipped.
+func bootMachineConfig(params *SideroLinkParams) []resource.Resource {
+	if params.Config == nil {
+		return nil
+	}
+
+	return []resource.Resource{config.NewMachineConfig(params.Config)}
 }

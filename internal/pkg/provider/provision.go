@@ -7,7 +7,6 @@ package provider
 import (
 	"context"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/cosi-project/runtime/pkg/safe"
@@ -112,7 +111,7 @@ func (p *Provisioner) ProvisionSteps() []provision.Step[*resources.Machine] {
 				Uuid:            ms.Uuid,
 				Schematic:       ms.Schematic,
 				TalosVersion:    ms.TalosVersion,
-				ConnectionArgs:  strings.Join(pctx.ConnectionParams.KernelArgs, " "),
+				JoinConfig:      pctx.ConnectionParams.JoinConfig,
 				SecureBoot:      pd.SecureBoot,
 				BootFactoryHost: ms.BootFactoryHost,
 			}

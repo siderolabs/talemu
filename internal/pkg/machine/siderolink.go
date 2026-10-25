@@ -5,15 +5,20 @@
 package machine
 
 import (
+	"fmt"
 	"net/url"
 	"regexp"
 
 	"github.com/siderolabs/go-procfs/procfs"
+	talosconfig "github.com/siderolabs/talos/pkg/machinery/config"
+	"github.com/siderolabs/talos/pkg/machinery/config/configloader"
 	"github.com/siderolabs/talos/pkg/machinery/constants"
 )
 
 // SideroLinkParams is the siderolink params needed to join Omni instance.
 type SideroLinkParams struct {
+	// Config is the machine configuration the machine boots with, nil when there is none.
+	Config         talosconfig.Provider
 	APIEndpoint    string
 	JoinToken      string
 	LogsEndpoint   string
@@ -74,6 +79,48 @@ func ParseKernelArgs(kernelArgs string) (*SideroLinkParams, error) {
 		TunnelMode:     tunnelMode,
 		RawKernelArgs:  kernelArgs,
 	}, nil
+}
+
+// ApplyConfig takes the join configuration from the machine configuration the machine boots with. That is the one
+// embedded in the boot media, where Omni puts it from Talos 1.12 on instead of the kernel args, or the user data a
+// provider hands to the machine. Like in Talos, the machine configuration wins over the kernel args.
+func (p *SideroLinkParams) ApplyConfig(machineConfig string) error {
+	if machineConfig == "" {
+		return nil
+	}
+
+	cfg, err := configloader.NewFromBytes([]byte(machineConfig))
+	if err != nil {
+		return fmt.Errorf("failed to load the machine config: %w", err)
+	}
+
+	p.Config = cfg
+
+	if sideroLink := cfg.SideroLink(); sideroLink != nil && sideroLink.APIUrl() != nil {
+		rawEndpoint := sideroLink.APIUrl().String()
+
+		endpoint, err := parseSiderolinkEndpoint(rawEndpoint)
+		if err != nil {
+			return err
+		}
+
+		p.APIEndpoint = rawEndpoint
+		p.Host = endpoint.apiEndpoint
+		p.Insecure = endpoint.insecure
+		p.TunnelMode = endpoint.tunnelMode
+		p.JoinToken = endpoint.joinToken
+	}
+
+	if events := cfg.Runtime().EventsEndpoint(); events != nil {
+		p.EventsEndpoint = *events
+	}
+
+	// Omni appends its own documents after the user's, so its kernel log destination is the last one.
+	if destinations := cfg.Runtime().KmsgLogDestinations(); len(destinations) > 0 {
+		p.LogsEndpoint = destinations[len(destinations)-1].Endpoint.String()
+	}
+
+	return nil
 }
 
 type siderolinkEndpoint struct {
