@@ -177,7 +177,7 @@ func (m *Machine) Run(ctx context.Context, siderolinkParams *SideroLinkParams, s
 	// read the command line from it, and the provider passes its join config as user data.
 	rt, err := truntime.NewRuntime(
 		ctx, m.logger, slot, machineID, m.globalState,
-		kubernetes, opts.nc, logSink, siderolinkParams.RawKernelArgs, m.source,
+		kubernetes, opts.nc, logSink, siderolinkParams.RawKernelArgs, siderolinkParams.Config, m.source,
 		opts.nodeProxyingDisabled, opts.extensions,
 	)
 	if err != nil {

@@ -17,6 +17,7 @@ import (
 	"github.com/cosi-project/runtime/pkg/controller/runtime"
 	"github.com/cosi-project/runtime/pkg/state"
 	"github.com/cosi-project/runtime/pkg/state/impl/inmem"
+	talosconfig "github.com/siderolabs/talos/pkg/machinery/config"
 	netres "github.com/siderolabs/talos/pkg/machinery/resources/network"
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
@@ -43,7 +44,7 @@ type Runtime struct {
 
 // NewRuntime creates new runtime.
 func NewRuntime(ctx context.Context, logger *zap.Logger, slot int, id string, globalState state.State,
-	kubernetes *kubefactory.Kubernetes, nc *network.Client, logSink *logging.ZapCore, baseKernelArgs string,
+	kubernetes *kubefactory.Kubernetes, nc *network.Client, logSink *logging.ZapCore, baseKernelArgs string, bootConfig talosconfig.Provider,
 	source controllers.BootMediaSource, nodeProxyingDisabled bool, localExtensions []string,
 ) (*Runtime, error) {
 	factoryHosts := source.FactoryHosts()
@@ -85,18 +86,21 @@ func NewRuntime(ctx context.Context, logger *zap.Logger, slot int, id string, gl
 
 	controllers := []controller.Controller{
 		&controllers.ManagerController{
-			Slot: slot,
-			NC:   nc,
+			Slot:  slot,
+			NC:    nc,
+			State: st,
 		},
 		&controllers.LinkSpecController{
 			NC: nc,
 		},
-		&controllers.UserspaceWireguardController{},
+		&controllers.UserspaceWireguardController{
+			State: st,
+		},
 		&controllers.LinkStatusController{
 			NC: nc,
 		},
 		&controllers.APIDController{
-			APID: services.NewAPID(id, st, globalState, factoryHosts, localAddressProvider, nodeProxyingDisabled),
+			APID: services.NewAPID(id, st, globalState, factoryHosts, localAddressProvider, nodeProxyingDisabled, bootConfig),
 		},
 		&controllers.AddressSpecController{
 			NC: nc,
@@ -148,7 +152,9 @@ func NewRuntime(ctx context.Context, logger *zap.Logger, slot int, id string, gl
 		&controllers.KubeSpanIdentityController{},
 		&controllers.KubeSpanPeerStatusController{},
 		&controllers.AffiliateMergeController{},
-		&controllers.DiscoveryServiceController{},
+		&controllers.DiscoveryServiceController{
+			State: st,
+		},
 		&controllers.KubernetesSecretsController{},
 		&controllers.KubernetesDynamicCertsController{},
 		&controllers.KubernetesController{

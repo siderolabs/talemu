@@ -41,7 +41,9 @@ import (
 
 // ManagerController interacts with SideroLink API and brings up the SideroLink Wireguard interface.
 type ManagerController struct {
-	NC      *machinenetwork.Client
+	NC *machinenetwork.Client
+	// State is the machine's own state, read for the CAs it trusts.
+	State   state.State
 	pd      provisionData
 	nodeKey wgtypes.Key
 	Slot    int
@@ -315,10 +317,15 @@ func (ctrl *ManagerController) provision(ctx context.Context, r controller.Runti
 
 	nodeUUID := sysInfo.TypedSpec().UUID
 
+	transportCredentials, err := withTransportCredentials(ctx, ctrl.State, cfg.TypedSpec().Insecure)
+	if err != nil {
+		return optional.None[provisionData](), err
+	}
+
 	provision := func() (*pb.ProvisionResponse, error) {
 		conn, connErr := grpc.NewClient(
 			cfg.TypedSpec().Host,
-			withTransportCredentials(cfg.TypedSpec().Insecure),
+			transportCredentials,
 		)
 		if connErr != nil {
 			return nil, fmt.Errorf("error dialing SideroLink endpoint %q: %w", cfg.TypedSpec().Host, connErr)
@@ -504,16 +511,18 @@ func (ctrl *ManagerController) shouldReconnect(wgClient *wgctrl.Client) (bool, e
 	return since >= wireguard.PeerDownInterval, nil
 }
 
-func withTransportCredentials(insec bool) grpc.DialOption {
-	var transportCredentials credentials.TransportCredentials
-
+// withTransportCredentials returns the credentials to dial Omni with: like in Talos, TLS that trusts the CAs the machine trusts, unless the endpoint is insecure.
+func withTransportCredentials(ctx context.Context, st state.State, insec bool) (grpc.DialOption, error) {
 	if insec {
-		transportCredentials = insecure.NewCredentials()
-	} else {
-		transportCredentials = credentials.NewTLS(&tls.Config{
-			InsecureSkipVerify: true,
-		})
+		return grpc.WithTransportCredentials(insecure.NewCredentials()), nil
 	}
 
-	return grpc.WithTransportCredentials(transportCredentials)
+	rootCAs, err := trustedRoots(ctx, st)
+	if err != nil {
+		return nil, err
+	}
+
+	return grpc.WithTransportCredentials(credentials.NewTLS(&tls.Config{
+		RootCAs: rootCAs,
+	})), nil
 }

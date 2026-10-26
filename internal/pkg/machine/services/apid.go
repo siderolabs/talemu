@@ -28,6 +28,7 @@ import (
 	"github.com/siderolabs/grpc-proxy/proxy"
 	"github.com/siderolabs/talos/pkg/machinery/api/machine"
 	"github.com/siderolabs/talos/pkg/machinery/api/storage"
+	talosconfig "github.com/siderolabs/talos/pkg/machinery/config"
 	"github.com/siderolabs/talos/pkg/machinery/constants"
 	"github.com/siderolabs/talos/pkg/machinery/resources/secrets"
 	"go.uber.org/zap"
@@ -57,7 +58,10 @@ type APID struct {
 }
 
 // NewAPID creates new APID.
-func NewAPID(machineID string, state state.State, globalState state.State, factoryHosts []string, localAddressProvider director.LocalAddressProvider, nodeProxyingDisabled bool) *APID {
+func NewAPID(
+	machineID string, state state.State, globalState state.State, factoryHosts []string, localAddressProvider director.LocalAddressProvider, nodeProxyingDisabled bool,
+	bootConfig talosconfig.Provider,
+) *APID {
 	return &APID{
 		machineID:            machineID,
 		state:                state,
@@ -65,7 +69,7 @@ func NewAPID(machineID string, state state.State, globalState state.State, facto
 		factoryHosts:         factoryHosts,
 		localAddressProvider: localAddressProvider,
 		nodeProxyingDisabled: nodeProxyingDisabled,
-		sharedMachineState:   newMachineState(),
+		sharedMachineState:   newMachineState(bootConfig),
 	}
 }
 

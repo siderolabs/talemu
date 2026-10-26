@@ -34,7 +34,7 @@ type LifecycleService struct {
 // NewLifecycleService creates a new LifecycleService.
 func NewLifecycleService(st state.State, factoryHosts []string, logger *zap.Logger, sharedMachineState *machineState) *LifecycleService {
 	if sharedMachineState == nil {
-		sharedMachineState = newMachineState()
+		sharedMachineState = newMachineState(nil)
 	}
 
 	return &LifecycleService{state: st, factoryHosts: factoryHosts, logger: logger, sharedMachineState: sharedMachineState}

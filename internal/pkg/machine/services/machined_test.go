@@ -16,6 +16,8 @@ import (
 	"github.com/cosi-project/runtime/pkg/state/impl/namespaced"
 	"github.com/siderolabs/talos/pkg/machinery/api/common"
 	"github.com/siderolabs/talos/pkg/machinery/api/machine"
+	talosconfig "github.com/siderolabs/talos/pkg/machinery/config"
+	"github.com/siderolabs/talos/pkg/machinery/config/configloader"
 	"github.com/siderolabs/talos/pkg/machinery/resources/config"
 	"github.com/siderolabs/talos/pkg/machinery/resources/runtime"
 	"github.com/stretchr/testify/require"
@@ -249,12 +251,18 @@ url: "tcp://[fdae:41e4:649b:9303::1]:8092"
 func newInstalledMachineService(t *testing.T) (*services.MachineService, state.State) {
 	t.Helper()
 
+	return newInstalledMachineServiceWithBootConfig(t, nil)
+}
+
+func newInstalledMachineServiceWithBootConfig(t *testing.T, bootConfig talosconfig.Provider) (*services.MachineService, state.State) {
+	t.Helper()
+
 	st := newLifecycleState(t, true)
 	globalState := state.WrapCore(namespaced.NewState(inmem.Build))
 
 	require.NoError(t, globalState.Create(t.Context(), emu.NewMachineStatus(emu.NamespaceName, testMachineID)))
 
-	svc := services.NewMachineService(testMachineID, st, globalState, factoryHosts, zap.NewNop(), nil)
+	svc := services.NewMachineService(testMachineID, st, globalState, factoryHosts, zap.NewNop(), services.NewMachineState(bootConfig))
 
 	_, err := svc.ApplyConfiguration(t.Context(), &machine.ApplyConfigurationRequest{
 		Data: []byte(completeConfig),
@@ -433,6 +441,26 @@ func TestResetCancelsTryModeRollback(t *testing.T) {
 
 		return !state.IsNotFoundError(getErr)
 	}, 500*time.Millisecond, 50*time.Millisecond, "the reset machine should not get the previous config back")
+
+	requireNoPersistentConfig(t, st)
+}
+
+func TestResetRestoresBootConfig(t *testing.T) {
+	bootConfig, err := configloader.NewFromBytes([]byte(maintenanceConfig))
+	require.NoError(t, err)
+
+	svc, st := newInstalledMachineServiceWithBootConfig(t, bootConfig)
+
+	_, err = svc.Reset(t.Context(), &machine.ResetRequest{
+		SystemPartitionsToWipe: []*machine.ResetPartitionSpec{{Label: "STATE"}},
+	})
+	require.NoError(t, err)
+
+	cfg, err := safe.ReaderGetByID[*config.MachineConfig](t.Context(), st, config.ActiveID)
+	require.NoError(t, err)
+
+	require.Equal(t, 1, activeConfigDocuments(t, st))
+	require.NotNil(t, cfg.Config().Runtime().EventsEndpoint(), "the reset machine should run with its boot config")
 
 	requireNoPersistentConfig(t, st)
 }

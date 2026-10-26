@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/aes"
+	"crypto/tls"
 	"fmt"
 	"net/netip"
 	"sync"
@@ -38,8 +39,11 @@ const defaultDiscoveryTTL = 30 * time.Minute
 // DiscoveryServiceController pushes Affiliate resources to the discovery service registry.
 //
 // It is a copy of the cluster.DiscoveryServiceController of Talos, stripped of the parts the emulator
-// doesn't implement (TLS/proxy dial options).
+// doesn't implement (proxy dial options).
 type DiscoveryServiceController struct {
+	// State is the machine's own state, read for the CAs it trusts.
+	State state.State
+
 	// clients holds one running discovery client per configured endpoint, keyed by endpoint name.
 	clients map[string]*discoveryServiceClient
 
@@ -335,6 +339,15 @@ func (ctrl *DiscoveryServiceController) startClient(ctx context.Context, logger 
 		TTL:           defaultDiscoveryTTL,
 		Insecure:      spec.insecure,
 		ClientVersion: version.Tag,
+		TLSConfig: func() *tls.Config {
+			// like Talos, the CAs the machine trusts are read on every dial
+			rootCAs, rootsErr := trustedRoots(ctx, ctrl.State)
+			if rootsErr != nil {
+				logger.Warn("failed to load the trusted CAs", zap.Error(rootsErr))
+			}
+
+			return &tls.Config{RootCAs: rootCAs}
+		},
 	})
 	if err != nil {
 		return fmt.Errorf("error initializing discovery client %q: %w", name, err)

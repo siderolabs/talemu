@@ -36,7 +36,10 @@ const relayRetryTimeout = 10 * time.Second
 // This is a port of the same-named controller in Talos: it consumes the Tunnel resource written by the
 // ManagerController in tunnel mode, creates the TUN-backed userspace WireGuard device for the machine's
 // SideroLink interface, and relays its traffic over the SideroLink provisioning gRPC endpoint.
-type UserspaceWireguardController struct{}
+type UserspaceWireguardController struct {
+	// State is the machine's own state, read for the CAs it trusts.
+	State state.State
+}
 
 // Name implements controller.Controller interface.
 func (ctrl *UserspaceWireguardController) Name() string {
@@ -168,7 +171,7 @@ func (ctrl *UserspaceWireguardController) Run(ctx context.Context, r controller.
 				zap.Stringer("new_node_address", ourAddrPort),
 			)
 
-			relay, relayErr := wggrpc.NewRelayToHost(dstHost, relayRetryTimeout, qp, ourAddrPort, withTransportCredentials(insecureConn))
+			relay, relayErr := ctrl.newRelay(ctx, dstHost, qp, ourAddrPort, insecureConn)
 			if relayErr != nil {
 				return fmt.Errorf("failed to create tunnel relay: %w", relayErr)
 			}
@@ -313,4 +316,14 @@ func (rt *resettableTimer) C() <-chan time.Time {
 	}
 
 	return rt.timer.C
+}
+
+// newRelay creates the tunnel relay to the SideroLink host.
+func (ctrl *UserspaceWireguardController) newRelay(ctx context.Context, dstHost string, qp *wgbind.QueuePair, ourAddrPort netip.AddrPort, insecureConn bool) (*wggrpc.Relay, error) {
+	transportCredentials, err := withTransportCredentials(ctx, ctrl.State, insecureConn)
+	if err != nil {
+		return nil, err
+	}
+
+	return wggrpc.NewRelayToHost(dstHost, relayRetryTimeout, qp, ourAddrPort, transportCredentials)
 }

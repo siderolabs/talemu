@@ -63,7 +63,7 @@ type MachineService struct {
 // across apid restarts; when nil (e.g. in tests) a fresh one is allocated.
 func NewMachineService(machineID string, state, globalState state.State, factoryHosts []string, logger *zap.Logger, sharedMachineState *machineState) *MachineService {
 	if sharedMachineState == nil {
-		sharedMachineState = newMachineState()
+		sharedMachineState = newMachineState(nil)
 	}
 
 	return &MachineService{
@@ -332,6 +332,13 @@ func (c *MachineService) Reset(ctx context.Context, request *machine.ResetReques
 
 	if err = destroyResourceByID[*config.MachineConfig](ctx, c.state, cfg.Metadata().ID()); err != nil {
 		return nil, err
+	}
+
+	// like Talos booting after the reset, the machine acquires its boot config again
+	if c.sharedMachineState.bootConfig != nil {
+		if err = machineconfig.Store(ctx, c.state, config.NewMachineConfig(c.sharedMachineState.bootConfig)); err != nil {
+			return nil, err
+		}
 	}
 
 	// a reset wipes STATE, which also discards a pending try mode rollback
@@ -1224,7 +1231,9 @@ var errSequenceInProgress = status.Error(codes.FailedPrecondition, "another sequ
 // It is owned by the APID service, so it survives apid restarts (cert and address changes) and lets
 // the services observe the same boot ID and serialize operations within each Talos lock domain.
 type machineState struct {
-	bootID *kernelBootID
+	// bootConfig is the machine config the machine acquires at boot (embedded in the boot media or the platform's), nil when there is none.
+	bootConfig talosconfig.Provider
+	bootID     *kernelBootID
 	// configMu serializes the config applies and the try mode rollbacks.
 	configMu sync.Mutex
 	// configGeneration is incremented on every config apply, so that a rollback skips a try that is already replaced.
@@ -1236,8 +1245,8 @@ type machineState struct {
 }
 
 // newMachineState allocates per-machine state with a fresh boot ID.
-func newMachineState() *machineState {
-	return &machineState{bootID: newKernelBootID()}
+func newMachineState(bootConfig talosconfig.Provider) *machineState {
+	return &machineState{bootConfig: bootConfig, bootID: newKernelBootID()}
 }
 
 // kernelBootID emulates /proc/sys/kernel/random/boot_id.
